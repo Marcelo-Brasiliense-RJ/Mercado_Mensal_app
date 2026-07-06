@@ -1,0 +1,64 @@
+@import "tailwindcss";
+
+:root {
+  --desk:#E7DFD5; --bg:#F4EEE7; --card:#FFFFFF; --card-2:#F3EDE6;
+  --text:#241E1A; --text-2:#786C63; --text-3:#A99E94; --border:#EAE1D8;
+  --brand:#C15F3C; --brand-ink:#FFF8F4; --brand-soft:#F6E7E2;
+  --pos:#17935B; --pos-ink:#0A1710; --pos-soft:#E2F1E9;
+  --warn:#C57814; --warn-ink:#3A2400; --warn-soft:#FBEAD2;
+  --neg:#D6453F; --neg-ink:#FFF1F0; --neg-soft:#FBE6E4;
+  --shadow:rgba(74,48,28,0.10); --shadow-lg:rgba(74,48,28,0.18);
+}
+[data-theme="dark"] {
+  --desk:#0C0908; --bg:#161210; --card:#211B17; --card-2:#2A231D;
+  --text:#F3EBE3; --text-2:#B4A89E; --text-3:#7D7167; --border:#33291F;
+  --brand:#CD7A5C; --brand-ink:#2A130B; --brand-soft:#2C1A13;
+  --pos:#37B37F; --pos-ink:#08140E; --pos-soft:#17281F;
+  --warn:#E7A33C; --warn-ink:#2E1C00; --warn-soft:#352814;
+  --neg:#E8706A; --neg-ink:#2A0E0C; --neg-soft:#361F1D;
+}
+
+@theme inline {
+  --color-desk: var(--desk);
+  --color-bg: var(--bg);
+  --color-card: var(--card);
+  --color-card-2: var(--card-2);
+  --color-text: var(--text);
+  --color-text-2: var(--text-2);
+  --color-text-3: var(--text-3);
+  --color-border: var(--border);
+  --color-brand: var(--brand);
+  --color-brand-ink: var(--brand-ink);
+  --color-brand-soft: var(--brand-soft);
+  --color-pos: var(--pos);
+  --color-pos-ink: var(--pos-ink);
+  --color-pos-soft: var(--pos-soft);
+  --color-warn: var(--warn);
+  --color-warn-ink: var(--warn-ink);
+  --color-warn-soft: var(--warn-soft);
+  --color-neg: var(--neg);
+  --color-neg-ink: var(--neg-ink);
+  --color-neg-soft: var(--neg-soft);
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, Menlo, monospace;
+}
+
+* { box-sizing: border-box; scrollbar-width: none; }
+::-webkit-scrollbar { width: 0; height: 0; background: transparent; }
+html, body { margin: 0; padding: 0; height: 100%; }
+body {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  background: var(--desk);
+  color: var(--text);
+}
+input, button, select { font-family: inherit; }
+input:focus, select:focus { outline: none; }
+::placeholder { color: var(--text-3); }
+a { color: var(--brand); text-decoration: none; }
+
+@keyframes shimmer { 0% { background-position: -260px 0; } 100% { background-position: 260px 0; } }
+@keyframes sheetUp { from { transform: translateY(102%); } to { transform: translateY(0); } }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes toastIn { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translate(-50%, 0); } }
+@keyframes pop { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
