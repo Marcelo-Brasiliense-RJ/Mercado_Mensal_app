@@ -1,0 +1,21 @@
+# Dependências
+node_modules/
+
+# Segredos e ambiente (NUNCA comitar)
+.env
+.env.*
+*.key
+*.pem
+
+# Build
+dist/
+build/
+.next/
+.vercel/
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Config local do Claude Code
+.claude/settings.local.json
