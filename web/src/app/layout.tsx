@@ -16,7 +16,7 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-const themeInit = `(function(){try{var t=localStorage.getItem('dispensa-theme');if(!t){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','light');}})();`;
+const themeInit = `(function(){try{var t=localStorage.getItem('dispensa-theme')||'light';document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','light');}})();`;
 
 export default function RootLayout({
   children,
