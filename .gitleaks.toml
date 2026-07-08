@@ -1,0 +1,22 @@
+# Scan de segredos do Mercado_app (gitleaks).
+# Instalar: scoop install gitleaks   |   brew install gitleaks
+# Varrer historico:   gitleaks git    --config .gitleaks.toml --redact
+# Varrer o stage:     gitleaks protect --staged --config .gitleaks.toml --redact
+#   (o hook .githooks/pre-commit ja roda a versao --staged a cada commit)
+
+[extend]
+useDefault = true   # herda as regras padrao: Groq, Telegram bot token, JWT, chaves genericas, etc.
+
+[allowlist]
+description = "Falsos positivos conhecidos"
+paths = [
+  '''\.env\.example$''',      # so contem placeholders
+  '''package-lock\.json$''',
+  '''\.gitleaks\.toml$''',
+]
+# A anon key do Supabase e um JWT PUBLICO (o RLS por familia e quem protege).
+# So existe em web/.env.local (nao versionado) e como placeholder no .env.example.
+regexes = [
+  '''sua_anon_key_aqui''',
+  '''SEU_PROJETO''',
+]

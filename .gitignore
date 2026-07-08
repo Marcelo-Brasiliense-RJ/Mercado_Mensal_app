@@ -4,6 +4,7 @@ node_modules/
 # Segredos e ambiente (NUNCA comitar)
 .env
 .env.*
+!.env.example
 *.key
 *.pem
 .mcp.json

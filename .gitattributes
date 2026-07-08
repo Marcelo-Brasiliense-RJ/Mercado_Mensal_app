@@ -1,0 +1,3 @@
+# Hooks de shell precisam de LF, senao o shebang quebra em Linux/Mac.
+.githooks/** text eol=lf
+*.sh text eol=lf

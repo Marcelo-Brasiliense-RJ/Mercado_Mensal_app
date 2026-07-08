@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Dispensa">
+  <rect width="512" height="512" rx="112" fill="#C15F3C"/>
+  <path d="M170 138 V374 M170 138 C300 138 356 178 356 256 C356 334 300 374 170 374"
+        fill="none" stroke="#F4EEE7" stroke-width="66" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

@@ -1,0 +1,17 @@
+#!/bin/sh
+# Bloqueia o commit se houver segredo no que esta em stage.
+# Ative uma vez por clone:   git config core.hooksPath .githooks
+# (git roda hooks via sh mesmo no Windows/Git Bash)
+
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo "[pre-commit] gitleaks nao encontrado; scan de segredos PULADO."
+  echo "             instale: scoop install gitleaks | brew install gitleaks"
+  echo "             (o gate obrigatorio deve rodar tambem no CI)"
+  exit 0
+fi
+
+if ! gitleaks protect --staged --config .gitleaks.toml --redact; then
+  echo "[pre-commit] SEGREDO detectado no stage. Commit BLOQUEADO."
+  echo "             remova o segredo do codigo e, se ja foi exposto, ROTACIONE a chave."
+  exit 1
+fi
