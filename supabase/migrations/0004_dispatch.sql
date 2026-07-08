@@ -16,4 +16,5 @@ begin
   end case;
 end $$;
 
-grant execute on function mercado_apply(bigint, text, text, numeric, numeric, text) to service_role;
+revoke execute on function mercado_apply(bigint, text, text, text, numeric, numeric, text) from public, anon;
+grant execute on function mercado_apply(bigint, text, text, text, numeric, numeric, text) to service_role;
