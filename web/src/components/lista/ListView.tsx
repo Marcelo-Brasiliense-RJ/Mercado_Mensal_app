@@ -1,24 +1,42 @@
 "use client";
 
 import { useState } from "react";
-import { brl, listTotal, pendingCount } from "@/lib/format";
+import { brl } from "@/lib/format";
 import { CheckIcon, PlusIcon } from "@/components/ui/icons";
 import { ScreenHeader } from "@/components/layout/ScreenHeader";
 import { useStore } from "@/lib/store";
 import { AddItemModal } from "./AddItemModal";
 
 export function ListView() {
-  const { shopping, toggleBought } = useStore();
+  const { shopping, buyItems, removeItems, showToast } = useStore();
   const [addOpen, setAddOpen] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
 
-  const total = listTotal(shopping);
-  const missing = pendingCount(shopping);
   const visible = shopping
     .filter((i) => i.status !== "removed")
     .sort(
       (a, b) =>
         (a.status === "bought" ? 1 : 0) - (b.status === "bought" ? 1 : 0),
     );
+  // So conta no total quem voce vai comprar: pendente e NAO esta em estoque.
+  const aComprar = visible.filter((i) => i.status === "pending" && !i.em_estoque);
+  const total = aComprar.reduce(
+    (acc, i) => acc + i.desired_quantity * (i.estimated_price ?? 0),
+    0,
+  );
+  const missing = aComprar.length;
+
+  async function comprar(id: string) {
+    setBusy(id);
+    await buyItems([id]);
+    setBusy(null);
+    showToast("Comprado, estoque reposto");
+  }
+  async function remover(id: string) {
+    setBusy(id);
+    await removeItems([id]);
+    setBusy(null);
+  }
 
   const addBtn = (
     <button
@@ -35,56 +53,39 @@ export function ListView() {
       <ScreenHeader title="Lista de compras" action={addBtn} />
 
       <div className="space-y-4 lg:space-y-6">
-        {/* Resumo mobile (cartao unico) */}
-        <div className="flex items-stretch rounded-[20px] border border-border bg-card p-[18px] shadow-[0_2px_10px_var(--shadow)] lg:hidden">
-          <div className="flex-1">
-            <div className="text-[13px] text-text-2">Total a pagar</div>
-            <div className="text-[34px] font-extrabold leading-none">{brl(total)}</div>
-            <div className="mt-1 text-[12px] text-text-3">estimado</div>
-          </div>
-          <div className="mx-4 w-px bg-border" />
-          <div className="flex flex-col justify-center text-center">
-            <div className="text-[34px] font-extrabold leading-none text-brand">
-              {missing}
-            </div>
-            <div className="text-[12px] text-text-3">faltando</div>
-          </div>
-        </div>
-
-        {/* Resumo desktop (2 cartoes) */}
-        <div className="hidden gap-4 lg:grid lg:grid-cols-2">
-          <div className="rounded-[20px] border border-border bg-card p-[22px] shadow-[0_2px_12px_var(--shadow)]">
-            <div className="mb-2.5 text-xs font-bold uppercase tracking-wide text-text-3">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="rounded-[20px] border border-border bg-card p-[18px] shadow-[0_2px_10px_var(--shadow)] lg:p-[22px]">
+            <div className="mb-1.5 text-xs font-bold uppercase tracking-wide text-text-3">
               Total a pagar
             </div>
-            <div className="text-[44px] font-extrabold leading-none tracking-[-0.03em]">
+            <div className="text-[34px] font-extrabold leading-none lg:text-[44px]">
               {brl(total)}
             </div>
-            <div className="mt-2 text-[13px] text-text-3">estimado</div>
+            <div className="mt-1.5 text-[12px] text-text-3">só o que falta comprar</div>
           </div>
-          <div className="rounded-[20px] border border-border bg-card p-[22px] shadow-[0_2px_12px_var(--shadow)]">
-            <div className="mb-2.5 text-xs font-bold uppercase tracking-wide text-text-3">
-              Itens faltando
+          <div className="rounded-[20px] border border-border bg-card p-[18px] shadow-[0_2px_10px_var(--shadow)] lg:p-[22px]">
+            <div className="mb-1.5 text-xs font-bold uppercase tracking-wide text-text-3">
+              Faltando
             </div>
-            <div className="text-[44px] font-extrabold leading-none tracking-[-0.03em] text-brand">
+            <div className="text-[34px] font-extrabold leading-none text-brand lg:text-[44px]">
               {missing}
             </div>
-            <div className="mt-2 text-[13px] text-text-3">para comprar</div>
+            <div className="mt-1.5 text-[12px] text-text-3">itens para comprar</div>
           </div>
         </div>
 
         {visible.length === 0 && (
           <p className="pt-8 text-center text-[15px] leading-relaxed text-text-3">
-            Sua lista está vazia. Adicione itens aqui ou peça pelo bot no Telegram
-            (&quot;vou comprar arroz&quot;).
+            Sua lista está vazia. Adicione itens aqui ou mande itens do Estoque
+            para repor.
           </p>
         )}
 
-        {/* Linhas: cartao no mobile, linha com divisoria no desktop */}
         <ul className="space-y-2.5 lg:space-y-0 lg:overflow-hidden lg:rounded-[20px] lg:border lg:border-border lg:bg-card lg:shadow-[0_2px_12px_var(--shadow)] empty:hidden">
           {visible.map((i) => {
             const bought = i.status === "bought";
             const price = i.estimated_price ?? 0;
+            const jaTenho = !bought && i.em_estoque;
             return (
               <li
                 key={i.id}
@@ -93,8 +94,9 @@ export function ListView() {
                 }`}
               >
                 <button
-                  onClick={() => toggleBought(i.id)}
-                  aria-label={bought ? "Desmarcar" : "Marcar como comprado"}
+                  onClick={() => !bought && comprar(i.id)}
+                  disabled={bought || busy === i.id}
+                  aria-label={bought ? "Comprado" : "Marcar como comprado"}
                   className={`grid h-[26px] w-[26px] shrink-0 place-items-center rounded-lg border-2 ${
                     bought
                       ? "border-brand bg-brand text-brand-ink"
@@ -111,16 +113,29 @@ export function ListView() {
                     {i.desired_quantity} {i.unit} · {brl(price)}
                   </div>
                 </div>
-                <span className="shrink-0 text-[16px] font-extrabold">
-                  {brl(i.desired_quantity * price)}
-                </span>
+                {jaTenho ? (
+                  <span className="shrink-0 rounded-full bg-pos-soft px-2.5 py-[3px] text-[12px] font-bold text-pos">
+                    já tenho
+                  </span>
+                ) : (
+                  <span className="shrink-0 text-[16px] font-extrabold">
+                    {brl(i.desired_quantity * price)}
+                  </span>
+                )}
+                <button
+                  onClick={() => remover(i.id)}
+                  disabled={busy === i.id}
+                  aria-label="Remover"
+                  className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-[18px] text-text-3 hover:bg-card-2"
+                >
+                  ×
+                </button>
               </li>
             );
           })}
         </ul>
       </div>
 
-      {/* FAB mobile */}
       <button
         onClick={() => setAddOpen(true)}
         aria-label="Adicionar item"

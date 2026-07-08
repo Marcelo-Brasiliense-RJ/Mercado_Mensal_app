@@ -29,8 +29,8 @@ export function ItemDetailModal({
     { date: "média", text: "Preço médio (3 meses)", price: brl(item.priceAvg ?? 0) },
   ];
 
-  function add() {
-    addStockToList(item!);
+  async function add() {
+    await addStockToList(item!);
     showToast(`${item!.name} adicionado à lista`);
     onClose();
   }

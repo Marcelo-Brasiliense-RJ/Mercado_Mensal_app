@@ -39,9 +39,10 @@ type Store = Data & {
   zerarStock: (ids: string[]) => Promise<void>;
   deleteStock: (ids: string[]) => Promise<void>;
   stockToList: (ids: string[]) => Promise<void>;
-  toggleBought: (id: string) => void;
-  addShopItem: (item: Omit<ShopItem, "id" | "status">) => void;
-  addStockToList: (item: StockItem) => void;
+  addShopItem: (item: Omit<ShopItem, "id" | "status">) => Promise<void>;
+  addStockToList: (item: StockItem) => Promise<void>;
+  buyItems: (ids: string[]) => Promise<void>;
+  removeItems: (ids: string[]) => Promise<void>;
   setBudget: (total: number) => void;
   confirmReceipt: (items: { name: string; qty: number; price: number }[]) => void;
   showToast: (msg: string) => void;
@@ -119,52 +120,46 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
     toastT.current = setTimeout(() => setToast(null), 2200);
   }, []);
 
-  const toggleBought = useCallback(
-    (id: string) =>
-      setData((d) => ({
-        ...d,
-        shopping: d.shopping.map((i) =>
-          i.id === id
-            ? { ...i, status: i.status === "bought" ? "pending" : "bought" }
-            : i,
-        ),
-      })),
-    [],
-  );
-
   const addShopItem = useCallback(
-    (item: Omit<ShopItem, "id" | "status">) =>
-      setData((d) => ({
-        ...d,
-        shopping: [
-          ...d.shopping,
-          { ...item, id: `l-${Date.now()}`, status: "pending" },
-        ],
-      })),
-    [],
+    async (item: Omit<ShopItem, "id" | "status">) => {
+      await createClient().rpc("mercado_list_add_web", {
+        p_name: item.name,
+        p_qty: item.desired_quantity,
+        p_unit: item.unit,
+        p_price: item.estimated_price,
+      });
+      await reloadData();
+    },
+    [reloadData],
   );
 
   const addStockToList = useCallback(
-    (item: StockItem) =>
-      setData((d) => {
-        if (d.shopping.some((s) => s.name === item.name && s.status !== "removed"))
-          return d;
-        return {
-          ...d,
-          shopping: [
-            ...d.shopping,
-            {
-              id: `l-${Date.now()}`,
-              name: item.name,
-              desired_quantity: Math.max(1, Math.round(item.normal - item.current)),
-              unit: item.unit,
-              estimated_price: item.priceLast,
-              status: "pending",
-            },
-          ],
-        };
-      }),
-    [],
+    async (item: StockItem) => {
+      await createClient().rpc("mercado_list_add_web", {
+        p_name: item.name,
+        p_qty: Math.max(1, Math.round(item.normal - item.current)),
+        p_unit: item.unit,
+        p_price: item.priceLast,
+      });
+      await reloadData();
+    },
+    [reloadData],
+  );
+
+  const buyItems = useCallback(
+    async (ids: string[]) => {
+      await createClient().rpc("mercado_list_buy_web", { p_ids: ids });
+      await reloadData();
+    },
+    [reloadData],
+  );
+
+  const removeItems = useCallback(
+    async (ids: string[]) => {
+      await createClient().rpc("mercado_list_remove_web", { p_ids: ids });
+      await reloadData();
+    },
+    [reloadData],
   );
 
   const setBudget = useCallback(
@@ -196,9 +191,10 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       zerarStock,
       deleteStock,
       stockToList,
-      toggleBought,
       addShopItem,
       addStockToList,
+      buyItems,
+      removeItems,
       setBudget,
       confirmReceipt,
       showToast,
@@ -212,9 +208,10 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       zerarStock,
       deleteStock,
       stockToList,
-      toggleBought,
       addShopItem,
       addStockToList,
+      buyItems,
+      removeItems,
       setBudget,
       confirmReceipt,
       showToast,

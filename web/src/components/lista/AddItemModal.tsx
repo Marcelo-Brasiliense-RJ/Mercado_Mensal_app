@@ -30,9 +30,9 @@ export function AddItemModal({
     setPreco("");
   }
 
-  function submit() {
+  async function submit() {
     if (!nome.trim()) return;
-    addShopItem({
+    await addShopItem({
       name: nome.trim(),
       desired_quantity: Number(qtd.replace(",", ".")) || 1,
       unit: unidade,

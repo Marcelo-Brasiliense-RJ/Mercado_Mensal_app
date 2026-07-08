@@ -17,6 +17,7 @@ export type ShopItem = {
   unit: string;
   estimated_price: number | null;
   status: "pending" | "bought" | "removed";
+  em_estoque?: boolean; // true = ja tem em estoque; nao conta no total a pagar
 };
 
 export type SavingRow = {
