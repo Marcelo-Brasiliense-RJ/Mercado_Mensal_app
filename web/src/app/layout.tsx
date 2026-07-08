@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { AppStoreProvider } from "@/lib/store";
+import { Toast } from "@/components/ui/Toast";
 
 export const metadata: Metadata = {
   title: "Dispensa",
@@ -26,7 +28,12 @@ export default function RootLayout({
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInit }} />
       </head>
-      <body>{children}</body>
+      <body>
+        <AppStoreProvider>
+          {children}
+          <Toast />
+        </AppStoreProvider>
+      </body>
     </html>
   );
 }

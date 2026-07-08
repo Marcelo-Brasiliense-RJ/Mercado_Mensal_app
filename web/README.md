@@ -1,6 +1,6 @@
 # Dispensa (web)
 
-Dashboard PWA mobile-first do projeto Mercado Mensal. Next.js (App Router) + Tailwind v4, reproduzindo o design `Dispensa.dc.html`.
+Dashboard PWA responsivo do projeto Mercado Mensal. Next.js (App Router) + Tailwind v4, reproduzindo os designs `Dispensa.dc.html` (mobile) e `Dispensa Desktop.dc.html` (desktop, com sidebar). Mesmo codigo e mesmo estado nas duas larguras: editar numa tela reflete nas outras.
 
 ## Telas
 - Landing "Como usar"

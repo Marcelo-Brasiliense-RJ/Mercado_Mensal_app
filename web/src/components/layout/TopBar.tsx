@@ -6,14 +6,18 @@ export function TopBar({
   subtitle,
   back,
   right,
+  className = "",
 }: {
   title: string;
   subtitle?: string;
   back?: string;
   right?: React.ReactNode;
+  className?: string;
 }) {
   return (
-    <header className="sticky top-0 z-20 flex h-[52px] items-center border-b border-border bg-card px-3">
+    <header
+      className={`sticky top-0 z-20 flex h-[52px] items-center border-b border-border bg-card px-3 ${className}`}
+    >
       <div className="flex w-10 justify-start">
         {back && (
           <Link

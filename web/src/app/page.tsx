@@ -1,61 +1,79 @@
 import Link from "next/link";
-import { BoxIcon, TelegramIcon } from "@/components/ui/icons";
+import { TelegramIcon } from "@/components/ui/icons";
+import { BrandMark } from "@/components/ui/BrandMark";
+import { ThemeToggle } from "@/theme/ThemeToggle";
 import { family } from "@/lib/seed";
 
 const steps = [
-  { n: 1, title: "Crie sua conta", desc: "Login por e-mail e senha, rapido." },
-  { n: 2, title: "Monte sua familia", desc: "Crie ou entre por um codigo de convite." },
-  { n: 3, title: "Abra o Telegram", desc: "Conecte o bot da sua familia." },
-  { n: 4, title: "Mande um audio", desc: '"Comprei arroz 5 reais, dois pacotes."' },
+  { n: 1, title: "Crie sua conta", desc: "E-mail e senha, sem complicação." },
+  { n: 2, title: "Monte sua família", desc: "Crie ou entre com um código curto." },
+  { n: 3, title: "Conecte o Telegram", desc: `Fale com o bot ${family.botHandle}.` },
+  { n: 4, title: "Áudio ou nota fiscal", desc: "Diga o que comprou ou fotografe a nota." },
 ];
+const botUrl = `https://t.me/${family.botHandle.replace("@", "")}`;
 
 export default function Landing() {
   return (
-    <div className="mx-auto flex min-h-dvh max-w-[440px] flex-col bg-bg px-5 pb-8 pt-8">
-      <div className="grid h-16 w-16 place-items-center rounded-[18px] bg-brand text-brand-ink shadow-[0_8px_20px_var(--shadow-lg)]">
-        <BoxIcon size={30} />
-      </div>
-      <h1 className="mt-6 text-[32px] font-extrabold leading-[1.1] tracking-tight">
-        Sua dispensa sob controle
-      </h1>
-      <p className="mt-3 text-[15px] leading-relaxed text-text-2">
-        Controle o estoque de casa e as compras do mes falando por audio no
-        Telegram. O painel mostra estoque, lista e o quanto voce esta
-        economizando.
-      </p>
-
-      <div className="mt-7 space-y-3">
-        {steps.map((s) => (
-          <div
-            key={s.n}
-            className="flex items-start gap-3 rounded-[18px] border border-border bg-card p-4 shadow-[0_1px_3px_var(--shadow)]"
+    <div className="flex min-h-dvh flex-col bg-bg">
+      <header className="mx-auto flex w-full max-w-[1160px] items-center justify-between px-5 py-5 lg:px-10">
+        <div className="flex items-center gap-3">
+          <BrandMark size={40} radius={11} />
+          <span className="text-[18px] font-extrabold">Dispensa</span>
+        </div>
+        <div className="flex items-center gap-2.5">
+          <ThemeToggle />
+          <Link
+            href="/entrar"
+            className="flex h-[42px] items-center rounded-[12px] bg-brand px-5 text-[14px] font-bold text-brand-ink"
           >
-            <div className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-brand text-[13px] font-bold text-brand-ink">
-              {s.n}
-            </div>
-            <div>
-              <div className="font-bold">{s.title}</div>
-              <div className="text-[13px] text-text-2">{s.desc}</div>
-            </div>
+            Entrar
+          </Link>
+        </div>
+      </header>
+
+      <div className="flex flex-1 flex-col items-center justify-center px-6 py-8 text-center">
+        <div className="max-w-[640px]">
+          <h1 className="text-[36px] font-extrabold leading-[1.05] tracking-[-0.03em] text-balance lg:text-[52px]">
+            Sua dispensa sob controle
+          </h1>
+          <p className="mx-auto mt-4 max-w-[520px] text-[16px] leading-relaxed text-text-2 lg:text-[18px]">
+            Fale por áudio no Telegram ou fotografe a nota fiscal. Acompanhe
+            estoque, lista de compras e economia da família, em qualquer tela.
+          </p>
+          <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
+            <Link
+              href="/entrar"
+              className="flex h-[54px] items-center justify-center rounded-[15px] bg-brand px-[30px] text-[16px] font-bold text-brand-ink shadow-[0_10px_24px_var(--shadow-lg)]"
+            >
+              Entrar no app
+            </Link>
+            <a
+              href={botUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex h-[54px] items-center justify-center gap-2 rounded-[15px] bg-[#2AABEE] px-[26px] text-[16px] font-bold text-white"
+            >
+              <TelegramIcon size={18} /> Abrir no Telegram
+            </a>
           </div>
-        ))}
+        </div>
       </div>
 
-      <div className="mt-auto space-y-3 pt-8">
-        <Link
-          href="/app/estoque"
-          className="flex h-[52px] items-center justify-center rounded-[16px] bg-brand text-[16px] font-bold text-brand-ink shadow-[0_8px_20px_var(--shadow-lg)]"
-        >
-          Entrar no app
-        </Link>
-        <a
-          href={`https://t.me/${family.botHandle.replace("@", "")}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex h-[50px] items-center justify-center gap-2 rounded-[16px] border border-border bg-card font-bold text-text"
-        >
-          <TelegramIcon size={20} /> Abrir no Telegram
-        </a>
+      <div className="mx-auto w-full max-w-[1080px] px-6 pb-14 lg:px-10">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {steps.map((s) => (
+            <div
+              key={s.n}
+              className="rounded-[18px] border border-border bg-card p-[22px] shadow-[0_1px_3px_var(--shadow)]"
+            >
+              <div className="mb-3.5 grid h-[34px] w-[34px] place-items-center rounded-[10px] bg-brand font-extrabold text-brand-ink">
+                {s.n}
+              </div>
+              <div className="mb-1.5 text-[16px] font-extrabold">{s.title}</div>
+              <div className="text-[13px] leading-snug text-text-2">{s.desc}</div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

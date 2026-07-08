@@ -60,3 +60,17 @@ export const TelegramIcon = ({ size, className }: P) => (
 export const CopyIcon = ({ size, className }: P) => (
   <svg {...base(size)} className={className}><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15V5a2 2 0 0 1 2-2h10" /></svg>
 );
+export const ReceiptIcon = ({ size, className }: P) => (
+  <svg {...base(size)} className={className}>
+    <path d="M3 9a2 2 0 0 1 2-2h2l1.2-1.6a1 1 0 0 1 .8-.4h6a1 1 0 0 1 .8.4L17 7h2a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+    <circle cx="12" cy="12.5" r="3.3" />
+  </svg>
+);
+export const UsersIcon = ({ size, className }: P) => (
+  <svg {...base(size)} className={className}>
+    <circle cx="9" cy="8.5" r="3.3" />
+    <path d="M2.5 20c0-3.5 2.9-5.4 6.5-5.4" />
+    <circle cx="17" cy="9.5" r="2.8" />
+    <path d="M13.5 15c3.4 0 6 1.8 6 5" />
+  </svg>
+);

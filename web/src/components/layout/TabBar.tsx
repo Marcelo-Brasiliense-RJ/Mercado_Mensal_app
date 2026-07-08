@@ -10,10 +10,12 @@ const tabs = [
   { href: "/app/economia", label: "Economia", Icon: ChartIcon },
 ];
 
-export function TabBar() {
+export function TabBar({ className = "" }: { className?: string }) {
   const path = usePathname();
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-20 mx-auto flex max-w-[440px] border-t border-border bg-card pb-[env(safe-area-inset-bottom)]">
+    <nav
+      className={`fixed inset-x-0 bottom-0 z-20 flex border-t border-border bg-card pb-[env(safe-area-inset-bottom)] ${className}`}
+    >
       {tabs.map(({ href, label, Icon }) => {
         const active = path.startsWith(href);
         return (
