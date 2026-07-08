@@ -1,0 +1,15 @@
+-- 0006_fix_resolve_household.sql
+-- Corrige o erro "function mercado_resolve_household(bigint) is not unique".
+--
+-- Existiam duas funcoes com o mesmo nome aceitando um bigint:
+--   0002: mercado_resolve_household(p_chat_id bigint, p_name text default null)
+--         versao antiga (pre-multitenant): pegava o primeiro household e
+--         gravava na tabela users. O p_name com default deixava a funcao
+--         chamavel com apenas 1 argumento.
+--   0003: mercado_resolve_household(p_chat_id bigint)
+--         versao multitenant correta: resolve pelo household_members.
+--
+-- Com um unico argumento, o Postgres nao sabia qual escolher (ambiguidade).
+-- Todas as chamadas do projeto usam 1 argumento e devem resolver para a versao
+-- de 0003. Removemos a versao antiga de 2 argumentos.
+drop function if exists mercado_resolve_household(bigint, text);
