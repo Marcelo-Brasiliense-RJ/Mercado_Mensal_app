@@ -14,6 +14,7 @@ import {
 import { BrandMark } from "@/components/ui/BrandMark";
 import { useStore } from "@/lib/store";
 import { useTheme } from "@/theme/useTheme";
+import { createClient } from "@/lib/supabase/client";
 
 const nav = [
   { href: "/app/estoque", label: "Estoque", Icon: BoxIcon },
@@ -25,6 +26,11 @@ export function Sidebar({ onRegistrar }: { onRegistrar: () => void }) {
   const path = usePathname();
   const { family } = useStore();
   const { isDark, toggle } = useTheme();
+
+  async function sair() {
+    await createClient().auth.signOut();
+    window.location.assign("/entrar");
+  }
 
   return (
     <aside className="flex w-[270px] shrink-0 flex-col border-r border-border bg-card px-4 py-[22px]">
@@ -88,12 +94,12 @@ export function Sidebar({ onRegistrar }: { onRegistrar: () => void }) {
           {isDark ? <SunIcon size={19} /> : <MoonIcon size={19} />}
           Tema
         </button>
-        <Link
-          href="/"
+        <button
+          onClick={sair}
           className="flex h-[42px] flex-1 items-center justify-center rounded-[11px] border border-border bg-card text-[13px] font-bold text-neg hover:bg-card-2"
         >
           Sair
-        </Link>
+        </button>
       </div>
     </aside>
   );

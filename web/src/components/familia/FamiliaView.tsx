@@ -1,10 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { AvatarInitial } from "@/components/ui/AvatarInitial";
 import { TelegramIcon } from "@/components/ui/icons";
 import { ScreenHeader } from "@/components/layout/ScreenHeader";
 import { useStore } from "@/lib/store";
+import { createClient } from "@/lib/supabase/client";
 
 const cardCls =
   "rounded-[20px] border border-border bg-card p-[18px] shadow-[0_2px_12px_var(--shadow)] lg:p-[22px]";
@@ -31,6 +31,12 @@ export function FamiliaView() {
       } catch {}
     }
     copy();
+  }
+
+  async function sair() {
+    await createClient().auth.signOut();
+    // Reload completo: limpa o estado do cliente e o proxy ja ve sem sessao.
+    window.location.assign("/entrar");
   }
 
   return (
@@ -108,12 +114,12 @@ export function FamiliaView() {
         </div>
 
         {/* Sair (so no mobile: no desktop fica na sidebar) */}
-        <Link
-          href="/"
+        <button
+          onClick={sair}
           className="flex h-[50px] items-center justify-center rounded-[16px] border border-border bg-card font-bold text-neg lg:hidden"
         >
           Sair da conta
-        </Link>
+        </button>
       </div>
     </div>
   );
