@@ -5,21 +5,59 @@ import type { StockItem } from "@/lib/types";
 import { stockRatio } from "@/lib/format";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { AvatarInitial } from "@/components/ui/AvatarInitial";
-import { SearchIcon, ChevronRight } from "@/components/ui/icons";
+import { SearchIcon, ChevronRight, CheckIcon } from "@/components/ui/icons";
 import { ScreenHeader } from "@/components/layout/ScreenHeader";
 import { useStore } from "@/lib/store";
 import { ItemDetailModal } from "./ItemDetailModal";
 
 export function StockView() {
-  const { stock } = useStore();
+  const { stock, zerarStock, deleteStock, showToast } = useStore();
   const [q, setQ] = useState("");
   const [detail, setDetail] = useState<StockItem | null>(null);
+  const [selMode, setSelMode] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [busy, setBusy] = useState(false);
 
   const filtered = stock.filter((i) =>
     i.name.toLowerCase().includes(q.toLowerCase()),
   );
   const repor = filtered.filter((i) => stockRatio(i.current, i.normal) < 0.5);
   const ok = filtered.filter((i) => stockRatio(i.current, i.normal) >= 0.5);
+
+  function toggleSel(id: string) {
+    setSelected((s) => {
+      const n = new Set(s);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+  }
+  function exitSel() {
+    setSelMode(false);
+    setSelected(new Set());
+  }
+  function onItem(item: StockItem) {
+    if (selMode) toggleSel(item.id);
+    else setDetail(item);
+  }
+
+  async function darBaixa() {
+    if (!selected.size) return;
+    setBusy(true);
+    await zerarStock([...selected]);
+    setBusy(false);
+    showToast(`${selected.size} item(ns) zerado(s)`);
+    exitSel();
+  }
+  async function excluir() {
+    if (!selected.size) return;
+    if (!confirm(`Excluir ${selected.size} item(ns) do estoque?`)) return;
+    setBusy(true);
+    await deleteStock([...selected]);
+    setBusy(false);
+    showToast(`${selected.size} item(ns) excluído(s)`);
+    exitSel();
+  }
 
   const search = (
     <div className="relative w-full lg:w-[280px]">
@@ -44,8 +82,22 @@ export function StockView() {
         action={search}
       />
 
-      <div className="space-y-6">
+      <div className="space-y-6 pb-24">
         <div className="lg:hidden">{search}</div>
+
+        {stock.length > 0 && (
+          <div className="flex items-center justify-between">
+            <span className="text-[13px] text-text-3">
+              {selMode ? `${selected.size} selecionado(s)` : "Toque em Selecionar para dar baixa ou excluir"}
+            </span>
+            <button
+              onClick={() => (selMode ? exitSel() : setSelMode(true))}
+              className="h-9 rounded-[10px] border border-border bg-card px-3.5 text-[13px] font-bold text-text-2"
+            >
+              {selMode ? "Cancelar" : "Selecionar"}
+            </button>
+          </div>
+        )}
 
         {stock.length === 0 && (
           <p className="pt-12 text-center text-[15px] leading-relaxed text-text-3">
@@ -57,14 +109,26 @@ export function StockView() {
         {repor.length > 0 && (
           <Section label="Repor" count={repor.length} warn>
             {repor.map((i) => (
-              <Item key={i.id} item={i} onOpen={() => setDetail(i)} />
+              <Item
+                key={i.id}
+                item={i}
+                selMode={selMode}
+                selected={selected.has(i.id)}
+                onClick={() => onItem(i)}
+              />
             ))}
           </Section>
         )}
         {ok.length > 0 && (
           <Section label="Tudo em casa" count={ok.length}>
             {ok.map((i) => (
-              <Item key={i.id} item={i} onOpen={() => setDetail(i)} />
+              <Item
+                key={i.id}
+                item={i}
+                selMode={selMode}
+                selected={selected.has(i.id)}
+                onClick={() => onItem(i)}
+              />
             ))}
           </Section>
         )}
@@ -72,6 +136,26 @@ export function StockView() {
           <p className="pt-10 text-center text-text-3">Nenhum item encontrado.</p>
         )}
       </div>
+
+      {/* Barra de acoes em lote */}
+      {selMode && selected.size > 0 && (
+        <div className="fixed inset-x-0 bottom-[76px] z-40 mx-auto flex max-w-[640px] gap-3 px-4 lg:bottom-6 lg:max-w-[1120px] lg:px-9">
+          <button
+            onClick={darBaixa}
+            disabled={busy}
+            className="h-[52px] flex-1 rounded-[14px] bg-brand text-[15px] font-bold text-brand-ink shadow-[0_8px_24px_var(--shadow-lg)] disabled:opacity-50"
+          >
+            Dar baixa ({selected.size})
+          </button>
+          <button
+            onClick={excluir}
+            disabled={busy}
+            className="h-[52px] flex-1 rounded-[14px] border border-neg bg-card text-[15px] font-bold text-neg shadow-[0_8px_24px_var(--shadow-lg)] disabled:opacity-50"
+          >
+            Excluir ({selected.size})
+          </button>
+        </div>
+      )}
 
       <ItemDetailModal item={detail} onClose={() => setDetail(null)} />
     </>
@@ -107,7 +191,6 @@ function Section({
           {count}
         </span>
       </div>
-      {/* Mobile: linhas empilhadas. Desktop: grade de 3 colunas. */}
       <div className="space-y-2.5 lg:grid lg:grid-cols-3 lg:gap-3.5 lg:space-y-0">
         {children}
       </div>
@@ -115,18 +198,29 @@ function Section({
   );
 }
 
-function Item({ item, onOpen }: { item: StockItem; onOpen: () => void }) {
+function Item({
+  item,
+  selMode,
+  selected,
+  onClick,
+}: {
+  item: StockItem;
+  selMode: boolean;
+  selected: boolean;
+  onClick: () => void;
+}) {
   const ratio = stockRatio(item.current, item.normal);
   const repor = ratio < 0.5;
   return (
     <>
-      {/* Mobile: linha compacta */}
+      {/* Mobile */}
       <button
-        onClick={onOpen}
-        className={`flex w-full items-center gap-3 rounded-[16px] border border-border bg-card p-3 text-left shadow-[0_1px_3px_var(--shadow)] lg:hidden ${
-          repor ? "border-l-[3px] border-l-warn" : ""
-        }`}
+        onClick={onClick}
+        className={`flex w-full items-center gap-3 rounded-[16px] border bg-card p-3 text-left shadow-[0_1px_3px_var(--shadow)] lg:hidden ${
+          selected ? "border-brand ring-1 ring-brand" : "border-border"
+        } ${repor && !selected ? "border-l-[3px] border-l-warn" : ""}`}
       >
+        {selMode && <SelDot on={selected} />}
         <AvatarInitial name={item.name} size={44} />
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-2">
@@ -142,17 +236,20 @@ function Item({ item, onOpen }: { item: StockItem; onOpen: () => void }) {
             </span>
           </div>
         </div>
-        {!repor && <ChevronRight size={18} className="shrink-0 text-text-3" />}
+        {!selMode && !repor && (
+          <ChevronRight size={18} className="shrink-0 text-text-3" />
+        )}
       </button>
 
-      {/* Desktop: card */}
+      {/* Desktop */}
       <button
-        onClick={onOpen}
-        className={`hidden text-left lg:block rounded-[18px] border border-border bg-card p-4 shadow-[0_1px_3px_var(--shadow)] ${
-          repor ? "border-l-[3px] border-l-warn" : ""
-        }`}
+        onClick={onClick}
+        className={`hidden text-left lg:block rounded-[18px] border bg-card p-4 shadow-[0_1px_3px_var(--shadow)] ${
+          selected ? "border-brand ring-1 ring-brand" : "border-border"
+        } ${repor && !selected ? "border-l-[3px] border-l-warn" : ""}`}
       >
         <div className="mb-3.5 flex items-center gap-3">
+          {selMode && <SelDot on={selected} />}
           <AvatarInitial name={item.name} size={42} />
           <div className="min-w-0 flex-1">
             <div className="truncate text-[15px] font-bold">{item.name}</div>
@@ -179,5 +276,17 @@ function Item({ item, onOpen }: { item: StockItem; onOpen: () => void }) {
         </div>
       </button>
     </>
+  );
+}
+
+function SelDot({ on }: { on: boolean }) {
+  return (
+    <span
+      className={`grid h-[22px] w-[22px] shrink-0 place-items-center rounded-full border-2 ${
+        on ? "border-brand bg-brand text-brand-ink" : "border-border text-transparent"
+      }`}
+    >
+      <CheckIcon size={12} />
+    </span>
   );
 }

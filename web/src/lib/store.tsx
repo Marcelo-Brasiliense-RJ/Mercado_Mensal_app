@@ -36,6 +36,8 @@ type Store = Data & {
   dataLoading: boolean;
   toast: string | null;
   reloadData: () => Promise<void>;
+  zerarStock: (ids: string[]) => Promise<void>;
+  deleteStock: (ids: string[]) => Promise<void>;
   toggleBought: (id: string) => void;
   addShopItem: (item: Omit<ShopItem, "id" | "status">) => void;
   addStockToList: (item: StockItem) => void;
@@ -85,6 +87,22 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       setDataLoading(false);
     }
   }, []);
+
+  const zerarStock = useCallback(
+    async (ids: string[]) => {
+      await createClient().rpc("mercado_stock_zerar_web", { p_ids: ids });
+      await reloadData();
+    },
+    [reloadData],
+  );
+
+  const deleteStock = useCallback(
+    async (ids: string[]) => {
+      await createClient().rpc("mercado_stock_delete_web", { p_ids: ids });
+      await reloadData();
+    },
+    [reloadData],
+  );
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);
@@ -166,6 +184,8 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       dataLoading,
       toast,
       reloadData,
+      zerarStock,
+      deleteStock,
       toggleBought,
       addShopItem,
       addStockToList,
@@ -179,6 +199,8 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       dataLoading,
       toast,
       reloadData,
+      zerarStock,
+      deleteStock,
       toggleBought,
       addShopItem,
       addStockToList,
