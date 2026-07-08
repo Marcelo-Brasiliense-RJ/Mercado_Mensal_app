@@ -39,6 +39,15 @@ export function HouseholdProvider({ children }: { children: React.ReactNode }) {
   const reload = useCallback(async () => {
     setLoading(true);
     const supabase = createClient();
+    // Sem sessao valida as RPCs rodam como anon (permission denied). Nesse caso
+    // o lugar certo e o login, nao o onboarding de familia.
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      window.location.assign("/entrar");
+      return;
+    }
     const { data } = await supabase.rpc("mercado_my_household");
     // A RPC devolve null quando o usuario ainda nao tem familia.
     setHousehold((data as Household | null) ?? null);

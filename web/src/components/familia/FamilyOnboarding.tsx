@@ -36,7 +36,13 @@ export function FamilyOnboarding() {
       p_name: familyName.trim(),
     });
     setLoading(false);
-    if (error || !data?.ok) return setErro("Não foi possível criar. Tente novamente.");
+    if (error) return setErro(`Não foi possível criar: ${error.message}`);
+    if (!data?.ok)
+      return setErro(
+        data?.erro === "nao_autenticado"
+          ? "Sua sessão expirou. Entre novamente."
+          : "Não foi possível criar. Tente novamente.",
+      );
     setCode(data.invite_code);
     setPhase("telegram");
   }
@@ -50,8 +56,13 @@ export function FamilyOnboarding() {
       p_code: c,
     });
     setLoading(false);
-    if (error) return setErro("Não foi possível entrar. Tente novamente.");
-    if (!data?.ok) return setErro("Código inválido. Confira e tente de novo.");
+    if (error) return setErro(`Não foi possível entrar: ${error.message}`);
+    if (!data?.ok)
+      return setErro(
+        data?.erro === "nao_autenticado"
+          ? "Sua sessão expirou. Entre novamente."
+          : "Código inválido. Confira e tente de novo.",
+      );
     setCode(c);
     setPhase("telegram");
   }
