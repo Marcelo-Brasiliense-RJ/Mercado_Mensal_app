@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { StockItem } from "@/lib/types";
-import { stockRatio } from "@/lib/format";
+import { stockRatio, brl } from "@/lib/format";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { AvatarInitial } from "@/components/ui/AvatarInitial";
 import { SearchIcon, ChevronRight, CheckIcon } from "@/components/ui/icons";
@@ -11,7 +11,7 @@ import { useStore } from "@/lib/store";
 import { ItemDetailModal } from "./ItemDetailModal";
 
 export function StockView() {
-  const { stock, zerarStock, deleteStock, showToast } = useStore();
+  const { stock, zerarStock, deleteStock, stockToList, showToast } = useStore();
   const [q, setQ] = useState("");
   const [detail, setDetail] = useState<StockItem | null>(null);
   const [selMode, setSelMode] = useState(false);
@@ -23,6 +23,7 @@ export function StockView() {
   );
   const repor = filtered.filter((i) => stockRatio(i.current, i.normal) < 0.5);
   const ok = filtered.filter((i) => stockRatio(i.current, i.normal) >= 0.5);
+  const valorTotal = stock.reduce((a, i) => a + i.current * (i.priceLast ?? 0), 0);
 
   function toggleSel(id: string) {
     setSelected((s) => {
@@ -36,26 +37,26 @@ export function StockView() {
     setSelMode(false);
     setSelected(new Set());
   }
+  function selecionarTudo() {
+    setSelected(new Set(filtered.map((i) => i.id)));
+  }
   function onItem(item: StockItem) {
     if (selMode) toggleSel(item.id);
     else setDetail(item);
   }
 
-  async function darBaixa() {
+  async function runBatch(
+    fn: (ids: string[]) => Promise<void>,
+    msg: (n: number) => string,
+    confirmMsg?: string,
+  ) {
     if (!selected.size) return;
+    if (confirmMsg && !confirm(confirmMsg)) return;
+    const n = selected.size;
     setBusy(true);
-    await zerarStock([...selected]);
+    await fn([...selected]);
     setBusy(false);
-    showToast(`${selected.size} item(ns) zerado(s)`);
-    exitSel();
-  }
-  async function excluir() {
-    if (!selected.size) return;
-    if (!confirm(`Excluir ${selected.size} item(ns) do estoque?`)) return;
-    setBusy(true);
-    await deleteStock([...selected]);
-    setBusy(false);
-    showToast(`${selected.size} item(ns) excluído(s)`);
+    showToast(msg(n));
     exitSel();
   }
 
@@ -78,7 +79,7 @@ export function StockView() {
     <>
       <ScreenHeader
         title="Estoque"
-        subtitle={`${stock.length} itens na dispensa`}
+        subtitle={`${stock.length} itens · ${brl(valorTotal)} em estoque`}
         action={search}
       />
 
@@ -86,16 +87,28 @@ export function StockView() {
         <div className="lg:hidden">{search}</div>
 
         {stock.length > 0 && (
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-2">
             <span className="text-[13px] text-text-3">
-              {selMode ? `${selected.size} selecionado(s)` : "Toque em Selecionar para dar baixa ou excluir"}
+              {selMode
+                ? `${selected.size} selecionado(s)`
+                : "Toque em Selecionar para agir em lote"}
             </span>
-            <button
-              onClick={() => (selMode ? exitSel() : setSelMode(true))}
-              className="h-9 rounded-[10px] border border-border bg-card px-3.5 text-[13px] font-bold text-text-2"
-            >
-              {selMode ? "Cancelar" : "Selecionar"}
-            </button>
+            <div className="flex gap-2">
+              {selMode && (
+                <button
+                  onClick={selecionarTudo}
+                  className="h-9 rounded-[10px] border border-border bg-card px-3.5 text-[13px] font-bold text-text-2"
+                >
+                  Selecionar tudo
+                </button>
+              )}
+              <button
+                onClick={() => (selMode ? exitSel() : setSelMode(true))}
+                className="h-9 rounded-[10px] border border-border bg-card px-3.5 text-[13px] font-bold text-text-2"
+              >
+                {selMode ? "Cancelar" : "Selecionar"}
+              </button>
+            </div>
           </div>
         )}
 
@@ -139,18 +152,31 @@ export function StockView() {
 
       {/* Barra de acoes em lote */}
       {selMode && selected.size > 0 && (
-        <div className="fixed inset-x-0 bottom-[76px] z-40 mx-auto flex max-w-[640px] gap-3 px-4 lg:bottom-6 lg:max-w-[1120px] lg:px-9">
+        <div className="fixed inset-x-0 bottom-[76px] z-40 mx-auto flex max-w-[640px] flex-wrap gap-2 px-4 lg:bottom-6 lg:max-w-[1120px] lg:px-9">
           <button
-            onClick={darBaixa}
+            onClick={() => runBatch(zerarStock, (n) => `${n} item(ns) zerado(s)`)}
             disabled={busy}
-            className="h-[52px] flex-1 rounded-[14px] bg-brand text-[15px] font-bold text-brand-ink shadow-[0_8px_24px_var(--shadow-lg)] disabled:opacity-50"
+            className="h-[50px] min-w-[100px] flex-1 rounded-[14px] bg-brand text-[14px] font-bold text-brand-ink shadow-[0_8px_24px_var(--shadow-lg)] disabled:opacity-50"
           >
             Dar baixa ({selected.size})
           </button>
           <button
-            onClick={excluir}
+            onClick={() => runBatch(stockToList, (n) => `${n} item(ns) na lista de compras`)}
             disabled={busy}
-            className="h-[52px] flex-1 rounded-[14px] border border-neg bg-card text-[15px] font-bold text-neg shadow-[0_8px_24px_var(--shadow-lg)] disabled:opacity-50"
+            className="h-[50px] min-w-[100px] flex-1 rounded-[14px] border border-brand bg-card text-[14px] font-bold text-brand shadow-[0_8px_24px_var(--shadow-lg)] disabled:opacity-50"
+          >
+            + Lista ({selected.size})
+          </button>
+          <button
+            onClick={() =>
+              runBatch(
+                deleteStock,
+                (n) => `${n} item(ns) excluído(s)`,
+                `Excluir ${selected.size} item(ns) do estoque?`,
+              )
+            }
+            disabled={busy}
+            className="h-[50px] min-w-[100px] flex-1 rounded-[14px] border border-neg bg-card text-[14px] font-bold text-neg shadow-[0_8px_24px_var(--shadow-lg)] disabled:opacity-50"
           >
             Excluir ({selected.size})
           </button>
@@ -211,6 +237,7 @@ function Item({
 }) {
   const ratio = stockRatio(item.current, item.normal);
   const repor = ratio < 0.5;
+  const valor = item.priceLast ? item.current * item.priceLast : null;
   return (
     <>
       {/* Mobile */}
@@ -227,6 +254,7 @@ function Item({
             <span className="truncate font-bold">{item.name}</span>
             <span className="shrink-0 text-sm text-text-2">
               {item.current} {item.unit}
+              {valor !== null ? ` · ${brl(valor)}` : ""}
             </span>
           </div>
           <div className="mt-2 flex items-center gap-2">
@@ -255,6 +283,7 @@ function Item({
             <div className="truncate text-[15px] font-bold">{item.name}</div>
             <div className="text-[13px] text-text-2">
               {item.current} {item.unit}
+              {valor !== null ? ` · ${brl(valor)}` : ""}
             </div>
           </div>
           {repor ? (

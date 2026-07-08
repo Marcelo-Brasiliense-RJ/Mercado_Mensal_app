@@ -38,6 +38,7 @@ type Store = Data & {
   reloadData: () => Promise<void>;
   zerarStock: (ids: string[]) => Promise<void>;
   deleteStock: (ids: string[]) => Promise<void>;
+  stockToList: (ids: string[]) => Promise<void>;
   toggleBought: (id: string) => void;
   addShopItem: (item: Omit<ShopItem, "id" | "status">) => void;
   addStockToList: (item: StockItem) => void;
@@ -99,6 +100,14 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   const deleteStock = useCallback(
     async (ids: string[]) => {
       await createClient().rpc("mercado_stock_delete_web", { p_ids: ids });
+      await reloadData();
+    },
+    [reloadData],
+  );
+
+  const stockToList = useCallback(
+    async (ids: string[]) => {
+      await createClient().rpc("mercado_stock_to_list_web", { p_ids: ids });
       await reloadData();
     },
     [reloadData],
@@ -186,6 +195,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       reloadData,
       zerarStock,
       deleteStock,
+      stockToList,
       toggleBought,
       addShopItem,
       addStockToList,
@@ -201,6 +211,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       reloadData,
       zerarStock,
       deleteStock,
+      stockToList,
       toggleBought,
       addShopItem,
       addStockToList,
