@@ -4,43 +4,38 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
 import type { StockItem, ShopItem, SavingRow, MonthPoint } from "./types";
+import { createClient } from "./supabase/client";
 
-// Estado mutavel compartilhado por todas as telas (mobile e desktop sao o mesmo
-// app). Persistido em localStorage: dentro de um dispositivo, editar na Lista
-// reflete no Estoque e sobrevive a reload.
-// ponytail: estado comeca vazio (estado vazio honesto). A leitura real de
-// estoque/lista/economia vem quando os endpoints _web ligarem no Supabase.
-type Mutable = {
+// Estado das telas do app. Os dados vem do Supabase (RPCs _web, leitura por
+// familia). As acoes de edicao (marcar comprado, adicionar item, orcamento) sao
+// otimistas em memoria; a fonte de escrita hoje e o bot. Ao recarregar, reloadData
+// busca de novo do banco.
+type Data = {
   stock: StockItem[];
   shopping: ShopItem[];
   budget: { total: number; spent: number };
+  savings: SavingRow[];
+  months: MonthPoint[];
 };
 
-const SEED: Mutable = {
+const EMPTY: Data = {
   stock: [],
   shopping: [],
   budget: { total: 0, spent: 0 },
+  savings: [],
+  months: [],
 };
 
-// Dados de leitura ainda nao ligados (economia). Vazios ate ter RPC _web.
-const savings: SavingRow[] = [];
-const savingsTotal = 0;
-const months: MonthPoint[] = [];
-
-const STORAGE_KEY = "dispensa-data";
-
-type Store = Mutable & {
-  savings: SavingRow[];
+type Store = Data & {
   savingsTotal: number;
-  months: MonthPoint[];
+  dataLoading: boolean;
   toast: string | null;
-  // acoes
+  reloadData: () => Promise<void>;
   toggleBought: (id: string) => void;
   addShopItem: (item: Omit<ShopItem, "id" | "status">) => void;
   addStockToList: (item: StockItem) => void;
@@ -58,23 +53,37 @@ export function useStore(): Store {
 }
 
 export function AppStoreProvider({ children }: { children: React.ReactNode }) {
-  const [data, setData] = useState<Mutable>(SEED);
+  const [data, setData] = useState<Data>(EMPTY);
+  const [dataLoading, setDataLoading] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const toastT = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Hidrata do localStorage depois do primeiro render (evita mismatch de SSR).
-  useEffect(() => {
+  const reloadData = useCallback(async () => {
+    setDataLoading(true);
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) setData({ ...SEED, ...JSON.parse(raw) });
-    } catch {}
-  }, []);
-
-  const persist = useCallback((next: Mutable) => {
-    setData(next);
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-    } catch {}
+      const supabase = createClient();
+      const [stockR, listR, ecoR] = await Promise.all([
+        supabase.rpc("mercado_stock_web"),
+        supabase.rpc("mercado_list_web"),
+        supabase.rpc("mercado_economia_web"),
+      ]);
+      const eco = (ecoR.data ?? {}) as {
+        budget?: { total: number; spent: number };
+        months?: MonthPoint[];
+        savings?: SavingRow[];
+      };
+      setData({
+        stock: (stockR.data as StockItem[] | null) ?? [],
+        shopping: (listR.data as ShopItem[] | null) ?? [],
+        budget: eco.budget ?? { total: 0, spent: 0 },
+        months: eco.months ?? [],
+        savings: eco.savings ?? [],
+      });
+    } catch {
+      // Falha de rede/sessao: mantem o que tinha. O gate ja cuida de sessao.
+    } finally {
+      setDataLoading(false);
+    }
   }, []);
 
   const showToast = useCallback((msg: string) => {
@@ -85,71 +94,78 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
 
   const toggleBought = useCallback(
     (id: string) =>
-      persist({
-        ...data,
-        shopping: data.shopping.map((i) =>
+      setData((d) => ({
+        ...d,
+        shopping: d.shopping.map((i) =>
           i.id === id
             ? { ...i, status: i.status === "bought" ? "pending" : "bought" }
             : i,
         ),
-      }),
-    [data, persist],
+      })),
+    [],
   );
 
   const addShopItem = useCallback(
     (item: Omit<ShopItem, "id" | "status">) =>
-      persist({
-        ...data,
+      setData((d) => ({
+        ...d,
         shopping: [
-          ...data.shopping,
+          ...d.shopping,
           { ...item, id: `l-${Date.now()}`, status: "pending" },
         ],
-      }),
-    [data, persist],
+      })),
+    [],
   );
 
   const addStockToList = useCallback(
-    (item: StockItem) => {
-      if (data.shopping.some((s) => s.name === item.name && s.status !== "removed"))
-        return;
-      persist({
-        ...data,
-        shopping: [
-          ...data.shopping,
-          {
-            id: `l-${Date.now()}`,
-            name: item.name,
-            desired_quantity: Math.max(1, Math.round(item.normal - item.current)),
-            unit: item.unit,
-            estimated_price: item.priceLast,
-            status: "pending",
-          },
-        ],
-      });
-    },
-    [data, persist],
+    (item: StockItem) =>
+      setData((d) => {
+        if (d.shopping.some((s) => s.name === item.name && s.status !== "removed"))
+          return d;
+        return {
+          ...d,
+          shopping: [
+            ...d.shopping,
+            {
+              id: `l-${Date.now()}`,
+              name: item.name,
+              desired_quantity: Math.max(1, Math.round(item.normal - item.current)),
+              unit: item.unit,
+              estimated_price: item.priceLast,
+              status: "pending",
+            },
+          ],
+        };
+      }),
+    [],
   );
 
   const setBudget = useCallback(
-    (total: number) => persist({ ...data, budget: { ...data.budget, total } }),
-    [data, persist],
+    (total: number) => setData((d) => ({ ...d, budget: { ...d.budget, total } })),
+    [],
   );
 
   const confirmReceipt = useCallback(
-    (items: { name: string; qty: number; price: number }[]) => {
-      const spent = items.reduce((a, i) => a + i.qty * i.price, 0);
-      persist({ ...data, budget: { ...data.budget, spent: data.budget.spent + spent } });
-    },
-    [data, persist],
+    (items: { name: string; qty: number; price: number }[]) =>
+      setData((d) => {
+        const spent = items.reduce((a, i) => a + i.qty * i.price, 0);
+        return { ...d, budget: { ...d.budget, spent: d.budget.spent + spent } };
+      }),
+    [],
+  );
+
+  const savingsTotal = useMemo(
+    () => data.savings.reduce((a, s) => a + s.saved, 0),
+    [data.savings],
   );
 
   const value = useMemo<Store>(
     () => ({
       ...data,
-      savings,
       savingsTotal,
-      months,
+      dataLoading,
       toast,
+      reloadData,
       toggleBought,
       addShopItem,
       addStockToList,
@@ -159,7 +175,10 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
     }),
     [
       data,
+      savingsTotal,
+      dataLoading,
       toast,
+      reloadData,
       toggleBought,
       addShopItem,
       addStockToList,
