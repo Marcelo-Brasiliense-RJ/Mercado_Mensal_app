@@ -20,3 +20,6 @@ Thumbs.db
 
 # Config local do Claude Code
 .claude/settings.local.json
+
+# Utilitarios locais (nao versionar)
+anti_idle/
