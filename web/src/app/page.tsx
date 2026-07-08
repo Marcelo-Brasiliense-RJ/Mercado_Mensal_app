@@ -2,15 +2,15 @@ import Link from "next/link";
 import { TelegramIcon } from "@/components/ui/icons";
 import { BrandMark } from "@/components/ui/BrandMark";
 import { ThemeToggle } from "@/theme/ThemeToggle";
-import { family } from "@/lib/seed";
+import { BOT_HANDLE, BOT_URL } from "@/lib/config";
 
 const steps = [
   { n: 1, title: "Crie sua conta", desc: "E-mail e senha, sem complicação." },
   { n: 2, title: "Monte sua família", desc: "Crie ou entre com um código curto." },
-  { n: 3, title: "Conecte o Telegram", desc: `Fale com o bot ${family.botHandle}.` },
+  { n: 3, title: "Conecte o Telegram", desc: `Fale com o bot ${BOT_HANDLE}.` },
   { n: 4, title: "Áudio ou nota fiscal", desc: "Diga o que comprou ou fotografe a nota." },
 ];
-const botUrl = `https://t.me/${family.botHandle.replace("@", "")}`;
+const botUrl = BOT_URL;
 
 export default function Landing() {
   return (

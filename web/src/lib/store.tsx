@@ -9,23 +9,13 @@ import {
   useRef,
   useState,
 } from "react";
-import type { StockItem, ShopItem } from "./types";
-import {
-  stock as seedStock,
-  shopping as seedShopping,
-  budget as seedBudget,
-  savings,
-  savingsTotal,
-  months,
-  family,
-  members,
-} from "./seed";
+import type { StockItem, ShopItem, SavingRow, MonthPoint } from "./types";
 
 // Estado mutavel compartilhado por todas as telas (mobile e desktop sao o mesmo
 // app). Persistido em localStorage: dentro de um dispositivo, editar na Lista
 // reflete no Estoque e sobrevive a reload.
-// ponytail: localStorage e o stand-in de sincronizacao; a sincronizacao real
-// entre dispositivos entra ao ligar o Supabase (RPCs _web).
+// ponytail: estado comeca vazio (estado vazio honesto). A leitura real de
+// estoque/lista/economia vem quando os endpoints _web ligarem no Supabase.
 type Mutable = {
   stock: StockItem[];
   shopping: ShopItem[];
@@ -33,20 +23,22 @@ type Mutable = {
 };
 
 const SEED: Mutable = {
-  stock: seedStock,
-  shopping: seedShopping,
-  budget: { ...seedBudget },
+  stock: [],
+  shopping: [],
+  budget: { total: 0, spent: 0 },
 };
+
+// Dados de leitura ainda nao ligados (economia). Vazios ate ter RPC _web.
+const savings: SavingRow[] = [];
+const savingsTotal = 0;
+const months: MonthPoint[] = [];
 
 const STORAGE_KEY = "dispensa-data";
 
 type Store = Mutable & {
-  // dados de leitura (ainda estaticos)
-  savings: typeof savings;
+  savings: SavingRow[];
   savingsTotal: number;
-  months: typeof months;
-  family: typeof family;
-  members: typeof members;
+  months: MonthPoint[];
   toast: string | null;
   // acoes
   toggleBought: (id: string) => void;
@@ -157,8 +149,6 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       savings,
       savingsTotal,
       months,
-      family,
-      members,
       toast,
       toggleBought,
       addShopItem,

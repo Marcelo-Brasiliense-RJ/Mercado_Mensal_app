@@ -47,6 +47,13 @@ export function StockView() {
       <div className="space-y-6">
         <div className="lg:hidden">{search}</div>
 
+        {stock.length === 0 && (
+          <p className="pt-12 text-center text-[15px] leading-relaxed text-text-3">
+            Sua dispensa está vazia. Registre suas compras por áudio no bot do
+            Telegram e o estoque aparece aqui.
+          </p>
+        )}
+
         {repor.length > 0 && (
           <Section label="Repor" count={repor.length} warn>
             {repor.map((i) => (
@@ -61,7 +68,7 @@ export function StockView() {
             ))}
           </Section>
         )}
-        {filtered.length === 0 && (
+        {stock.length > 0 && filtered.length === 0 && (
           <p className="pt-10 text-center text-text-3">Nenhum item encontrado.</p>
         )}
       </div>

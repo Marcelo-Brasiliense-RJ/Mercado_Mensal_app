@@ -73,8 +73,15 @@ export function ListView() {
           </div>
         </div>
 
+        {visible.length === 0 && (
+          <p className="pt-8 text-center text-[15px] leading-relaxed text-text-3">
+            Sua lista está vazia. Adicione itens aqui ou peça pelo bot no Telegram
+            (&quot;vou comprar arroz&quot;).
+          </p>
+        )}
+
         {/* Linhas: cartao no mobile, linha com divisoria no desktop */}
-        <ul className="space-y-2.5 lg:space-y-0 lg:overflow-hidden lg:rounded-[20px] lg:border lg:border-border lg:bg-card lg:shadow-[0_2px_12px_var(--shadow)]">
+        <ul className="space-y-2.5 lg:space-y-0 lg:overflow-hidden lg:rounded-[20px] lg:border lg:border-border lg:bg-card lg:shadow-[0_2px_12px_var(--shadow)] empty:hidden">
           {visible.map((i) => {
             const bought = i.status === "bought";
             const price = i.estimated_price ?? 0;

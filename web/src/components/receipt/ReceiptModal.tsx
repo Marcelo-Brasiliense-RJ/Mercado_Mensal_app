@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/icons";
 import { brl } from "@/lib/format";
 import { useStore } from "@/lib/store";
-import { family } from "@/lib/seed";
+import { BOT_URL } from "@/lib/config";
 
 // Amostra usada quando nao ha OCR real (ainda). ponytail: itens fixos ate a
 // leitura de nota fiscal ser ligada no backend.
@@ -26,7 +26,7 @@ const SAMPLE = [
 ];
 
 type Phase = "capture" | "processing" | "review";
-const botUrl = `https://t.me/${family.botHandle.replace("@", "")}`;
+const botUrl = BOT_URL;
 
 export function ReceiptModal({
   open,

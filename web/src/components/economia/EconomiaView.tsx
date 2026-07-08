@@ -15,9 +15,23 @@ export function EconomiaView() {
   const { savings, savingsTotal, budget, months } = useStore();
   const [budgetOpen, setBudgetOpen] = useState(false);
 
+  const vazio = savings.length === 0 && months.length === 0 && budget.total === 0;
   const b = budgetStatus(budget.spent, budget.total);
-  const chartMax = Math.max(budget.total, ...months.map((m) => m.value)) * 1.1;
+  const chartMax = Math.max(budget.total, ...months.map((m) => m.value), 1) * 1.1;
   const linePos = (budget.total / chartMax) * 100;
+
+  if (vazio) {
+    return (
+      <>
+        <ScreenHeader title="Economia" subtitle="do mês" />
+        <p className="pt-12 text-center text-[15px] leading-relaxed text-text-3">
+          Ainda não há gastos registrados. Conforme você registra compras pelo
+          bot, a economia e o orçamento do mês aparecem aqui.
+        </p>
+        <BudgetModal open={budgetOpen} onClose={() => setBudgetOpen(false)} />
+      </>
+    );
+  }
 
   return (
     <>

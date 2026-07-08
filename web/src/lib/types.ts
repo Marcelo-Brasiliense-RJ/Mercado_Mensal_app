@@ -31,9 +31,3 @@ export type MonthPoint = {
   value: number;
   current: boolean;
 };
-
-export type Member = {
-  name: string;
-  role: "Admin" | "Membro";
-  telegram: boolean;
-};

@@ -12,7 +12,7 @@ import {
   MoonIcon,
 } from "@/components/ui/icons";
 import { BrandMark } from "@/components/ui/BrandMark";
-import { useStore } from "@/lib/store";
+import { useHousehold } from "@/lib/household";
 import { useTheme } from "@/theme/useTheme";
 import { createClient } from "@/lib/supabase/client";
 
@@ -24,7 +24,7 @@ const nav = [
 
 export function Sidebar({ onRegistrar }: { onRegistrar: () => void }) {
   const path = usePathname();
-  const { family } = useStore();
+  const { household } = useHousehold();
   const { isDark, toggle } = useTheme();
 
   async function sair() {
@@ -38,7 +38,7 @@ export function Sidebar({ onRegistrar }: { onRegistrar: () => void }) {
         <BrandMark size={42} radius={12} />
         <div className="min-w-0">
           <div className="text-[17px] font-extrabold leading-[1.15]">Dispensa</div>
-          <div className="truncate text-[12px] text-text-2">{family.name}</div>
+          <div className="truncate text-[12px] text-text-2">{household?.familia}</div>
         </div>
       </div>
 
