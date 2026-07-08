@@ -106,6 +106,9 @@ export default function Entrar() {
             <label className={labelCls}>E-mail</label>
             <input
               type="email"
+              name="email"
+              autoComplete="email"
+              inputMode="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="voce@email.com"
@@ -114,6 +117,8 @@ export default function Entrar() {
             <label className={labelCls}>Senha</label>
             <input
               type="password"
+              name="current-password"
+              autoComplete="current-password"
               value={senha}
               onChange={(e) => setSenha(e.target.value)}
               placeholder="********"
@@ -147,6 +152,8 @@ export default function Entrar() {
           <Panel>
             <label className={labelCls}>Nome</label>
             <input
+              name="name"
+              autoComplete="name"
               value={nome}
               onChange={(e) => setNome(e.target.value)}
               placeholder="Seu nome"
@@ -155,6 +162,9 @@ export default function Entrar() {
             <label className={labelCls}>E-mail</label>
             <input
               type="email"
+              name="email"
+              autoComplete="email"
+              inputMode="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="voce@email.com"
@@ -163,6 +173,8 @@ export default function Entrar() {
             <label className={labelCls}>Senha</label>
             <input
               type="password"
+              name="new-password"
+              autoComplete="new-password"
               value={senha}
               onChange={(e) => setSenha(e.target.value)}
               placeholder="Crie uma senha"
