@@ -63,8 +63,6 @@ export function ListView() {
       <ScreenHeader title="Lista de compras" action={addBtn} />
 
       <div className="space-y-4 lg:space-y-6">
-        <CartPanel />
-
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="rounded-[20px] border border-border bg-card p-[18px] shadow-[0_2px_10px_var(--shadow)] lg:p-[22px]">
             <div className="mb-1.5 text-xs font-bold uppercase tracking-wide text-text-3">
@@ -85,6 +83,8 @@ export function ListView() {
             <div className="mt-1.5 text-[12px] text-text-3">itens para comprar</div>
           </div>
         </div>
+
+        <CartPanel />
 
         {visible.length === 0 && (
           <p className="pt-8 text-center text-[15px] leading-relaxed text-text-3">
