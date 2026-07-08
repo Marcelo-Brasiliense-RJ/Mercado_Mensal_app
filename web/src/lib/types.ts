@@ -20,6 +20,21 @@ export type ShopItem = {
   em_estoque?: boolean; // true = ja tem em estoque; nao conta no total a pagar
 };
 
+export type TripItem = {
+  id: string;
+  name: string;
+  quantity: number;
+  unit: string;
+  unit_price: number;
+  above_par: boolean; // já tinha acima do nível normal quando foi pego
+};
+
+export type Trip = {
+  trip_id: string;
+  total: number;
+  items: TripItem[];
+};
+
 export type SavingRow = {
   name: string;
   oldPrice: number;

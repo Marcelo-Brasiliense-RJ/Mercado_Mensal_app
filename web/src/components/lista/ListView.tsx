@@ -1,16 +1,26 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { brl } from "@/lib/format";
 import { CheckIcon, PlusIcon } from "@/components/ui/icons";
 import { ScreenHeader } from "@/components/layout/ScreenHeader";
 import { useStore } from "@/lib/store";
 import { AddItemModal } from "./AddItemModal";
+import { CartPanel } from "./CartPanel";
 
 export function ListView() {
-  const { shopping, buyItems, removeItems, showToast } = useStore();
+  const { shopping, buyItems, removeItems, showToast, reloadTrip } = useStore();
   const [addOpen, setAddOpen] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
+
+  // Modo "No mercado" ao vivo: enquanto esta tela esta aberta, verifica a cada
+  // 4s se ha compra aberta (ou novos itens) vinda do Telegram.
+  // ponytail: polling; migrar pra Realtime do Supabase so se o atraso incomodar.
+  useEffect(() => {
+    reloadTrip();
+    const id = setInterval(reloadTrip, 4000);
+    return () => clearInterval(id);
+  }, [reloadTrip]);
 
   const visible = shopping
     .filter((i) => i.status !== "removed")
@@ -53,6 +63,8 @@ export function ListView() {
       <ScreenHeader title="Lista de compras" action={addBtn} />
 
       <div className="space-y-4 lg:space-y-6">
+        <CartPanel />
+
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="rounded-[20px] border border-border bg-card p-[18px] shadow-[0_2px_10px_var(--shadow)] lg:p-[22px]">
             <div className="mb-1.5 text-xs font-bold uppercase tracking-wide text-text-3">

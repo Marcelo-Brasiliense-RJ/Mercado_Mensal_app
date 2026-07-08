@@ -120,8 +120,8 @@ Novas intenções e regras no prompt/dispatcher:
   acompanhar o total ao vivo.
 - **Link do app:** o bot inclui a URL do painel web nas respostas-chave (ao
   abrir a compra e ao finalizar). A URL fica em variável de ambiente/credencial
-  no n8n (`APP_URL`), não hard-coded no prompt. (URL de produção na Vercel — a
-  definir; hoje o CONTEXTO.md ainda não fixa a URL.)
+  no n8n (`APP_URL`), não hard-coded no prompt.
+  URL de produção: `https://mercado-mensal-app.vercel.app/`
 - **Com trip aberta, "peguei/comprei X ..."** → `trip_add`.
   - Se o usuário **não disse o preço** → bot pergunta "Quanto foi o X?" e só
     então chama `trip_add`.

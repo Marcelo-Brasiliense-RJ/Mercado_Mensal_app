@@ -8,7 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
-import type { StockItem, ShopItem, SavingRow, MonthPoint } from "./types";
+import type { StockItem, ShopItem, SavingRow, MonthPoint, Trip } from "./types";
 import { createClient } from "./supabase/client";
 
 // Estado das telas do app. Os dados vem do Supabase (RPCs _web, leitura por
@@ -21,6 +21,7 @@ type Data = {
   budget: { total: number; spent: number };
   savings: SavingRow[];
   months: MonthPoint[];
+  trip: Trip | null; // compra em andamento (modo "No mercado"); null se nao houver
 };
 
 const EMPTY: Data = {
@@ -29,6 +30,7 @@ const EMPTY: Data = {
   budget: { total: 0, spent: 0 },
   savings: [],
   months: [],
+  trip: null,
 };
 
 type Store = Data & {
@@ -39,6 +41,9 @@ type Store = Data & {
   zerarStock: (ids: string[]) => Promise<void>;
   deleteStock: (ids: string[]) => Promise<void>;
   stockToList: (ids: string[]) => Promise<void>;
+  reloadTrip: () => Promise<void>;
+  finalizeTrip: () => Promise<void>;
+  removeTripItem: (id: string) => Promise<void>;
   addShopItem: (item: Omit<ShopItem, "id" | "status">) => Promise<void>;
   addStockToList: (item: StockItem) => Promise<void>;
   buyItems: (ids: string[]) => Promise<void>;
@@ -66,10 +71,11 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
     setDataLoading(true);
     try {
       const supabase = createClient();
-      const [stockR, listR, ecoR] = await Promise.all([
+      const [stockR, listR, ecoR, tripR] = await Promise.all([
         supabase.rpc("mercado_stock_web"),
         supabase.rpc("mercado_list_web"),
         supabase.rpc("mercado_economia_web"),
+        supabase.rpc("mercado_trip_web"),
       ]);
       const eco = (ecoR.data ?? {}) as {
         budget?: { total: number; spent: number };
@@ -82,6 +88,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
         budget: eco.budget ?? { total: 0, spent: 0 },
         months: eco.months ?? [],
         savings: eco.savings ?? [],
+        trip: (tripR.data as Trip | null) ?? null,
       });
     } catch {
       // Falha de rede/sessao: mantem o que tinha. O gate ja cuida de sessao.
@@ -112,6 +119,24 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       await reloadData();
     },
     [reloadData],
+  );
+
+  const reloadTrip = useCallback(async () => {
+    const { data } = await createClient().rpc("mercado_trip_web");
+    setData((d) => ({ ...d, trip: (data as Trip | null) ?? null }));
+  }, []);
+
+  const finalizeTrip = useCallback(async () => {
+    await createClient().rpc("mercado_trip_finalize_web");
+    await reloadData(); // recarrega estoque/lista/economia repostos + limpa o carrinho
+  }, [reloadData]);
+
+  const removeTripItem = useCallback(
+    async (id: string) => {
+      await createClient().rpc("mercado_trip_remove_item_web", { p_id: id });
+      await reloadTrip();
+    },
+    [reloadTrip],
   );
 
   const showToast = useCallback((msg: string) => {
@@ -191,6 +216,9 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       zerarStock,
       deleteStock,
       stockToList,
+      reloadTrip,
+      finalizeTrip,
+      removeTripItem,
       addShopItem,
       addStockToList,
       buyItems,
@@ -208,6 +236,9 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       zerarStock,
       deleteStock,
       stockToList,
+      reloadTrip,
+      finalizeTrip,
+      removeTripItem,
       addShopItem,
       addStockToList,
       buyItems,
