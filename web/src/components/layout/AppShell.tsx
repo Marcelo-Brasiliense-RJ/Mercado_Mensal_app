@@ -2,13 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
 import { Sidebar } from "./Sidebar";
 import { TabBar } from "./TabBar";
 import { TopBar } from "./TopBar";
 import { ThemeToggle } from "@/theme/ThemeToggle";
 import { ReceiptModal } from "@/components/receipt/ReceiptModal";
 import { ReceiptIcon, UsersIcon } from "@/components/ui/icons";
+import { useStore } from "@/lib/store";
 
 const META: Record<string, { title: string; subtitle: string }> = {
   "/app/estoque": { title: "Estoque", subtitle: "Dispensa" },
@@ -19,7 +19,7 @@ const META: Record<string, { title: string; subtitle: string }> = {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
-  const [receiptOpen, setReceiptOpen] = useState(false);
+  const { receiptOpen, openReceipt, closeReceipt } = useStore();
   const meta =
     Object.entries(META).find(([href]) => path.startsWith(href))?.[1] ??
     META["/app/estoque"];
@@ -27,7 +27,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="h-dvh overflow-hidden bg-bg lg:flex">
       <div className="hidden lg:flex">
-        <Sidebar onRegistrar={() => setReceiptOpen(true)} />
+        <Sidebar onRegistrar={openReceipt} />
       </div>
 
       <div className="flex h-dvh min-w-0 flex-col lg:flex-1">
@@ -38,7 +38,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           right={
             <div className="flex items-center">
               <button
-                onClick={() => setReceiptOpen(true)}
+                onClick={openReceipt}
                 aria-label="Registrar compra"
                 className="grid h-10 w-10 place-items-center rounded-xl text-text-2 hover:bg-card-2"
               >
@@ -65,7 +65,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <TabBar className="lg:hidden" />
       </div>
 
-      <ReceiptModal open={receiptOpen} onClose={() => setReceiptOpen(false)} />
+      <ReceiptModal open={receiptOpen} onClose={closeReceipt} />
     </div>
   );
 }

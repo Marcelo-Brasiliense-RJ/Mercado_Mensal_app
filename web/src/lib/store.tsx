@@ -37,6 +37,7 @@ type Store = Data & {
   savingsTotal: number;
   dataLoading: boolean;
   toast: string | null;
+  receiptOpen: boolean;
   reloadData: () => Promise<void>;
   zerarStock: (ids: string[]) => Promise<void>;
   deleteStock: (ids: string[]) => Promise<void>;
@@ -49,7 +50,11 @@ type Store = Data & {
   buyItems: (ids: string[]) => Promise<void>;
   removeItems: (ids: string[]) => Promise<void>;
   setBudget: (total: number) => void;
-  confirmReceipt: (items: { name: string; qty: number; price: number }[]) => void;
+  openReceipt: () => void;
+  closeReceipt: () => void;
+  confirmReceipt: (
+    items: { nome: string; marca?: string; qtd: number; preco: number; unidade: string }[],
+  ) => Promise<void>;
   showToast: (msg: string) => void;
 };
 
@@ -65,7 +70,11 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   const [data, setData] = useState<Data>(EMPTY);
   const [dataLoading, setDataLoading] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [receiptOpen, setReceiptOpen] = useState(false);
   const toastT = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const openReceipt = useCallback(() => setReceiptOpen(true), []);
+  const closeReceipt = useCallback(() => setReceiptOpen(false), []);
 
   const reloadData = useCallback(async () => {
     setDataLoading(true);
@@ -193,12 +202,13 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   );
 
   const confirmReceipt = useCallback(
-    (items: { name: string; qty: number; price: number }[]) =>
-      setData((d) => {
-        const spent = items.reduce((a, i) => a + i.qty * i.price, 0);
-        return { ...d, budget: { ...d.budget, spent: d.budget.spent + spent } };
-      }),
-    [],
+    async (
+      items: { nome: string; marca?: string; qtd: number; preco: number; unidade: string }[],
+    ) => {
+      await createClient().rpc("mercado_apply_receipt_web", { p_items: items });
+      await reloadData(); // estoque/economia refletem a nota gravada
+    },
+    [reloadData],
   );
 
   const savingsTotal = useMemo(
@@ -212,6 +222,9 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       savingsTotal,
       dataLoading,
       toast,
+      receiptOpen,
+      openReceipt,
+      closeReceipt,
       reloadData,
       zerarStock,
       deleteStock,
@@ -232,6 +245,9 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       savingsTotal,
       dataLoading,
       toast,
+      receiptOpen,
+      openReceipt,
+      closeReceipt,
       reloadData,
       zerarStock,
       deleteStock,

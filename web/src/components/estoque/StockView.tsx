@@ -5,13 +5,21 @@ import type { StockItem } from "@/lib/types";
 import { stockRatio, brl } from "@/lib/format";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { AvatarInitial } from "@/components/ui/AvatarInitial";
-import { SearchIcon, ChevronRight, CheckIcon } from "@/components/ui/icons";
+import {
+  SearchIcon,
+  ChevronRight,
+  CheckIcon,
+  ReceiptIcon,
+  TelegramIcon,
+} from "@/components/ui/icons";
 import { ScreenHeader } from "@/components/layout/ScreenHeader";
 import { useStore } from "@/lib/store";
+import { BOT_URL } from "@/lib/config";
 import { ItemDetailModal } from "./ItemDetailModal";
 
 export function StockView() {
-  const { stock, zerarStock, deleteStock, stockToList, showToast } = useStore();
+  const { stock, zerarStock, deleteStock, stockToList, showToast, openReceipt } =
+    useStore();
   const [q, setQ] = useState("");
   const [detail, setDetail] = useState<StockItem | null>(null);
   const [selMode, setSelMode] = useState(false);
@@ -113,10 +121,48 @@ export function StockView() {
         )}
 
         {stock.length === 0 && (
-          <p className="pt-12 text-center text-[15px] leading-relaxed text-text-3">
-            Sua dispensa está vazia. Registre suas compras por áudio no bot do
-            Telegram e o estoque aparece aqui.
-          </p>
+          <div className="pt-8">
+            <div className="mb-1 text-center text-[18px] font-extrabold">
+              Sua dispensa está vazia
+            </div>
+            <p className="mx-auto mb-5 max-w-[420px] text-center text-[14px] leading-relaxed text-text-2">
+              Registre sua primeira compra e o estoque aparece aqui. Escolha como:
+            </p>
+            <div className="mx-auto flex max-w-[440px] flex-col gap-3">
+              <button
+                onClick={openReceipt}
+                className="flex items-center gap-3.5 rounded-[16px] border-[1.5px] border-brand bg-card p-4 text-left"
+              >
+                <span className="grid h-12 w-12 shrink-0 place-items-center rounded-[14px] bg-brand text-brand-ink">
+                  <ReceiptIcon size={24} />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[15px] font-extrabold">Foto da nota fiscal</span>
+                  <span className="block text-[13px] leading-snug text-text-2">
+                    A gente lê os itens e preços automaticamente.
+                  </span>
+                </span>
+                <ChevronRight size={20} className="shrink-0 text-text-3" />
+              </button>
+              <a
+                href={BOT_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-3.5 rounded-[16px] border-[1.5px] border-[#2AABEE] bg-card p-4"
+              >
+                <span className="grid h-12 w-12 shrink-0 place-items-center rounded-[14px] bg-[#2AABEE] text-white">
+                  <TelegramIcon size={24} />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[15px] font-extrabold">Áudio no Telegram</span>
+                  <span className="block text-[13px] leading-snug text-text-2">
+                    Fale o que comprou que o bot registra pra você.
+                  </span>
+                </span>
+                <ChevronRight size={20} className="shrink-0 text-[#2AABEE]" />
+              </a>
+            </div>
+          </div>
         )}
 
         {repor.length > 0 && (
