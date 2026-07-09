@@ -56,9 +56,11 @@ export function parseNfceHtml(html: string): NfceParsed {
 
   const emitente = (doc.querySelector(".txtTopo")?.textContent ?? "").trim();
   const chaveRaw = (doc.querySelector(".chave")?.textContent ?? "").replace(/\D/g, "");
+  // O "Valor a pagar" e o unico .totalNumb com a classe .txtMax. Sem isso, o
+  // primeiro .totalNumb seria "Qtd. total de itens" (a contagem), nao o valor.
   const total_nota = parseBrNumber(
-    doc.querySelector("#totalNota .totalNumb")?.textContent ??
-      doc.querySelector(".totalNumb")?.textContent ??
+    doc.querySelector(".totalNumb.txtMax")?.textContent ??
+      doc.querySelector("#totalNota .totalNumb")?.textContent ??
       "",
   );
 
