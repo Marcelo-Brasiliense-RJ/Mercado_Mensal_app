@@ -6,6 +6,8 @@ import { ReceiptIcon, TelegramIcon, CheckIcon, ChevronRight } from "@/components
 import { brl } from "@/lib/format";
 import { useStore } from "@/lib/store";
 import { BOT_HANDLE, BOT_URL } from "@/lib/config";
+import { QrScanner } from "./QrScanner";
+import { invokeNfce } from "@/lib/nfce";
 
 type Item = {
   nome: string;
@@ -15,7 +17,7 @@ type Item = {
   unidade: string;
   duvida?: boolean;
 };
-type Phase = "capture" | "processing" | "review" | "error";
+type Phase = "capture" | "scanning" | "processing" | "review" | "error";
 
 // Reduz a foto antes de mandar (payload menor, leitura mais rapida). Cai no
 // FileReader se createImageBitmap nao existir.
@@ -55,18 +57,57 @@ export function ReceiptModal({
   const [phase, setPhase] = useState<Phase>("capture");
   const [items, setItems] = useState<Item[]>([]);
   const [saving, setSaving] = useState(false);
+  // Origem da leitura: "qr" (SEFAZ) usa dedup pela chave; "ocr" (foto) nao tem chave.
+  const [source, setSource] = useState<"qr" | "ocr">("qr");
+  const [chave, setChave] = useState("");
+  const [emitente, setEmitente] = useState("");
+  const [totalNota, setTotalNota] = useState(0);
+  const [confere, setConfere] = useState(true);
 
   function close() {
     onClose();
     setPhase("capture");
     setItems([]);
     setSaving(false);
+    setSource("qr");
+    setChave("");
+    setEmitente("");
+    setTotalNota(0);
+    setConfere(true);
   }
 
+  // Caminho principal: QR do cupom -> Edge Function nfce-consulta -> itens da SEFAZ.
+  async function onQr(qrUrl: string) {
+    setSource("qr");
+    setPhase("processing");
+    const resp = await invokeNfce(qrUrl);
+    if (!resp.ok) {
+      setPhase("error");
+      return;
+    }
+    setItems(
+      resp.itens.map((it) => ({
+        nome: it.nome || "",
+        marca: it.marca || "",
+        qtd: Number(it.qtd) || 1,
+        preco: Number(it.preco) || 0,
+        unidade: it.unidade || "un",
+      })),
+    );
+    setChave(resp.chave);
+    setEmitente(resp.emitente);
+    setTotalNota(resp.total_nota);
+    setConfere(resp.total_confere);
+    setPhase("review");
+  }
+
+  // Fallback: foto da nota -> OCR via n8n (rota /api/receipt-ocr).
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
+    setSource("ocr");
+    setChave("");
     setPhase("processing");
     try {
       const image = await fileToDataUrl(file);
@@ -91,6 +132,7 @@ export function ReceiptModal({
           duvida: !!it.duvida,
         })),
       );
+      setConfere(true);
       setPhase("review");
     } catch {
       setPhase("error");
@@ -121,7 +163,20 @@ export function ReceiptModal({
     if (!clean.length) return;
     setSaving(true);
     try {
-      await confirmReceipt(clean);
+      const res = await confirmReceipt(
+        clean,
+        source === "qr" && chave ? { chave, emitente, total: totalNota } : undefined,
+      );
+      if (res && res.ok === false) {
+        if (res.erro === "ja_importada") {
+          showToast("Essa nota já foi importada");
+          close();
+        } else {
+          setSaving(false);
+          showToast("Não consegui salvar. Tente de novo.");
+        }
+        return;
+      }
       showToast(`${clean.length} itens adicionados ao estoque`);
       close();
     } catch {
@@ -136,18 +191,33 @@ export function ReceiptModal({
         <>
           <div className="mb-1 text-[20px] font-extrabold">Registrar compra</div>
           <p className="mb-[18px] text-[14px] leading-relaxed text-text-2">
-            Fotografe a nota fiscal que a gente lê os itens e preços, ou registre
-            por áudio no Telegram.
+            Escaneie o QR code do cupom fiscal que a gente puxa os itens da nota.
+            Sem QR? Dá pra fotografar a nota ou registrar por áudio no Telegram.
           </p>
           <div className="flex flex-col gap-3">
-            <label className="flex cursor-pointer items-center gap-3.5 rounded-[16px] border-[1.5px] border-brand bg-card p-4">
+            <button
+              onClick={() => setPhase("scanning")}
+              className="flex cursor-pointer items-center gap-3.5 rounded-[16px] border-[1.5px] border-brand bg-card p-4 text-left"
+            >
               <span className="grid h-12 w-12 shrink-0 place-items-center rounded-[14px] bg-brand text-brand-ink">
+                <ReceiptIcon size={24} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[15px] font-extrabold">Escanear QR da nota</span>
+                <span className="block text-[13px] leading-snug text-text-2">
+                  Uma leitura só, itens e preços direto da SEFAZ.
+                </span>
+              </span>
+              <ChevronRight size={20} className="shrink-0 text-text-3" />
+            </button>
+            <label className="flex cursor-pointer items-center gap-3.5 rounded-[16px] border border-border bg-card p-4">
+              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-[14px] bg-card-2 text-text-2">
                 <ReceiptIcon size={24} />
               </span>
               <span className="min-w-0 flex-1">
                 <span className="block text-[15px] font-extrabold">Foto da nota fiscal</span>
                 <span className="block text-[13px] leading-snug text-text-2">
-                  A gente lê os itens e preços automaticamente.
+                  Sem QR à mão? A gente lê os itens pela foto.
                 </span>
               </span>
               <ChevronRight size={20} className="shrink-0 text-text-3" />
@@ -163,7 +233,7 @@ export function ReceiptModal({
               href={BOT_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-3.5 rounded-[16px] border-[1.5px] border-[#2AABEE] bg-card p-4"
+              className="flex items-center gap-3.5 rounded-[16px] border border-border bg-card p-4"
             >
               <span className="grid h-12 w-12 shrink-0 place-items-center rounded-[14px] bg-[#2AABEE] text-white">
                 <TelegramIcon size={24} />
@@ -180,13 +250,28 @@ export function ReceiptModal({
         </>
       )}
 
+      {phase === "scanning" && (
+        <>
+          <div className="mb-3 text-[18px] font-extrabold">Aponte para o QR code</div>
+          <QrScanner onResult={onQr} onError={() => setPhase("error")} />
+          <button
+            onClick={() => setPhase("capture")}
+            className="mt-3 h-10 w-full text-[13px] font-bold text-text-2"
+          >
+            Cancelar
+          </button>
+        </>
+      )}
+
       {phase === "processing" && (
         <div className="py-2.5 text-center">
           <div className="relative mx-auto mb-5 h-[216px] w-[170px] overflow-hidden rounded-[14px] border border-border bg-card-2">
             <div className="absolute inset-x-0 top-0 h-[38%] animate-[scan_1.6s_ease-in-out_infinite] bg-gradient-to-b from-brand/45 to-transparent" />
           </div>
           <div className="mb-1 text-[18px] font-extrabold">Lendo sua nota fiscal...</div>
-          <div className="text-[13px] text-text-2">Identificando itens e preços</div>
+          <div className="text-[13px] text-text-2">
+            {source === "qr" ? "Consultando a SEFAZ e identificando itens" : "Identificando itens e preços"}
+          </div>
         </div>
       )}
 
@@ -200,10 +285,15 @@ export function ReceiptModal({
               {items.length} {items.length === 1 ? "item" : "itens"}
             </div>
           </div>
+          {!confere && (
+            <div className="mb-2 rounded-[10px] bg-warn-soft px-3 py-2 text-[12px] font-bold text-warn">
+              O total dos itens não bateu com o total da nota. Confira antes de confirmar.
+            </div>
+          )}
           <div className="mb-3.5 text-[14px] text-text-2">
             Confira e ajuste antes de adicionar ao estoque. Toque para editar.
           </div>
-          <div className="mb-4 overflow-hidden rounded-[16px] border border-border">
+          <div className="mb-4 max-h-[45vh] overflow-y-auto rounded-[16px] border border-border">
             {items.map((it, i) => (
               <div
                 key={i}
@@ -270,15 +360,15 @@ export function ReceiptModal({
         <div className="text-center">
           <div className="mb-1 text-[20px] font-extrabold">Não consegui ler a nota</div>
           <p className="mb-5 text-[14px] leading-relaxed text-text-2">
-            A leitura falhou ou a foto ficou difícil de entender. Tente outra foto,
-            ou mande a nota no {BOT_HANDLE} no Telegram, que ele lê pra você.
+            A leitura falhou ou a imagem ficou difícil de entender. Tente escanear o
+            QR de novo, fotografar a nota, ou mandar no {BOT_HANDLE} no Telegram.
           </p>
           <div className="flex flex-col gap-3">
             <button
               onClick={() => setPhase("capture")}
               className="h-[50px] rounded-[14px] bg-brand text-[15px] font-bold text-brand-ink"
             >
-              Tentar outra foto
+              Tentar de novo
             </button>
             <a
               href={BOT_URL}

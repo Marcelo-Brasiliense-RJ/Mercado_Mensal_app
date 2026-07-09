@@ -54,7 +54,8 @@ type Store = Data & {
   closeReceipt: () => void;
   confirmReceipt: (
     items: { nome: string; marca?: string; qtd: number; preco: number; unidade: string }[],
-  ) => Promise<void>;
+    meta?: { chave: string; emitente?: string; total?: number },
+  ) => Promise<{ ok: boolean; erro?: string; itens?: number }>;
   showToast: (msg: string) => void;
 };
 
@@ -204,9 +205,22 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   const confirmReceipt = useCallback(
     async (
       items: { nome: string; marca?: string; qtd: number; preco: number; unidade: string }[],
+      meta?: { chave: string; emitente?: string; total?: number },
     ) => {
-      await createClient().rpc("mercado_apply_receipt_web", { p_items: items });
-      await reloadData(); // estoque/economia refletem a nota gravada
+      // Com chave (nota lida por QR/SEFAZ) usa a sobrecarga com dedup (0015);
+      // sem chave (OCR por foto) usa a versao simples (0014).
+      const params = meta?.chave
+        ? {
+            p_items: items,
+            p_chave: meta.chave,
+            p_emitente: meta.emitente ?? null,
+            p_total: meta.total ?? 0,
+          }
+        : { p_items: items };
+      const { data } = await createClient().rpc("mercado_apply_receipt_web", params);
+      const res = (data ?? { ok: true }) as { ok: boolean; erro?: string; itens?: number };
+      if (res.ok) await reloadData(); // estoque/economia refletem a nota gravada
+      return res;
     },
     [reloadData],
   );
