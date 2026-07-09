@@ -22,6 +22,43 @@
 
 ---
 
+## Revisão 2026-07-08 — convivência com o trabalho de OCR em andamento
+
+**Descoberta:** já existe implementação em andamento (de outra sessão ativa) da
+mesma feature pela abordagem de OCR por foto via n8n:
+- `web/src/app/api/receipt-ocr/route.ts` — proxy Next.js para o webhook do n8n
+  que lê a nota por visão (Groq). Recebe `{ image }`, devolve `{ itens, total }`.
+- `supabase/migrations/0014_receipt_web.sql` — já cria `mercado_apply_purchase_h`
+  e `mercado_apply_receipt_web(p_items jsonb)` (sem chave/dedup).
+- `web/src/components/receipt/ReceiptModal.tsx` e `web/src/lib/store.tsx` — UI já
+  religada a essa rota de OCR.
+
+**Decisão do usuário:** QR/SEFAZ vira o caminho **principal**; o OCR-via-n8n fica
+como **fallback**. Construir EM CIMA do que existe, sem jogar fora.
+
+**Impacto no plano (ajustes obrigatórios):**
+- O `mercado_apply_purchase_h` já existe e converge com o nosso: **reusar, não
+  recriar**. O refactor da Task 1 deixa de ser necessário.
+- `mercado_apply_receipt_web(jsonb)` já existe. Em vez de alterar a assinatura
+  (colisão), criar em **migration nova 0015** a tabela `receipts` e uma
+  **sobrecarga** `mercado_apply_receipt_web(p_items jsonb, p_chave text,
+  p_emitente text, p_total numeric)` para dedup pela chave. Não tocar na 0014.
+- Task 8 (ReceiptModal/store) vira **integração aditiva**: adicionar o caminho QR
+  como principal e manter o caminho OCR (rota `receipt-ocr`) como fallback. Só
+  fazer DEPOIS que a outra sessão commitar e o working tree estabilizar.
+- Edge Function `nfce-consulta` e `QrScanner.tsx`/`nfce.ts` são **arquivos novos**
+  e não colidem: são o núcleo seguro (já adiantado na branch `feat/nfce-qr-import`).
+
+**Bloqueios para execução (não começar até resolver):**
+1. Outra sessão ativa: aguardar ela commitar/parar; a integração e a 0015 exigem a
+   base OCR já commitada na main.
+2. Ferramental ausente: `deno` (Edge Function), `supabase` CLI (deploy), e as deps
+   de teste do web (`vitest`, `jsqr`) que a branch adiciona ao `package.json`
+   (rodar `npm i`).
+3. Fixture real de HTML da NFC-e RJ (Task 2) e secret `GROQ_API_KEY` (Task 5).
+
+---
+
 ## Estrutura de arquivos
 
 **Criar:**
