@@ -84,12 +84,12 @@ export function PrevistoRealizadoChart({
               const h = (m.value / max) * 100;
               const over = temPrevisto && m.value > orcado;
               return (
-                <div key={m.label} className="flex flex-1 justify-center">
+                <div key={m.label} className="flex h-full flex-1 items-end justify-center">
                   <div
                     className="w-full max-w-[34px] rounded-t-[6px]"
                     title={`${m.label}: ${brl(m.value)}`}
                     style={{
-                      height: `${Math.max(1.5, h)}%`,
+                      height: `${m.value > 0 ? Math.max(2, h) : 0}%`,
                       background: over
                         ? "linear-gradient(180deg, var(--neg), color-mix(in srgb, var(--neg) 80%, black))"
                         : "linear-gradient(180deg, #5A86E8, #3E6AD0)",
@@ -107,9 +107,9 @@ export function PrevistoRealizadoChart({
                 className="absolute inset-x-0 h-[2.5px] rounded bg-brand"
                 style={{ bottom: `${orcPct}%` }}
               />
-              <div className={`pointer-events-none absolute inset-0 flex items-end ${gap}`}>
+              <div className={`pointer-events-none absolute inset-0 flex ${gap}`}>
                 {months.map((m) => (
-                  <div key={m.label} className="relative flex-1">
+                  <div key={m.label} className="relative h-full flex-1">
                     <span
                       title={`Previsto: ${brl(orcado)}`}
                       className="absolute left-1/2 h-2.5 w-2.5 -translate-x-1/2 translate-y-1/2 rounded-full bg-brand ring-2 ring-card"
