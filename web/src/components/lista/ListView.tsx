@@ -199,6 +199,7 @@ export function ListView() {
       />
       <AddItemModal open={addManualOpen} onClose={() => setAddManualOpen(false)} />
       <ListItemActions
+        key={action?.id}
         item={action}
         onClose={() => setAction(null)}
         onComprar={comprar}

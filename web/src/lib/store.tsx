@@ -48,6 +48,10 @@ type Store = Data & {
   finalizeTrip: () => Promise<void>;
   removeTripItem: (id: string) => Promise<void>;
   addShopItem: (item: Omit<ShopItem, "id" | "status">) => Promise<void>;
+  updateShopItem: (
+    id: string,
+    patch: { qty?: number; unit?: string; price?: number | null },
+  ) => Promise<void>;
   addStockToList: (item: StockItem) => Promise<void>;
   buyItems: (ids: string[]) => Promise<void>;
   removeItems: (ids: string[]) => Promise<void>;
@@ -190,6 +194,22 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
     [reloadData],
   );
 
+  const updateShopItem = useCallback(
+    async (
+      id: string,
+      patch: { qty?: number; unit?: string; price?: number | null },
+    ) => {
+      await createClient().rpc("mercado_list_update_web", {
+        p_id: id,
+        p_qty: patch.qty ?? null,
+        p_unit: patch.unit ?? null,
+        p_price: patch.price ?? null,
+      });
+      await reloadData();
+    },
+    [reloadData],
+  );
+
   const addStockToList = useCallback(
     async (item: StockItem) => {
       await createClient().rpc("mercado_list_add_web", {
@@ -271,6 +291,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       finalizeTrip,
       removeTripItem,
       addShopItem,
+      updateShopItem,
       addStockToList,
       buyItems,
       removeItems,
@@ -296,6 +317,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       finalizeTrip,
       removeTripItem,
       addShopItem,
+      updateShopItem,
       addStockToList,
       buyItems,
       removeItems,
