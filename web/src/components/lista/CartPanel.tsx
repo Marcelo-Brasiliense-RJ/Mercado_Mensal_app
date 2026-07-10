@@ -8,10 +8,21 @@ import { useStore } from "@/lib/store";
 // Telegram). Mostra o carrinho e o total subindo. A entrada de itens e no bot;
 // aqui so acompanha, tira engano e finaliza.
 export function CartPanel() {
-  const { trip, finalizeTrip, removeTripItem, showToast } = useStore();
+  const { trip, shopping, finalizeTrip, removeTripItem, showToast } = useStore();
   const [busy, setBusy] = useState(false);
 
   if (!trip) return null;
+
+  // Preco que a pessoa pesquisou/estimou na lista, por nome (compara com o do
+  // carrinho pra mostrar se ta mais caro ou mais barato do que ela esperava).
+  function estimado(name: string): number | null {
+    const s = shopping.find(
+      (x) => x.status !== "removed" && x.name.toLowerCase() === name.toLowerCase(),
+    );
+    return s?.estimated_price != null && s.estimated_price > 0
+      ? s.estimated_price
+      : null;
+  }
 
   async function finalizar() {
     setBusy(true);
@@ -49,7 +60,10 @@ export function CartPanel() {
         </p>
       ) : (
         <ul className="mt-4 space-y-2">
-          {trip.items.map((it) => (
+          {trip.items.map((it) => {
+            const esp = estimado(it.name);
+            const diff = esp != null ? it.unit_price - esp : null;
+            return (
             <li
               key={it.id}
               className="flex items-center gap-3 rounded-[14px] border border-border bg-card-2 p-3"
@@ -59,6 +73,29 @@ export function CartPanel() {
                 <div className="text-[13px] text-text-3">
                   {it.quantity} {it.unit} · {brl(it.unit_price)}
                 </div>
+                {/* Comparativo: pesquisado (lista) x pagando (carrinho) */}
+                {diff !== null && (
+                  <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[12px] font-bold">
+                    <span className="text-text-3">
+                      Pesquisado {brl(esp!)}
+                    </span>
+                    <span
+                      className={`rounded-full px-2 py-[2px] ${
+                        diff > 0.005
+                          ? "bg-neg-soft text-neg"
+                          : diff < -0.005
+                            ? "bg-pos-soft text-pos"
+                            : "bg-card text-text-3"
+                      }`}
+                    >
+                      {diff > 0.005
+                        ? `+${brl(diff)} mais caro`
+                        : diff < -0.005
+                          ? `${brl(diff)} mais barato`
+                          : "no preço"}
+                    </span>
+                  </div>
+                )}
               </div>
               {it.above_par && (
                 <span className="shrink-0 rounded-full bg-pos-soft px-2.5 py-[3px] text-[12px] font-bold text-pos">
@@ -76,7 +113,8 @@ export function CartPanel() {
                 ×
               </button>
             </li>
-          ))}
+            );
+          })}
         </ul>
       )}
 

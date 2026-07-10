@@ -21,8 +21,13 @@ const META: Record<string, { title: string; subtitle: string }> = {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
-  const { receiptOpen, openReceipt, closeReceipt, reloadData, dataLoading } =
+  const { receiptOpen, openReceipt, closeReceipt, reloadData, dataLoading, showToast } =
     useStore();
+
+  async function atualizar() {
+    await reloadData();
+    showToast("Atualizado");
+  }
   const { household } = useHousehold();
   const meta =
     Object.entries(META).find(([href]) => path.startsWith(href))?.[1] ??
@@ -57,10 +62,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           right={
             <div className="flex items-center">
               <button
-                onClick={reloadData}
+                onClick={atualizar}
                 disabled={dataLoading}
                 aria-label="Atualizar"
-                className="grid h-10 w-10 place-items-center rounded-xl text-text-2 hover:bg-card-2"
+                className="grid h-10 w-10 place-items-center rounded-xl text-text-2 hover:bg-card-2 disabled:opacity-60"
               >
                 <RefreshIcon size={19} className={dataLoading ? "animate-spin" : ""} />
               </button>
