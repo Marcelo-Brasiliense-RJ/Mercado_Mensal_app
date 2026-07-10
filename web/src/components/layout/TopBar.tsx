@@ -5,12 +5,14 @@ export function TopBar({
   title,
   subtitle,
   back,
+  left,
   right,
   className = "",
 }: {
   title: string;
   subtitle?: string;
   back?: string;
+  left?: React.ReactNode;
   right?: React.ReactNode;
   className?: string;
 }) {
@@ -18,8 +20,9 @@ export function TopBar({
     <header
       className={`sticky top-0 z-20 flex h-[52px] items-center border-b border-border bg-card px-3 ${className}`}
     >
-      <div className="flex w-10 justify-start">
-        {back && (
+      {/* Slot esquerdo: back tem prioridade; senao, conteudo livre (selo da familia) */}
+      <div className="flex min-w-10 justify-start">
+        {back ? (
           <Link
             href={back}
             aria-label="Voltar"
@@ -27,6 +30,8 @@ export function TopBar({
           >
             <ChevronLeftIcon size={22} />
           </Link>
+        ) : (
+          left
         )}
       </div>
       <div className="flex-1 text-center">

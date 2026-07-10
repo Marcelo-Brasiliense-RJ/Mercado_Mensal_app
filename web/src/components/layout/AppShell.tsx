@@ -8,7 +8,9 @@ import { TopBar } from "./TopBar";
 import { ThemeToggle } from "@/theme/ThemeToggle";
 import { ReceiptModal } from "@/components/receipt/ReceiptModal";
 import { ReceiptIcon, UsersIcon } from "@/components/ui/icons";
+import { AvatarInitial } from "@/components/ui/AvatarInitial";
 import { useStore } from "@/lib/store";
+import { useHousehold } from "@/lib/household";
 
 const META: Record<string, { title: string; subtitle: string }> = {
   "/app/estoque": { title: "Estoque", subtitle: "Dispensa" },
@@ -20,9 +22,13 @@ const META: Record<string, { title: string; subtitle: string }> = {
 export function AppShell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
   const { receiptOpen, openReceipt, closeReceipt } = useStore();
+  const { household } = useHousehold();
   const meta =
     Object.entries(META).find(([href]) => path.startsWith(href))?.[1] ??
     META["/app/estoque"];
+
+  // Nome curto da familia (sem o prefixo "familia ") pro selo do topo mobile.
+  const familia = (household?.familia ?? "").replace(/^fam[íi]lia\s+/i, "").trim();
 
   return (
     <div className="h-dvh overflow-hidden bg-bg lg:flex">
@@ -35,6 +41,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           className="lg:hidden"
           title={meta.title}
           subtitle={meta.subtitle}
+          left={
+            familia && (
+              <Link
+                href="/app/config"
+                aria-label={`Família ${familia}`}
+                className="flex items-center gap-2 rounded-full py-1 pl-1 pr-2.5 hover:bg-card-2"
+              >
+                <AvatarInitial name={familia} size={30} />
+                <span className="max-w-[92px] truncate text-[12px] font-extrabold leading-none">
+                  {familia}
+                </span>
+              </Link>
+            )
+          }
           right={
             <div className="flex items-center">
               <button

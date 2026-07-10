@@ -17,8 +17,11 @@ export function EconomiaView() {
 
   const vazio = savings.length === 0 && months.length === 0 && budget.total === 0;
   const b = budgetStatus(budget.spent, budget.total);
-  const chartMax = Math.max(budget.total, ...months.map((m) => m.value), 1) * 1.1;
-  const linePos = (budget.total / chartMax) * 100;
+  // Orcado x custo: o orcamento e uma meta mensal recorrente, entao usamos o
+  // orcamento atual como referencia (orcado) em todos os meses, comparado ao
+  // gasto real (custo) de cada mes.
+  const orcado = budget.total;
+  const chartMax = Math.max(orcado, ...months.map((m) => m.value), 1) * 1.1;
 
   if (vazio) {
     return (
@@ -107,41 +110,61 @@ export function EconomiaView() {
           </div>
         </div>
 
-        {/* Gasto por mes */}
+        {/* Orcado x custo por mes */}
         <div className={cardCls}>
-          <div className="mb-[18px] flex items-baseline justify-between">
+          <div className="mb-3 flex items-baseline justify-between">
             <span className="text-xs font-bold uppercase tracking-wide text-text-3">
-              Gasto por mês
+              Orçado x custo
             </span>
             <span className="text-xs text-text-3">últimos 6 meses</span>
           </div>
-          <div className="relative h-[200px] pt-5 lg:h-[230px]">
-            <div
-              className="pointer-events-none absolute inset-x-0 z-[2] border-t-[1.5px] border-dashed border-text-3"
-              style={{ bottom: `${linePos}%` }}
-            >
-              <span className="absolute -top-4 right-0 bg-card px-1.5 text-[11px] font-bold text-text-3">
-                orçamento {brl(budget.total)}
-              </span>
-            </div>
-            <div className="flex h-full items-end gap-3 lg:gap-5">
+          <div className="mb-[18px] flex items-center gap-4 text-[11px] font-bold text-text-3">
+            <span className="flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-[3px] border border-text-3 bg-card-2" />
+              Orçado {brl(orcado)}
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-[3px] bg-brand" />
+              Custo
+            </span>
+          </div>
+          <div className="relative h-[200px] lg:h-[230px]">
+            <div className="flex h-full items-end gap-2 lg:gap-4">
               {months.map((m) => {
-                const h = (m.value / chartMax) * 100;
-                const color = m.current
-                  ? "var(--brand)"
-                  : m.value > budget.total
-                    ? "var(--neg)"
+                const hOrc = (orcado / chartMax) * 100;
+                const hCusto = (m.value / chartMax) * 100;
+                const over = m.value > orcado;
+                const custoColor = over
+                  ? "var(--neg)"
+                  : m.current
+                    ? "var(--brand)"
                     : "var(--pos)";
                 return (
                   <div
                     key={m.label}
                     className="flex h-full flex-1 flex-col items-center justify-end gap-2"
                   >
-                    <span className="text-[12px] font-bold text-text-2">{m.value}</span>
-                    <div
-                      className="w-full max-w-[56px] rounded-t-[9px]"
-                      style={{ height: `${h}%`, background: color }}
-                    />
+                    <div className="flex h-full w-full items-end justify-center gap-1">
+                      {/* Orcado: barra de referencia (contorno) */}
+                      <div
+                        className="w-full max-w-[26px] rounded-t-[7px] border border-border bg-card-2"
+                        style={{ height: `${Math.max(2, hOrc)}%` }}
+                        title={`Orçado ${brl(orcado)}`}
+                      />
+                      {/* Custo: gasto real do mes */}
+                      <div
+                        className="w-full max-w-[26px] rounded-t-[7px]"
+                        style={{ height: `${Math.max(2, hCusto)}%`, background: custoColor }}
+                        title={`Custo ${brl(m.value)}`}
+                      />
+                    </div>
+                    <span
+                      className={`text-[11px] font-bold ${
+                        over ? "text-neg" : "text-text-2"
+                      }`}
+                    >
+                      {brl(m.value)}
+                    </span>
                     <span
                       className={`text-[12px] font-bold ${
                         m.current ? "text-text" : "text-text-2"
