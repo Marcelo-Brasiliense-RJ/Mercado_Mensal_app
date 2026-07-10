@@ -40,6 +40,8 @@ type Store = Data & {
   receiptOpen: boolean;
   reloadData: () => Promise<void>;
   zerarStock: (ids: string[]) => Promise<void>;
+  baixaStock: (id: string, qty: number) => Promise<void>;
+  addStock: (item: { name: string; qty: number; unit: string }) => Promise<void>;
   deleteStock: (ids: string[]) => Promise<void>;
   stockToList: (ids: string[]) => Promise<void>;
   reloadTrip: () => Promise<void>;
@@ -110,6 +112,26 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   const zerarStock = useCallback(
     async (ids: string[]) => {
       await createClient().rpc("mercado_stock_zerar_web", { p_ids: ids });
+      await reloadData();
+    },
+    [reloadData],
+  );
+
+  const baixaStock = useCallback(
+    async (id: string, qty: number) => {
+      await createClient().rpc("mercado_stock_baixa_web", { p_id: id, p_qty: qty });
+      await reloadData();
+    },
+    [reloadData],
+  );
+
+  const addStock = useCallback(
+    async (item: { name: string; qty: number; unit: string }) => {
+      await createClient().rpc("mercado_stock_add_web", {
+        p_name: item.name,
+        p_qty: item.qty,
+        p_unit: item.unit,
+      });
       await reloadData();
     },
     [reloadData],
@@ -241,6 +263,8 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       closeReceipt,
       reloadData,
       zerarStock,
+      baixaStock,
+      addStock,
       deleteStock,
       stockToList,
       reloadTrip,
@@ -264,6 +288,8 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       closeReceipt,
       reloadData,
       zerarStock,
+      baixaStock,
+      addStock,
       deleteStock,
       stockToList,
       reloadTrip,

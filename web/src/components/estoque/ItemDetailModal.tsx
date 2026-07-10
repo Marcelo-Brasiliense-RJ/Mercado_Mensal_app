@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { AvatarInitial } from "@/components/ui/AvatarInitial";
 import { brl, pct, stockRatio } from "@/lib/format";
@@ -13,7 +14,16 @@ export function ItemDetailModal({
   item: StockItem | null;
   onClose: () => void;
 }) {
-  const { addStockToList, showToast } = useStore();
+  const { addStockToList, zerarStock, baixaStock, showToast } = useStore();
+  const [parcial, setParcial] = useState(false);
+  const [qtd, setQtd] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  function fechar() {
+    setParcial(false);
+    setQtd("");
+    onClose();
+  }
   if (!item) return null;
 
   const ratio = stockRatio(item.current, item.normal);
@@ -32,11 +42,29 @@ export function ItemDetailModal({
   async function add() {
     await addStockToList(item!);
     showToast(`${item!.name} adicionado à lista`);
-    onClose();
+    fechar();
+  }
+
+  async function baixaTotal() {
+    setBusy(true);
+    await zerarStock([item!.id]);
+    setBusy(false);
+    showToast(`${item!.name}: baixa total`);
+    fechar();
+  }
+
+  async function baixaParcial() {
+    const n = Number(qtd.replace(",", "."));
+    if (!n || n <= 0) return;
+    setBusy(true);
+    await baixaStock(item!.id, n);
+    setBusy(false);
+    showToast(`${item!.name}: baixa de ${n} ${item!.unit}`);
+    fechar();
   }
 
   return (
-    <Modal open={!!item} onClose={onClose}>
+    <Modal open={!!item} onClose={fechar}>
       <div className="mb-5 flex items-center gap-3.5">
         <AvatarInitial name={item.name} size={52} />
         <div className="flex-1">
@@ -116,9 +144,50 @@ export function ItemDetailModal({
         ))}
       </div>
 
+      {/* Baixa por consumo: total zera; parcial subtrai a quantidade consumida */}
+      <div className="mb-2 text-xs font-bold uppercase tracking-wide text-text-3">
+        Dar baixa por consumo
+      </div>
+      {parcial ? (
+        <div className="mb-3.5 flex gap-3">
+          <input
+            value={qtd}
+            onChange={(e) => setQtd(e.target.value)}
+            inputMode="decimal"
+            autoFocus
+            placeholder={`Quanto consumiu? (${item.unit})`}
+            className="h-[50px] flex-1 rounded-[14px] border border-border bg-card-2 px-3.5 text-[15px]"
+          />
+          <button
+            onClick={baixaParcial}
+            disabled={busy || !Number(qtd.replace(",", "."))}
+            className="h-[50px] rounded-[14px] bg-warn px-5 text-[15px] font-bold text-white disabled:opacity-50"
+          >
+            Baixar
+          </button>
+        </div>
+      ) : (
+        <div className="mb-3.5 flex gap-3">
+          <button
+            onClick={() => setParcial(true)}
+            disabled={busy}
+            className="h-[50px] flex-1 rounded-[14px] border border-warn bg-card text-[15px] font-bold text-warn disabled:opacity-50"
+          >
+            Baixa parcial
+          </button>
+          <button
+            onClick={baixaTotal}
+            disabled={busy}
+            className="h-[50px] flex-1 rounded-[14px] border border-warn bg-warn text-[15px] font-bold text-white disabled:opacity-50"
+          >
+            Baixa total
+          </button>
+        </div>
+      )}
+
       <div className="flex gap-3">
         <button
-          onClick={onClose}
+          onClick={fechar}
           className="h-[50px] flex-1 rounded-[14px] border border-border bg-card text-[15px] font-bold"
         >
           Fechar

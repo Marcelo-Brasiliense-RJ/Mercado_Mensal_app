@@ -1,63 +1,43 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { useStore } from "@/lib/store";
-import { createClient } from "@/lib/supabase/client";
-
-// Primeiro nome do usuario logado (user_metadata.name/full_name ou prefixo do
-// email), so pra personalizar o cabecalho do popup.
-function useUserName() {
-  const [nome, setNome] = useState("");
-  useEffect(() => {
-    createClient()
-      .auth.getUser()
-      .then(({ data }) => {
-        const u = data.user;
-        const meta = (u?.user_metadata ?? {}) as { name?: string; full_name?: string };
-        const raw = meta.name || meta.full_name || u?.email?.split("@")[0] || "";
-        setNome(raw.split(" ")[0]);
-      });
-  }, []);
-  return nome;
-}
 
 const UNITS = ["un", "kg", "g", "L", "ml", "pct", "cx", "dz"];
 const field =
   "h-12 w-full rounded-[13px] border border-border bg-card-2 px-3.5 text-[15px]";
 const labelCls = "mb-1.5 block text-xs font-bold text-text-2";
 
-export function AddItemModal({
+// Adiciona item direto ao estoque (sem registrar compra: nao mexe no gasto do
+// mes). Por isso nao ha campo de preco.
+export function StockAddModal({
   open,
   onClose,
 }: {
   open: boolean;
   onClose: () => void;
 }) {
-  const { addShopItem, showToast } = useStore();
-  const userName = useUserName();
+  const { addStock, showToast } = useStore();
   const [nome, setNome] = useState("");
   const [qtd, setQtd] = useState("1");
   const [unidade, setUnidade] = useState("un");
-  const [preco, setPreco] = useState("");
 
   function close() {
     onClose();
     setNome("");
     setQtd("1");
     setUnidade("un");
-    setPreco("");
   }
 
   async function submit() {
     if (!nome.trim()) return;
-    await addShopItem({
+    await addStock({
       name: nome.trim(),
-      desired_quantity: Number(qtd.replace(",", ".")) || 1,
+      qty: Number(qtd.replace(",", ".")) || 1,
       unit: unidade,
-      estimated_price: preco ? Number(preco.replace(",", ".")) : null,
     });
-    showToast(`${nome.trim()} adicionado à lista`);
+    showToast(`${nome.trim()} adicionado ao estoque`);
     close();
   }
 
@@ -65,12 +45,7 @@ export function AddItemModal({
 
   return (
     <Modal open={open} onClose={close} maxWidth={420}>
-      <div className="mb-[18px]">
-        {userName && (
-          <div className="text-[13px] font-bold text-brand">{userName}</div>
-        )}
-        <div className="text-[19px] font-extrabold">Adicionar item</div>
-      </div>
+      <div className="mb-[18px] text-[19px] font-extrabold">Adicionar ao estoque</div>
 
       <label className={labelCls}>Nome</label>
       <input
@@ -81,7 +56,7 @@ export function AddItemModal({
         autoFocus
       />
 
-      <div className="mb-3.5 flex gap-3">
+      <div className="mb-5 flex gap-3">
         <div className="flex-1">
           <label className={labelCls}>Quantidade</label>
           <input
@@ -107,15 +82,6 @@ export function AddItemModal({
           </select>
         </div>
       </div>
-
-      <label className={labelCls}>Preço estimado (unidade)</label>
-      <input
-        value={preco}
-        onChange={(e) => setPreco(e.target.value)}
-        inputMode="decimal"
-        placeholder="R$ 0,00"
-        className={`${field} mb-5`}
-      />
 
       <div className="flex gap-3">
         <button

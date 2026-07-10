@@ -11,11 +11,14 @@ import {
   CheckIcon,
   ReceiptIcon,
   TelegramIcon,
+  PlusIcon,
 } from "@/components/ui/icons";
 import { ScreenHeader } from "@/components/layout/ScreenHeader";
 import { useStore } from "@/lib/store";
 import { BOT_URL } from "@/lib/config";
+import { AddMenu } from "@/components/ui/AddMenu";
 import { ItemDetailModal } from "./ItemDetailModal";
+import { StockAddModal } from "./StockAddModal";
 
 export function StockView() {
   const { stock, zerarStock, deleteStock, stockToList, showToast, openReceipt } =
@@ -25,6 +28,8 @@ export function StockView() {
   const [selMode, setSelMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
+  const [addMenuOpen, setAddMenuOpen] = useState(false);
+  const [stockAddOpen, setStockAddOpen] = useState(false);
 
   const filtered = stock.filter((i) =>
     i.name.toLowerCase().includes(q.toLowerCase()),
@@ -83,12 +88,26 @@ export function StockView() {
     </div>
   );
 
+  const headerAction = (
+    <div className="flex items-center gap-2">
+      {search}
+      <button
+        onClick={() => setAddMenuOpen(true)}
+        aria-label="Adicionar item"
+        className="hidden h-[44px] shrink-0 items-center gap-2 rounded-[12px] bg-brand px-[18px] text-[14px] font-bold text-brand-ink lg:flex"
+      >
+        <PlusIcon size={18} />
+        Adicionar
+      </button>
+    </div>
+  );
+
   return (
     <>
       <ScreenHeader
         title="Estoque"
         subtitle={`${stock.length} itens · ${brl(valorTotal)} em estoque`}
-        action={search}
+        action={headerAction}
       />
 
       <div className="space-y-6 pb-24">
@@ -228,6 +247,27 @@ export function StockView() {
           </button>
         </div>
       )}
+
+      {/* FAB "+" (mobile): esconde no modo selecao pra nao brigar com a barra de lote */}
+      {!selMode && (
+        <button
+          onClick={() => setAddMenuOpen(true)}
+          aria-label="Adicionar item"
+          className="fixed bottom-[92px] right-4 z-30 grid h-14 w-14 place-items-center rounded-[18px] bg-brand text-brand-ink shadow-[0_10px_24px_var(--shadow-lg)] lg:hidden"
+        >
+          <PlusIcon />
+        </button>
+      )}
+
+      <AddMenu
+        open={addMenuOpen}
+        onClose={() => setAddMenuOpen(false)}
+        onManual={() => setStockAddOpen(true)}
+        title="Adicionar ao estoque"
+        manualLabel="Adicionar manualmente"
+        manualDesc="Digite o item e a quantidade que você tem em casa."
+      />
+      <StockAddModal open={stockAddOpen} onClose={() => setStockAddOpen(false)} />
 
       <ItemDetailModal item={detail} onClose={() => setDetail(null)} />
     </>
