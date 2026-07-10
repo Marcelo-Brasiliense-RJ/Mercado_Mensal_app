@@ -14,7 +14,7 @@ export function ItemDetailModal({
   item: StockItem | null;
   onClose: () => void;
 }) {
-  const { addStockToList, zerarStock, baixaStock, showToast } = useStore();
+  const { addStockToList, addStock, zerarStock, baixaStock, showToast } = useStore();
   const [parcial, setParcial] = useState(false);
   const [qtd, setQtd] = useState("");
   const [busy, setBusy] = useState(false);
@@ -60,6 +60,17 @@ export function ItemDetailModal({
     await baixaStock(item!.id, n);
     setBusy(false);
     showToast(`${item!.name}: baixa de ${n} ${item!.unit}`);
+    fechar();
+  }
+
+  // Repor: volta o item ao nivel normal (soma no estoque, sem virar compra).
+  // Serve pra desfazer baixa acidental sem re-cadastrar o item.
+  async function repor_() {
+    const falta = Math.max(1, +(item!.normal - item!.current).toFixed(3));
+    setBusy(true);
+    await addStock({ name: item!.name, qty: falta, unit: item!.unit });
+    setBusy(false);
+    showToast(`${item!.name} reposto no estoque`);
     fechar();
   }
 
@@ -143,6 +154,23 @@ export function ItemDetailModal({
           </div>
         ))}
       </div>
+
+      {/* Repor: volta ao nivel normal. Aparece quando falta estoque (ex.: baixa
+          acidental). Nao vira compra, so recompoe o que ja existe no cadastro. */}
+      {item.current < item.normal && (
+        <>
+          <div className="mb-2 text-xs font-bold uppercase tracking-wide text-text-3">
+            Repor no estoque
+          </div>
+          <button
+            onClick={repor_}
+            disabled={busy}
+            className="mb-3.5 h-[50px] w-full rounded-[14px] bg-pos text-[15px] font-bold text-white disabled:opacity-50"
+          >
+            Repor ao normal ({item.normal} {item.unit})
+          </button>
+        </>
+      )}
 
       {/* Baixa por consumo: total zera; parcial subtrai a quantidade consumida */}
       <div className="mb-2 text-xs font-bold uppercase tracking-wide text-text-3">
