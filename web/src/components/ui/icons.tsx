@@ -57,6 +57,12 @@ export const TelegramIcon = ({ size, className }: P) => (
     <path d="M21.9 4.3l-3.3 15.6c-.25 1.1-.9 1.37-1.83.85l-5-3.7-2.42 2.33c-.27.27-.5.5-1 .5l.36-5.1L17.98 6.2c.4-.36-.09-.56-.62-.2L6.87 12.6l-4.9-1.53c-1.07-.34-1.09-1.07.22-1.58l19.16-7.4c.9-.33 1.68.2 1.55 1.2z" />
   </svg>
 );
+export const RefreshIcon = ({ size, className }: P) => (
+  <svg {...base(size)} className={className}>
+    <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+    <path d="M21 3v5h-5" />
+  </svg>
+);
 export const CopyIcon = ({ size, className }: P) => (
   <svg {...base(size)} className={className}><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15V5a2 2 0 0 1 2-2h10" /></svg>
 );

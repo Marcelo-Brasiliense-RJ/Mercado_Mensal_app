@@ -10,9 +10,11 @@ import {
   UsersIcon,
   SunIcon,
   MoonIcon,
+  RefreshIcon,
 } from "@/components/ui/icons";
 import { BrandMark } from "@/components/ui/BrandMark";
 import { useHousehold } from "@/lib/household";
+import { useStore } from "@/lib/store";
 import { useTheme } from "@/theme/useTheme";
 import { createClient } from "@/lib/supabase/client";
 
@@ -25,6 +27,7 @@ const nav = [
 export function Sidebar({ onRegistrar }: { onRegistrar: () => void }) {
   const path = usePathname();
   const { household } = useHousehold();
+  const { reloadData, dataLoading } = useStore();
   const { isDark, toggle } = useTheme();
 
   async function sair() {
@@ -40,6 +43,15 @@ export function Sidebar({ onRegistrar }: { onRegistrar: () => void }) {
           <div className="text-[17px] font-extrabold leading-[1.15]">Dispensa</div>
           <div className="truncate text-[12px] text-text-2">{household?.familia}</div>
         </div>
+        <button
+          onClick={reloadData}
+          disabled={dataLoading}
+          aria-label="Atualizar"
+          title="Atualizar"
+          className="ml-auto grid h-9 w-9 shrink-0 place-items-center rounded-[10px] text-text-2 hover:bg-card-2"
+        >
+          <RefreshIcon size={18} className={dataLoading ? "animate-spin" : ""} />
+        </button>
       </div>
 
       <nav className="flex flex-col gap-1">

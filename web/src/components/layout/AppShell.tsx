@@ -7,7 +7,7 @@ import { TabBar } from "./TabBar";
 import { TopBar } from "./TopBar";
 import { ThemeToggle } from "@/theme/ThemeToggle";
 import { ReceiptModal } from "@/components/receipt/ReceiptModal";
-import { ReceiptIcon } from "@/components/ui/icons";
+import { ReceiptIcon, RefreshIcon } from "@/components/ui/icons";
 import { AvatarInitial } from "@/components/ui/AvatarInitial";
 import { useStore } from "@/lib/store";
 import { useHousehold } from "@/lib/household";
@@ -21,7 +21,8 @@ const META: Record<string, { title: string; subtitle: string }> = {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
-  const { receiptOpen, openReceipt, closeReceipt } = useStore();
+  const { receiptOpen, openReceipt, closeReceipt, reloadData, dataLoading } =
+    useStore();
   const { household } = useHousehold();
   const meta =
     Object.entries(META).find(([href]) => path.startsWith(href))?.[1] ??
@@ -55,6 +56,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           }
           right={
             <div className="flex items-center">
+              <button
+                onClick={reloadData}
+                disabled={dataLoading}
+                aria-label="Atualizar"
+                className="grid h-10 w-10 place-items-center rounded-xl text-text-2 hover:bg-card-2"
+              >
+                <RefreshIcon size={19} className={dataLoading ? "animate-spin" : ""} />
+              </button>
               <button
                 onClick={openReceipt}
                 aria-label="Registrar compra"
