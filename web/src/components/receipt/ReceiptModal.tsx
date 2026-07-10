@@ -5,7 +5,8 @@ import { Modal } from "@/components/ui/Modal";
 import { ReceiptIcon, TelegramIcon, CheckIcon, ChevronRight } from "@/components/ui/icons";
 import { brl } from "@/lib/format";
 import { useStore } from "@/lib/store";
-import { BOT_HANDLE, BOT_URL } from "@/lib/config";
+import { useHousehold } from "@/lib/household";
+import { BOT_HANDLE, BOT_URL, familyCanUseQr } from "@/lib/config";
 import { QrScanner } from "./QrScanner";
 import { invokeNfce } from "@/lib/nfce";
 
@@ -54,6 +55,10 @@ export function ReceiptModal({
   onClose: () => void;
 }) {
   const { confirmReceipt, showToast } = useStore();
+  const { household } = useHousehold();
+  // Import por QR liberado por familia (rollout gradual). As demais so veem
+  // foto/OCR + Telegram.
+  const canQr = familyCanUseQr(household?.familia);
   const [phase, setPhase] = useState<Phase>("capture");
   const [items, setItems] = useState<Item[]>([]);
   const [saving, setSaving] = useState(false);
@@ -191,25 +196,28 @@ export function ReceiptModal({
         <>
           <div className="mb-1 text-[20px] font-extrabold">Registrar compra</div>
           <p className="mb-[18px] text-[14px] leading-relaxed text-text-2">
-            Escaneie o QR code do cupom fiscal que a gente puxa os itens da nota.
-            Sem QR? Dá pra fotografar a nota ou registrar por áudio no Telegram.
+            {canQr
+              ? "Escaneie o QR code do cupom fiscal que a gente puxa os itens da nota. Sem QR? Dá pra fotografar a nota ou registrar por áudio no Telegram."
+              : "Fotografe a nota fiscal que a gente lê os itens, ou registre por áudio no Telegram."}
           </p>
           <div className="flex flex-col gap-3">
-            <button
-              onClick={() => setPhase("scanning")}
-              className="flex cursor-pointer items-center gap-3.5 rounded-[16px] border-[1.5px] border-brand bg-card p-4 text-left"
-            >
-              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-[14px] bg-brand text-brand-ink">
-                <ReceiptIcon size={24} />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-[15px] font-extrabold">Escanear QR da nota</span>
-                <span className="block text-[13px] leading-snug text-text-2">
-                  Uma leitura só, itens e preços direto da SEFAZ.
+            {canQr && (
+              <button
+                onClick={() => setPhase("scanning")}
+                className="flex cursor-pointer items-center gap-3.5 rounded-[16px] border-[1.5px] border-brand bg-card p-4 text-left"
+              >
+                <span className="grid h-12 w-12 shrink-0 place-items-center rounded-[14px] bg-brand text-brand-ink">
+                  <ReceiptIcon size={24} />
                 </span>
-              </span>
-              <ChevronRight size={20} className="shrink-0 text-text-3" />
-            </button>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[15px] font-extrabold">Escanear QR da nota</span>
+                  <span className="block text-[13px] leading-snug text-text-2">
+                    Uma leitura só, itens e preços direto da SEFAZ.
+                  </span>
+                </span>
+                <ChevronRight size={20} className="shrink-0 text-text-3" />
+              </button>
+            )}
             <label className="flex cursor-pointer items-center gap-3.5 rounded-[16px] border border-border bg-card p-4">
               <span className="grid h-12 w-12 shrink-0 place-items-center rounded-[14px] bg-card-2 text-text-2">
                 <ReceiptIcon size={24} />
