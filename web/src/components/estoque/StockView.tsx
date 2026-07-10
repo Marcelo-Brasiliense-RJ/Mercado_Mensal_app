@@ -20,6 +20,19 @@ import { AddMenu } from "@/components/ui/AddMenu";
 import { ItemDetailModal } from "./ItemDetailModal";
 import { StockAddModal } from "./StockAddModal";
 
+// ponytail: hack de vitrine so pro print de lancamento — reordena "absorvente"
+// pra logo depois de "alvejante", quebrando a ordem alfabetica so nesse item.
+// Para remover: apague esta funcao e o vitrine(...) no filtered abaixo.
+function vitrine(items: StockItem[]): StockItem[] {
+  const i = items.findIndex((x) => x.name.toLowerCase() === "absorvente");
+  if (i < 0) return items;
+  const arr = items.slice();
+  const [abs] = arr.splice(i, 1);
+  const j = arr.findIndex((x) => x.name.toLowerCase() === "alvejante");
+  arr.splice(j >= 0 ? j + 1 : arr.length, 0, abs);
+  return arr;
+}
+
 export function StockView() {
   const { stock, zerarStock, deleteStock, stockToList, showToast, openReceipt } =
     useStore();
@@ -31,8 +44,8 @@ export function StockView() {
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [stockAddOpen, setStockAddOpen] = useState(false);
 
-  const filtered = stock.filter((i) =>
-    i.name.toLowerCase().includes(q.toLowerCase()),
+  const filtered = vitrine(
+    stock.filter((i) => i.name.toLowerCase().includes(q.toLowerCase())),
   );
   const repor = filtered.filter((i) => stockRatio(i.current, i.normal) < 0.5);
   const ok = filtered.filter((i) => stockRatio(i.current, i.normal) >= 0.5);
