@@ -20,16 +20,20 @@ import { AddMenu } from "@/components/ui/AddMenu";
 import { ItemDetailModal } from "./ItemDetailModal";
 import { StockAddModal } from "./StockAddModal";
 
-// ponytail: hack de vitrine so pro print de lancamento — reordena "absorvente"
-// pra logo depois de "alvejante", quebrando a ordem alfabetica so nesse item.
-// Para remover: apague esta funcao e o vitrine(...) no filtered abaixo.
+// ponytail: hack de vitrine so pro print de lancamento — joga "absorvente" pro
+// fim do grupo dos itens que comecam com "a", quebrando a ordem alfabetica so
+// nesse item. Para remover: apague esta funcao e o vitrine(...) no filtered.
 function vitrine(items: StockItem[]): StockItem[] {
   const i = items.findIndex((x) => x.name.toLowerCase() === "absorvente");
   if (i < 0) return items;
   const arr = items.slice();
   const [abs] = arr.splice(i, 1);
-  const j = arr.findIndex((x) => x.name.toLowerCase() === "alvejante");
-  arr.splice(j >= 0 ? j + 1 : arr.length, 0, abs);
+  // ultimo item que comeca com "a" (fica logo depois dele)
+  let last = -1;
+  for (let k = 0; k < arr.length; k++) {
+    if (arr[k].name.toLowerCase().startsWith("a")) last = k;
+  }
+  arr.splice(last >= 0 ? last + 1 : arr.length, 0, abs);
   return arr;
 }
 
