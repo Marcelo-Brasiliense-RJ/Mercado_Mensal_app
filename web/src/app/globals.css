@@ -55,6 +55,16 @@ body {
 input, button, select { font-family: inherit; }
 input:focus, select:focus { outline: none; }
 ::placeholder { color: var(--text-3); }
+
+/* iOS da zoom automatico ao focar input com fonte < 16px, o que "desenquadra"
+   a tela no mobile. Forca 16px nos campos so em telas pequenas (o !important
+   vence as utilities text-[14px]/[15px]); no desktop mantem o tamanho do design.
+   Nao mexe no viewport, entao o pinch-zoom (acessibilidade) continua valendo. */
+@media (max-width: 1023px) {
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea { font-size: 16px !important; }
+}
 @layer base { a { color: var(--brand); text-decoration: none; } }
 
 @keyframes shimmer { 0% { background-position: -260px 0; } 100% { background-position: 260px 0; } }
