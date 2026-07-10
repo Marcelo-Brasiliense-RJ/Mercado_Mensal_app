@@ -18,10 +18,10 @@ export function TopBar({
 }) {
   return (
     <header
-      className={`sticky top-0 z-20 flex h-[52px] items-center border-b border-border bg-card px-3 ${className}`}
+      className={`sticky top-0 z-20 grid h-[52px] grid-cols-[1fr_auto_1fr] items-center border-b border-border bg-card px-2 ${className}`}
     >
       {/* Slot esquerdo: back tem prioridade; senao, conteudo livre (selo da familia) */}
-      <div className="flex min-w-10 justify-start">
+      <div className="flex min-w-0 justify-start">
         {back ? (
           <Link
             href={back}
@@ -34,13 +34,13 @@ export function TopBar({
           left
         )}
       </div>
-      <div className="flex-1 text-center">
+      <div className="min-w-0 px-1 text-center">
         <div className="text-[15px] font-bold leading-tight">{title}</div>
         {subtitle && (
           <div className="text-[11px] leading-tight text-text-3">{subtitle}</div>
         )}
       </div>
-      <div className="flex w-10 justify-end">{right}</div>
+      <div className="flex justify-end">{right}</div>
     </header>
   );
 }

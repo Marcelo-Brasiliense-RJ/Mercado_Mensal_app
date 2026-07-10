@@ -7,7 +7,7 @@ import { TabBar } from "./TabBar";
 import { TopBar } from "./TopBar";
 import { ThemeToggle } from "@/theme/ThemeToggle";
 import { ReceiptModal } from "@/components/receipt/ReceiptModal";
-import { ReceiptIcon, UsersIcon } from "@/components/ui/icons";
+import { ReceiptIcon } from "@/components/ui/icons";
 import { AvatarInitial } from "@/components/ui/AvatarInitial";
 import { useStore } from "@/lib/store";
 import { useHousehold } from "@/lib/household";
@@ -46,12 +46,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <Link
                 href="/app/config"
                 aria-label={`Família ${familia}`}
-                className="flex items-center gap-2 rounded-full py-1 pl-1 pr-2.5 hover:bg-card-2"
+                title={`Família ${familia}`}
+                className="grid h-10 w-10 place-items-center rounded-xl hover:bg-card-2"
               >
                 <AvatarInitial name={familia} size={30} />
-                <span className="max-w-[92px] truncate text-[12px] font-extrabold leading-none">
-                  {familia}
-                </span>
               </Link>
             )
           }
@@ -64,13 +62,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               >
                 <ReceiptIcon size={20} />
               </button>
-              <Link
-                href="/app/config"
-                aria-label="Família e ajustes"
-                className="grid h-10 w-10 place-items-center rounded-xl text-text-2 hover:bg-card-2"
-              >
-                <UsersIcon size={20} />
-              </Link>
               <ThemeToggle />
             </div>
           }
