@@ -5,6 +5,7 @@ import { brl, budgetStatus, pct } from "@/lib/format";
 import { ScreenHeader } from "@/components/layout/ScreenHeader";
 import { useStore } from "@/lib/store";
 import { BudgetModal } from "./BudgetModal";
+import { PrevistoRealizadoChart } from "./PrevistoRealizadoChart";
 
 const cardCls =
   "rounded-[20px] border border-border bg-card p-[18px] shadow-[0_2px_12px_var(--shadow)] lg:p-[22px]";
@@ -21,7 +22,6 @@ export function EconomiaView() {
   // orcamento atual como referencia (orcado) em todos os meses, comparado ao
   // gasto real (custo) de cada mes.
   const orcado = budget.total;
-  const chartMax = Math.max(orcado, ...months.map((m) => m.value), 1) * 1.1;
 
   if (vazio) {
     return (
@@ -110,74 +110,8 @@ export function EconomiaView() {
           </div>
         </div>
 
-        {/* Orcado x custo por mes */}
-        <div className={cardCls}>
-          <div className="mb-3 flex items-baseline justify-between">
-            <span className="text-xs font-bold uppercase tracking-wide text-text-3">
-              Orçado x custo
-            </span>
-            <span className="text-xs text-text-3">últimos 6 meses</span>
-          </div>
-          <div className="mb-[18px] flex items-center gap-4 text-[11px] font-bold text-text-3">
-            <span className="flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-[3px] border border-text-3 bg-card-2" />
-              Orçado {brl(orcado)}
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-[3px] bg-brand" />
-              Custo
-            </span>
-          </div>
-          <div className="relative h-[200px] lg:h-[230px]">
-            <div className="flex h-full items-end gap-2 lg:gap-4">
-              {months.map((m) => {
-                const hOrc = (orcado / chartMax) * 100;
-                const hCusto = (m.value / chartMax) * 100;
-                const over = m.value > orcado;
-                const custoColor = over
-                  ? "var(--neg)"
-                  : m.current
-                    ? "var(--brand)"
-                    : "var(--pos)";
-                return (
-                  <div
-                    key={m.label}
-                    className="flex h-full flex-1 flex-col items-center justify-end gap-2"
-                  >
-                    <div className="flex h-full w-full items-end justify-center gap-1">
-                      {/* Orcado: barra de referencia (contorno) */}
-                      <div
-                        className="w-full max-w-[26px] rounded-t-[7px] border border-border bg-card-2"
-                        style={{ height: `${Math.max(2, hOrc)}%` }}
-                        title={`Orçado ${brl(orcado)}`}
-                      />
-                      {/* Custo: gasto real do mes */}
-                      <div
-                        className="w-full max-w-[26px] rounded-t-[7px]"
-                        style={{ height: `${Math.max(2, hCusto)}%`, background: custoColor }}
-                        title={`Custo ${brl(m.value)}`}
-                      />
-                    </div>
-                    <span
-                      className={`text-[11px] font-bold ${
-                        over ? "text-neg" : "text-text-2"
-                      }`}
-                    >
-                      {brl(m.value)}
-                    </span>
-                    <span
-                      className={`text-[12px] font-bold ${
-                        m.current ? "text-text" : "text-text-2"
-                      }`}
-                    >
-                      {m.label}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
+        {/* Previsto (orcamento) x realizado (gasto) por mes */}
+        <PrevistoRealizadoChart months={months} orcado={orcado} />
       </div>
 
       <BudgetModal open={budgetOpen} onClose={() => setBudgetOpen(false)} />
