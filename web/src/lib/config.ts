@@ -9,10 +9,10 @@ export function botDeepLink(code: string): string {
   return `${BOT_URL}?start=${encodeURIComponent(code)}`;
 }
 
-// Rollout gradual do import por QR da NFC-e: por ora so a familia Brasiliense.
-// As demais seguem com foto/OCR + Telegram. Para liberar outra familia, some o
-// nome (normalizado, sem caixa/acento) nesta lista.
-const QR_FAMILIAS = ["brasiliense"];
+// Import por QR da NFC-e: desativado por ora (fica para uma versao futura).
+// O codigo do fluxo QR continua no repo; para reativar por familia, some o nome
+// (normalizado, sem caixa/acento) nesta lista. Ex.: ["brasiliense"].
+const QR_FAMILIAS: string[] = [];
 
 function normFamilia(s: string): string {
   return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
