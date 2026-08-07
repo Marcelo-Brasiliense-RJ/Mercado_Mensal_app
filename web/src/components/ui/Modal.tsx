@@ -26,12 +26,14 @@ export function Modal({
   return (
     <div
       onClick={onClose}
-      className="fixed inset-0 z-30 flex animate-[fadeIn_0.2s_ease_both] items-center justify-center bg-black/50 p-6"
+      className="fixed inset-0 z-30 flex animate-[fadeIn_0.2s_ease_both] items-center justify-center overflow-x-hidden bg-black/50 p-3 sm:p-6"
     >
+      {/* Em tela estreita os 100px de padding (24 do overlay + 26 do card, de cada
+          lado) comiam a largura util e o conteudo transbordava. No mobile sao 40px. */}
       <div
         onClick={(e) => e.stopPropagation()}
         style={{ maxWidth }}
-        className="max-h-[90vh] w-full overflow-y-auto rounded-[24px] border border-border bg-card p-[26px] shadow-[0_30px_70px_var(--shadow-lg)]"
+        className="max-h-[90vh] w-full overflow-y-auto overflow-x-hidden rounded-[24px] border border-border bg-card p-5 shadow-[0_30px_70px_var(--shadow-lg)] sm:p-[26px]"
       >
         {children}
       </div>

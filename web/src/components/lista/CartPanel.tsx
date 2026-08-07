@@ -219,7 +219,7 @@ export function CartPanel() {
             aria-label="Item"
             className="h-12 min-w-0 flex-[2] rounded-[13px] border border-border bg-card px-3.5 text-[15px]"
           />
-          <div className="min-w-[148px] flex-1">
+          <div className="min-w-[132px] flex-1">
             <QtyStepper value={qtd} onChange={setQtd} unit={unidade} />
           </div>
           <input

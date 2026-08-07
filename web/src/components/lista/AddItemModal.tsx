@@ -109,12 +109,12 @@ export function AddItemModal({
         </p>
       )}
 
-      <div className="mb-3.5 flex gap-3">
-        <div className="flex-1">
+      <div className="mb-3.5 flex gap-2">
+        <div className="min-w-0 flex-1">
           <label className={labelCls}>Quantidade</label>
           <QtyStepper value={qtd} onChange={setQtd} unit={unidade} placeholder="1" />
         </div>
-        <div className="w-[120px]">
+        <div className="w-[84px] shrink-0">
           <label className={labelCls}>Unidade</label>
           <select
             value={unidade}

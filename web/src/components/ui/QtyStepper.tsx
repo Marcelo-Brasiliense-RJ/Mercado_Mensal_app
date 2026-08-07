@@ -28,11 +28,13 @@ export function QtyStepper({
     onChange(String(novo).replace(".", ","));
   }
 
+  // 44px de largura, nao 48: ao lado do select de unidade, 48 estourava a largura
+  // do modal em telas de 360px. A altura fica em 48 para alinhar com os campos.
   const btn =
-    "grid h-12 w-12 shrink-0 place-items-center rounded-[13px] border border-border bg-card-2 text-[22px] font-bold disabled:opacity-40";
+    "grid h-12 w-11 shrink-0 place-items-center rounded-[12px] border border-border bg-card-2 text-[20px] font-bold disabled:opacity-40";
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex min-w-0 items-center gap-1.5">
       <button
         type="button"
         onClick={() => anda(-1)}
@@ -49,7 +51,7 @@ export function QtyStepper({
         placeholder={placeholder}
         autoFocus={autoFocus}
         aria-label="Quantidade"
-        className="h-12 min-w-0 flex-1 rounded-[13px] border border-border bg-card-2 px-2 text-center text-[15px]"
+        className="h-12 w-full min-w-0 flex-1 rounded-[12px] border border-border bg-card-2 px-1 text-center text-[15px]"
       />
       <button
         type="button"

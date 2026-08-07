@@ -104,12 +104,12 @@ export function ListItemActions({
           Form so aqui: os botoes de acao abaixo ficam de fora de proposito,
           para Enter no campo de preco salvar a edicao e nao comprar o item. */}
       <form onSubmit={(e) => { e.preventDefault(); salvar(); }}>
-      <div className="mb-3 flex gap-3">
-        <div className="flex-1">
+      <div className="mb-3 flex gap-2">
+        <div className="min-w-0 flex-1">
           <label className={labelCls}>Quantidade</label>
           <QtyStepper value={qtd} onChange={setQtd} unit={unidade} />
         </div>
-        <div className="w-[104px]">
+        <div className="w-[84px] shrink-0">
           <label className={labelCls}>Unidade</label>
           <select
             value={unidade}
