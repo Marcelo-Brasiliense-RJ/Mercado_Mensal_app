@@ -3,21 +3,14 @@
 import { useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { ReceiptIcon, TelegramIcon, CheckIcon, ChevronRight } from "@/components/ui/icons";
-import { brl } from "@/lib/format";
 import { useStore } from "@/lib/store";
 import { useHousehold } from "@/lib/household";
 import { BOT_HANDLE, BOT_URL, familyCanUseQr } from "@/lib/config";
 import { QrScanner } from "./QrScanner";
 import { invokeNfce } from "@/lib/nfce";
+import { ItemGrid, type GridItem } from "./ItemGrid";
 
-type Item = {
-  nome: string;
-  marca?: string;
-  qtd: number;
-  preco: number;
-  unidade: string;
-  duvida?: boolean;
-};
+type Item = GridItem;
 type Phase = "capture" | "scanning" | "processing" | "review" | "error";
 
 // Reduz a foto antes de mandar (payload menor, leitura mais rapida). Cai no
@@ -43,9 +36,6 @@ async function fileToDataUrl(file: File): Promise<string> {
     });
   }
 }
-
-const inp =
-  "h-9 rounded-[9px] border border-border bg-card-2 px-2 text-[14px] text-text";
 
 export function ReceiptModal({
   open,
@@ -160,8 +150,6 @@ export function ReceiptModal({
   function remove(i: number) {
     setItems((prev) => prev.filter((_, idx) => idx !== i));
   }
-
-  const total = items.reduce((a, i) => a + (Number(i.qtd) || 0) * (Number(i.preco) || 0), 0);
 
   async function confirm() {
     const clean = items.filter((i) => i.nome.trim());
@@ -301,51 +289,7 @@ export function ReceiptModal({
           <div className="mb-3.5 text-[14px] text-text-2">
             Confira e ajuste antes de adicionar ao estoque. Toque para editar.
           </div>
-          <div className="mb-4 max-h-[45vh] overflow-y-auto rounded-[16px] border border-border">
-            {items.map((it, i) => (
-              <div
-                key={i}
-                className={`flex items-center gap-2 px-3 py-2.5 ${
-                  i > 0 ? "border-t border-border" : ""
-                } ${it.duvida ? "border-l-[3px] border-l-warn" : ""}`}
-              >
-                <input
-                  value={it.nome}
-                  onChange={(e) => patch(i, "nome", e.target.value)}
-                  className={`${inp} min-w-0 flex-1`}
-                  aria-label="Nome"
-                />
-                <input
-                  value={String(it.qtd)}
-                  onChange={(e) => patch(i, "qtd", e.target.value)}
-                  inputMode="decimal"
-                  className={`${inp} w-12 text-center`}
-                  aria-label="Quantidade"
-                />
-                <span className="text-text-3">×</span>
-                <input
-                  value={String(it.preco)}
-                  onChange={(e) => patch(i, "preco", e.target.value)}
-                  inputMode="decimal"
-                  className={`${inp} w-[68px] text-right`}
-                  aria-label="Preço"
-                />
-                <button
-                  onClick={() => remove(i)}
-                  aria-label="Remover"
-                  className="grid h-8 w-7 shrink-0 place-items-center rounded-lg text-[18px] text-text-3 hover:bg-card-2"
-                >
-                  ×
-                </button>
-              </div>
-            ))}
-            <div className="flex items-center justify-between border-t border-border bg-card-2 px-4 py-3.5">
-              <span className="text-[13px] font-extrabold uppercase tracking-wide text-text-2">
-                Total
-              </span>
-              <span className="text-[20px] font-extrabold">{brl(total)}</span>
-            </div>
-          </div>
+          <ItemGrid items={items} onPatch={patch} onRemove={remove} />
           <div className="flex gap-3">
             <button
               onClick={close}

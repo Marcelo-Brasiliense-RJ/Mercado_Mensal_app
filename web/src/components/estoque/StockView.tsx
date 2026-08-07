@@ -14,46 +14,32 @@ import {
   PlusIcon,
 } from "@/components/ui/icons";
 import { ScreenHeader } from "@/components/layout/ScreenHeader";
-import { useStore } from "@/lib/store";
+import { useStore, type RpcResult } from "@/lib/store";
 import { BOT_URL } from "@/lib/config";
 import { AddMenu } from "@/components/ui/AddMenu";
 import { ItemDetailModal } from "./ItemDetailModal";
-import { StockAddModal } from "./StockAddModal";
-
-// ponytail: hack de vitrine so pro print de lancamento — joga "absorvente" pro
-// fim do grupo dos itens que comecam com "a", quebrando a ordem alfabetica so
-// nesse item. Para remover: apague esta funcao e o vitrine(...) no filtered.
-function vitrine(items: StockItem[]): StockItem[] {
-  const i = items.findIndex((x) => x.name.toLowerCase() === "absorvente");
-  if (i < 0) return items;
-  const arr = items.slice();
-  const [abs] = arr.splice(i, 1);
-  // ultimo item que comeca com "a" (fica logo depois dele)
-  let last = -1;
-  for (let k = 0; k < arr.length; k++) {
-    if (arr[k].name.toLowerCase().startsWith("a")) last = k;
-  }
-  arr.splice(last >= 0 ? last + 1 : arr.length, 0, abs);
-  return arr;
-}
+import { BatchAddModal } from "./BatchAddModal";
 
 export function StockView() {
   const { stock, zerarStock, deleteStock, stockToList, showToast, openReceipt } =
     useStore();
   const [q, setQ] = useState("");
-  const [detail, setDetail] = useState<StockItem | null>(null);
+  // Guarda o id, nao o objeto: depois de salvar o nivel normal o modal precisa
+  // mostrar o valor novo, e um StockItem congelado no state mostraria o antigo.
+  const [detailId, setDetailId] = useState<string | null>(null);
   const [selMode, setSelMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [stockAddOpen, setStockAddOpen] = useState(false);
 
-  const filtered = vitrine(
-    stock.filter((i) => i.name.toLowerCase().includes(q.toLowerCase())),
+  const filtered = stock.filter((i) =>
+    i.name.toLowerCase().includes(q.toLowerCase()),
   );
   const repor = filtered.filter((i) => stockRatio(i.current, i.normal) < 0.5);
   const ok = filtered.filter((i) => stockRatio(i.current, i.normal) >= 0.5);
   const valorTotal = stock.reduce((a, i) => a + i.current * (i.priceLast ?? 0), 0);
+  const detail = stock.find((i) => i.id === detailId) ?? null;
 
   function toggleSel(id: string) {
     setSelected((s) => {
@@ -72,11 +58,11 @@ export function StockView() {
   }
   function onItem(item: StockItem) {
     if (selMode) toggleSel(item.id);
-    else setDetail(item);
+    else setDetailId(item.id);
   }
 
   async function runBatch(
-    fn: (ids: string[]) => Promise<void>,
+    fn: (ids: string[]) => Promise<RpcResult>,
     msg: (n: number) => string,
     confirmMsg?: string,
   ) {
@@ -84,8 +70,9 @@ export function StockView() {
     if (confirmMsg && !confirm(confirmMsg)) return;
     const n = selected.size;
     setBusy(true);
-    await fn([...selected]);
+    const r = await fn([...selected]);
     setBusy(false);
+    if (!r.ok) return showToast(r.erro);
     showToast(msg(n));
     exitSel();
   }
@@ -159,7 +146,7 @@ export function StockView() {
         {stock.length === 0 && (
           <div className="pt-8">
             <div className="mb-1 text-center text-[18px] font-extrabold">
-              Sua dispensa está vazia
+              Sua despensa está vazia
             </div>
             <p className="mx-auto mb-5 max-w-[420px] text-center text-[14px] leading-relaxed text-text-2">
               Registre sua primeira compra e o estoque aparece aqui. Escolha como:
@@ -281,12 +268,12 @@ export function StockView() {
         onClose={() => setAddMenuOpen(false)}
         onManual={() => setStockAddOpen(true)}
         title="Adicionar ao estoque"
-        manualLabel="Adicionar manualmente"
-        manualDesc="Digite o item e a quantidade que você tem em casa."
+        manualLabel="Digitar os itens"
+        manualDesc="Vários de uma vez, numa lista só."
       />
-      <StockAddModal open={stockAddOpen} onClose={() => setStockAddOpen(false)} />
+      <BatchAddModal open={stockAddOpen} onClose={() => setStockAddOpen(false)} />
 
-      <ItemDetailModal item={detail} onClose={() => setDetail(null)} />
+      <ItemDetailModal item={detail} onClose={() => setDetailId(null)} />
     </>
   );
 }
@@ -339,7 +326,10 @@ function Item({
   onClick: () => void;
 }) {
   const ratio = stockRatio(item.current, item.normal);
-  const repor = ratio < 0.5;
+  // Sem par_level definido stockRatio devolve 1: a barra encheria e o card diria
+  // 100% para um item sobre o qual nao sabemos nada. Melhor nao dizer.
+  const semReferencia = item.normal <= 0;
+  const repor = !semReferencia && ratio < 0.5;
   const valor = item.priceLast ? item.current * item.priceLast : null;
   return (
     <>
@@ -360,12 +350,14 @@ function Item({
               {valor !== null ? ` · ${brl(valor)}` : ""}
             </span>
           </div>
-          <div className="mt-2 flex items-center gap-2">
-            <ProgressBar ratio={ratio} />
-            <span className="w-9 shrink-0 text-right text-[11px] text-text-3">
-              {Math.round(ratio * 100)}%
-            </span>
-          </div>
+          {!semReferencia && (
+            <div className="mt-2 flex items-center gap-2">
+              <ProgressBar ratio={ratio} />
+              <span className="w-9 shrink-0 text-right text-[11px] text-text-3">
+                {Math.round(ratio * 100)}%
+              </span>
+            </div>
+          )}
         </div>
         {!selMode && !repor && (
           <ChevronRight size={18} className="shrink-0 text-text-3" />
@@ -389,23 +381,32 @@ function Item({
               {valor !== null ? ` · ${brl(valor)}` : ""}
             </div>
           </div>
-          {repor ? (
+          {repor && (
             <span className="rounded-full bg-warn-soft px-2.5 py-[3px] text-[11px] font-extrabold text-warn">
               Repor
             </span>
-          ) : (
+          )}
+          {!repor && !semReferencia && (
             <span className="text-[12px] font-bold text-text-3">
               {Math.round(ratio * 100)}%
             </span>
           )}
         </div>
-        <ProgressBar ratio={ratio} height={8} />
-        <div className="mt-[7px] flex justify-between text-[11px] text-text-3">
-          <span>Nível</span>
-          <span>
-            normal {item.normal} {item.unit}
-          </span>
-        </div>
+        {semReferencia ? (
+          <div className="text-[11px] text-text-3">
+            Sem referência de quanto ter em casa
+          </div>
+        ) : (
+          <>
+            <ProgressBar ratio={ratio} height={8} />
+            <div className="mt-[7px] flex justify-between text-[11px] text-text-3">
+              <span>Nível</span>
+              <span>
+                costuma ter {item.normal} {item.unit}
+              </span>
+            </div>
+          </>
+        )}
       </button>
     </>
   );

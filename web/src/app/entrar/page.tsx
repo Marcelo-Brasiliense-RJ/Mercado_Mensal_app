@@ -102,6 +102,8 @@ export default function Entrar() {
       {phase === "login" && (
         <div className="w-full max-w-[420px]">
           <Head title="Entrar" />
+          {/* form nativo: Enter no campo e o botao "Ir" do teclado do celular enviam */}
+          <form onSubmit={(e) => { e.preventDefault(); entrar(); }}>
           <Panel>
             <label className={labelCls}>E-mail</label>
             <input
@@ -126,6 +128,7 @@ export default function Entrar() {
             />
             <div className="mb-[18px] text-right">
               <button
+                type="button"
                 onClick={() => { setErro(null); setPhase("forgot"); }}
                 className="text-[13px] font-bold text-brand"
               >
@@ -133,10 +136,11 @@ export default function Entrar() {
               </button>
             </div>
             {erro && <p className="mb-3 text-[13px] font-bold text-neg">{erro}</p>}
-            <button onClick={entrar} disabled={loading} className={primary}>
+            <button type="submit" disabled={loading} className={primary}>
               {loading ? "Entrando..." : "Entrar"}
             </button>
           </Panel>
+          </form>
           <Foot>
             Não tem conta?{" "}
             <button onClick={() => { setErro(null); setPhase("signup"); }} className={linkBtn}>
@@ -149,6 +153,7 @@ export default function Entrar() {
       {phase === "signup" && (
         <div className="w-full max-w-[420px]">
           <Head title="Criar conta" />
+          <form onSubmit={(e) => { e.preventDefault(); criarConta(); }}>
           <Panel>
             <label className={labelCls}>Nome</label>
             <input
@@ -181,10 +186,11 @@ export default function Entrar() {
               className={`${field} mb-5`}
             />
             {erro && <p className="mb-3 text-[13px] font-bold text-neg">{erro}</p>}
-            <button onClick={criarConta} disabled={loading} className={primary}>
+            <button type="submit" disabled={loading} className={primary}>
               {loading ? "Criando..." : "Criar conta"}
             </button>
           </Panel>
+          </form>
           <Foot>
             Já tem conta?{" "}
             <button onClick={() => { setErro(null); setPhase("login"); }} className={linkBtn}>
@@ -197,6 +203,7 @@ export default function Entrar() {
       {phase === "forgot" && (
         <div className="w-full max-w-[420px]">
           <Head title="Recuperar senha" />
+          <form onSubmit={(e) => { e.preventDefault(); recuperar(); }}>
           <Panel>
             <p className="mb-[18px] text-[14px] leading-relaxed text-text-2">
               Informe seu e-mail e enviaremos um link para criar uma nova senha.
@@ -209,10 +216,11 @@ export default function Entrar() {
               className={`${field} mb-[18px]`}
             />
             {erro && <p className="mb-3 text-[13px] font-bold text-neg">{erro}</p>}
-            <button onClick={recuperar} disabled={loading} className={primary}>
+            <button type="submit" disabled={loading} className={primary}>
               {loading ? "Enviando..." : "Enviar link"}
             </button>
           </Panel>
+          </form>
           <Foot>
             <button onClick={() => { setErro(null); setPhase("login"); }} className={linkBtn}>
               Voltar para o login

@@ -1,11 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { AvatarInitial } from "@/components/ui/AvatarInitial";
+import { QtyStepper } from "@/components/ui/QtyStepper";
 import { brl, pct, stockRatio } from "@/lib/format";
 import { useStore } from "@/lib/store";
 import type { StockItem } from "@/lib/types";
+
+// Quantidade em pt-BR sem casa decimal inutil: 1,5 kg e 2 un, nunca "1.5" nem "2,0".
+const num = (n: number) => String(+n.toFixed(2)).replace(".", ",");
 
 export function ItemDetailModal({
   item,
@@ -14,20 +18,53 @@ export function ItemDetailModal({
   item: StockItem | null;
   onClose: () => void;
 }) {
-  const { addStockToList, addStock, zerarStock, baixaStock, showToast } = useStore();
+  const {
+    addStockToList,
+    addStock,
+    zerarStock,
+    baixaStock,
+    setPar,
+    parSugerido,
+    showToast,
+  } = useStore();
   const [parcial, setParcial] = useState(false);
   const [qtd, setQtd] = useState("");
   const [busy, setBusy] = useState(false);
+  const [editPar, setEditPar] = useState(false);
+  const [parTxt, setParTxt] = useState("");
+  // Guarda o id junto: o modal e reaproveitado entre itens e a sugestao de um
+  // nao pode aparecer no outro enquanto a nova nao chega.
+  const [sug, setSug] = useState<{ id: string; valor: number } | null>(null);
+
+  const itemId = item?.id ?? null;
+  useEffect(() => {
+    if (!itemId) return;
+    let vivo = true;
+    parSugerido(itemId).then((s) => {
+      if (vivo && s) setSug({ id: itemId, valor: s.sugerido });
+    });
+    return () => {
+      vivo = false;
+    };
+  }, [itemId, parSugerido]);
 
   function fechar() {
     setParcial(false);
     setQtd("");
+    setEditPar(false);
+    setParTxt("");
     onClose();
   }
   if (!item) return null;
 
+  // par_level 0 significa "ninguem definiu", nao "acabou": stockRatio devolve 1
+  // nesse caso, entao mostrar a barra pintaria 100% para um dado que nao existe.
+  const semReferencia = item.normal <= 0;
   const ratio = stockRatio(item.current, item.normal);
-  const repor = ratio < 0.5;
+  const repor = !semReferencia && ratio < 0.5;
+  const sugestao = sug && sug.id === item.id ? sug.valor : null;
+  const mostrarSugestao = sugestao !== null && sugestao !== item.normal;
+  const parDigitado = parTxt.trim() === "" ? NaN : Number(parTxt.replace(",", "."));
   const barColor = repor ? "var(--warn)" : "var(--pos)";
   const trendUp = item.trend > 0;
   const trendLabel = `${trendUp ? "+" : ""}${Math.round(item.trend * 100)}%`;
@@ -40,16 +77,46 @@ export function ItemDetailModal({
   ];
 
   async function add() {
-    await addStockToList(item!);
+    const r = await addStockToList(item!);
+    if (!r.ok) return showToast(r.erro);
     showToast(`${item!.name} adicionado à lista`);
     fechar();
   }
 
+  // Quanto a pessoa costuma ter em casa. O aviso de "Repor" dispara na metade
+  // disto (stockRatio < 0.5), por isso a mensagem fala da metade, e nao do valor.
+  async function salvarPar(valor: number) {
+    setBusy(true);
+    const r = await setPar(item!.id, valor);
+    setBusy(false);
+    if (!r.ok) return showToast(r.erro);
+    setEditPar(false);
+    showToast(
+      valor > 0
+        ? `Avisamos quando ${item!.name} cair abaixo de ${num(valor / 2)} ${item!.unit}`
+        : `Aviso de ${item!.name} desligado`,
+    );
+  }
+
   async function baixaTotal() {
     setBusy(true);
-    await zerarStock([item!.id]);
+    const r = await zerarStock([item!.id]);
     setBusy(false);
-    showToast(`${item!.name}: baixa total`);
+    if (!r.ok) return showToast(r.erro);
+    showToast(`${item!.name}: acabou`);
+    fechar();
+  }
+
+  // Atalho do caso mais comum: gastou parte e nao quer digitar. Arredonda em
+  // 3 casas pra nao gerar dizima em unidade fracionada (kg, L).
+  async function usouMetade() {
+    const n = +(item!.current / 2).toFixed(3);
+    if (n <= 0) return;
+    setBusy(true);
+    const r = await baixaStock(item!.id, n);
+    setBusy(false);
+    if (!r.ok) return showToast(r.erro);
+    showToast(`${item!.name}: baixa de ${n} ${item!.unit}`);
     fechar();
   }
 
@@ -57,8 +124,9 @@ export function ItemDetailModal({
     const n = Number(qtd.replace(",", "."));
     if (!n || n <= 0) return;
     setBusy(true);
-    await baixaStock(item!.id, n);
+    const r = await baixaStock(item!.id, n);
     setBusy(false);
+    if (!r.ok) return showToast(r.erro);
     showToast(`${item!.name}: baixa de ${n} ${item!.unit}`);
     fechar();
   }
@@ -68,8 +136,9 @@ export function ItemDetailModal({
   async function repor_() {
     const falta = Math.max(1, +(item!.normal - item!.current).toFixed(3));
     setBusy(true);
-    await addStock({ name: item!.name, qty: falta, unit: item!.unit });
+    const r = await addStock({ name: item!.name, qty: falta, unit: item!.unit });
     setBusy(false);
+    if (!r.ok) return showToast(r.erro);
     showToast(`${item!.name} reposto no estoque`);
     fechar();
   }
@@ -96,25 +165,91 @@ export function ItemDetailModal({
           <span className="text-xs font-bold uppercase tracking-wide text-text-3">
             Nível em casa
           </span>
-          <span className="text-[13px] font-bold text-text-2">{pct(ratio * 100)}</span>
+          {!semReferencia && (
+            <span className="text-[13px] font-bold text-text-2">{pct(ratio * 100)}</span>
+          )}
         </div>
-        <div className="mb-2 h-3 overflow-hidden rounded-[7px] bg-card">
-          <div
-            className="h-full rounded-[7px]"
-            style={{
-              width: `${Math.max(4, Math.min(100, ratio * 100))}%`,
-              background: barColor,
-            }}
-          />
-        </div>
+        {!semReferencia && (
+          <div className="mb-2 h-3 overflow-hidden rounded-[7px] bg-card">
+            <div
+              className="h-full rounded-[7px]"
+              style={{
+                width: `${Math.max(4, Math.min(100, ratio * 100))}%`,
+                background: barColor,
+              }}
+            />
+          </div>
+        )}
         <div className="flex justify-between text-[13px] text-text-2">
           <span>
-            Tem {item.current} {item.unit}
+            Tem {num(item.current)} {item.unit}
           </span>
-          <span>
-            Normal {item.normal} {item.unit}
-          </span>
+          {!semReferencia && (
+            <span>
+              Costuma ter {num(item.normal)} {item.unit}
+            </span>
+          )}
         </div>
+
+        {!semReferencia && (
+          <div className="mt-1.5 text-[12px] leading-snug text-text-3">
+            Avisamos quando cair abaixo de {num(item.normal / 2)} {item.unit}.
+          </div>
+        )}
+        {semReferencia && !mostrarSugestao && (
+          <div className="mt-1.5 text-[12px] leading-snug text-text-3">
+            Ainda não sabemos quanto você costuma ter em casa, então não avisamos quando
+            este item estiver acabando.
+          </div>
+        )}
+
+        {/* O app propoe pelo historico de compras; aceitar e um toque. Digitar
+            existe pra quem quer um numero proprio, nao e o caminho padrao. */}
+        {mostrarSugestao && (
+          <button
+            type="button"
+            onClick={() => salvarPar(sugestao)}
+            disabled={busy}
+            className="mt-3 min-h-[44px] w-full rounded-[12px] border-[1.5px] border-brand bg-card px-3.5 py-2.5 text-left text-[13px] leading-snug disabled:opacity-50"
+          >
+            <span className="font-bold">
+              Você costuma comprar {num(sugestao)} {item.unit} por vez.
+            </span>{" "}
+            Usar como referência e avisar abaixo de {num(sugestao / 2)} {item.unit}?
+          </button>
+        )}
+
+        {editPar ? (
+          <div className="mt-2.5 flex gap-2.5">
+            <input
+              value={parTxt}
+              onChange={(e) => setParTxt(e.target.value)}
+              inputMode="decimal"
+              autoFocus
+              placeholder={`Quanto costuma ter? (${item.unit})`}
+              className="h-[44px] min-w-0 flex-1 rounded-[12px] border border-border bg-card px-3.5 text-[14px]"
+            />
+            <button
+              type="button"
+              onClick={() => salvarPar(parDigitado)}
+              disabled={busy || !Number.isFinite(parDigitado) || parDigitado < 0}
+              className="h-[44px] shrink-0 rounded-[12px] bg-brand px-4 text-[14px] font-bold text-brand-ink disabled:opacity-50"
+            >
+              Salvar
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => {
+              setParTxt(item.normal > 0 ? num(item.normal) : "");
+              setEditPar(true);
+            }}
+            className="mt-1.5 min-h-[44px] text-[13px] font-bold text-brand underline underline-offset-2"
+          >
+            {semReferencia ? "Definir quanto costuma ter" : "Mudar esse valor"}
+          </button>
+        )}
       </div>
 
       <div className="mb-3.5 flex gap-3">
@@ -177,38 +312,49 @@ export function ItemDetailModal({
         Dar baixa por consumo
       </div>
       {parcial ? (
-        <div className="mb-3.5 flex gap-3">
-          <input
-            value={qtd}
-            onChange={(e) => setQtd(e.target.value)}
-            inputMode="decimal"
-            autoFocus
-            placeholder={`Quanto consumiu? (${item.unit})`}
-            className="h-[50px] flex-1 rounded-[14px] border border-border bg-card-2 px-3.5 text-[15px]"
-          />
+        <div className="mb-3.5 flex items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <QtyStepper
+              value={qtd}
+              onChange={setQtd}
+              unit={item.unit}
+              autoFocus
+              placeholder={item.unit}
+            />
+          </div>
           <button
+            type="button"
             onClick={baixaParcial}
             disabled={busy || !Number(qtd.replace(",", "."))}
-            className="h-[50px] rounded-[14px] bg-warn px-5 text-[15px] font-bold text-white disabled:opacity-50"
+            className="h-12 shrink-0 rounded-[13px] bg-warn px-5 text-[15px] font-bold text-white disabled:opacity-50"
           >
             Baixar
           </button>
         </div>
       ) : (
-        <div className="mb-3.5 flex gap-3">
+        <div className="mb-3.5 flex flex-wrap gap-2.5">
+          {/* Atalhos sem teclado: cobrem o caso comum. "Digitar" fica pra
+              quem precisa de valor exato. */}
           <button
-            onClick={() => setParcial(true)}
-            disabled={busy}
-            className="h-[50px] flex-1 rounded-[14px] border border-warn bg-card text-[15px] font-bold text-warn disabled:opacity-50"
+            onClick={usouMetade}
+            disabled={busy || item.current <= 0}
+            className="h-[50px] min-w-[104px] flex-1 rounded-[14px] border border-warn bg-card text-[15px] font-bold text-warn disabled:opacity-50"
           >
-            Baixa parcial
+            Usei metade
           </button>
           <button
             onClick={baixaTotal}
-            disabled={busy}
-            className="h-[50px] flex-1 rounded-[14px] border border-warn bg-warn text-[15px] font-bold text-white disabled:opacity-50"
+            disabled={busy || item.current <= 0}
+            className="h-[50px] min-w-[104px] flex-1 rounded-[14px] border border-warn bg-warn text-[15px] font-bold text-white disabled:opacity-50"
           >
-            Baixa total
+            Acabou
+          </button>
+          <button
+            onClick={() => setParcial(true)}
+            disabled={busy || item.current <= 0}
+            className="h-[50px] w-full rounded-[14px] border border-border bg-card text-[14px] font-bold text-text-2 disabled:opacity-50"
+          >
+            Digitar quanto usei
           </button>
         </div>
       )}

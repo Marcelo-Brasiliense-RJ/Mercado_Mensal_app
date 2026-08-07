@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { BrandMark } from "@/components/ui/BrandMark";
 import { createClient } from "@/lib/supabase/client";
@@ -21,6 +22,15 @@ export default function RedefinirSenha() {
   const [confirma, setConfirma] = useState("");
   const [erro, setErro] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  // Sem sessao de recuperacao o formulario nao tem como funcionar. Antes ele
+  // aparecia habilitado e o erro so vinha depois de digitar e enviar.
+  const [sessao, setSessao] = useState<"checando" | "ok" | "sem">("checando");
+
+  useEffect(() => {
+    createClient()
+      .auth.getSession()
+      .then(({ data }) => setSessao(data.session ? "ok" : "sem"));
+  }, []);
 
   async function salvar() {
     setErro(null);
@@ -53,6 +63,32 @@ export default function RedefinirSenha() {
           <h1 className="text-[26px] font-extrabold">Nova senha</h1>
         </div>
         <div className="rounded-[22px] border border-border bg-card p-7 shadow-[0_8px_30px_var(--shadow)]">
+          {sessao === "checando" && (
+            <p className="py-2 text-center text-[14px] text-text-2">
+              Conferindo o link...
+            </p>
+          )}
+
+          {sessao === "sem" && (
+            <>
+              <p className="mb-2 text-[15px] font-bold text-neg">
+                Este link não vale mais
+              </p>
+              <p className="mb-5 text-[14px] leading-relaxed text-text-2">
+                Links de recuperação expiram e só funcionam uma vez. Peça um novo na
+                tela de entrada, em &quot;Esqueci minha senha&quot;.
+              </p>
+              <Link
+                href="/entrar"
+                className={`${primary} flex items-center justify-center`}
+              >
+                Pedir um novo link
+              </Link>
+            </>
+          )}
+
+          {sessao === "ok" && (
+            <>
           <label className={labelCls}>Nova senha</label>
           <input
             type="password"
@@ -74,6 +110,8 @@ export default function RedefinirSenha() {
           <button onClick={salvar} disabled={loading} className={`${primary} mt-2`}>
             {loading ? "Salvando..." : "Salvar senha"}
           </button>
+            </>
+          )}
         </div>
       </div>
     </div>

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { useStore } from "@/lib/store";
+import { unitFor, findByName } from "@/lib/defaults";
 
 const UNITS = ["un", "kg", "g", "L", "ml", "pct", "cx", "dz"];
 const field =
@@ -18,25 +19,37 @@ export function StockAddModal({
   open: boolean;
   onClose: () => void;
 }) {
-  const { addStock, showToast } = useStore();
+  const { addStock, showToast, stock } = useStore();
   const [nome, setNome] = useState("");
   const [qtd, setQtd] = useState("1");
   const [unidade, setUnidade] = useState("un");
+  // Enquanto o usuario nao mexer no select, a unidade acompanha o nome.
+  const [unidadeManual, setUnidadeManual] = useState(false);
+
+  // Item ja cadastrado com esse nome: avisa antes de criar duplicado.
+  const jaTem = findByName(nome, stock);
+
+  function onNome(v: string) {
+    setNome(v);
+    if (!unidadeManual) setUnidade(unitFor(v));
+  }
 
   function close() {
     onClose();
     setNome("");
     setQtd("1");
     setUnidade("un");
+    setUnidadeManual(false);
   }
 
   async function submit() {
     if (!nome.trim()) return;
-    await addStock({
+    const r = await addStock({
       name: nome.trim(),
       qty: Number(qtd.replace(",", ".")) || 1,
       unit: unidade,
     });
+    if (!r.ok) return showToast(r.erro);
     showToast(`${nome.trim()} adicionado ao estoque`);
     close();
   }
@@ -45,16 +58,22 @@ export function StockAddModal({
 
   return (
     <Modal open={open} onClose={close} maxWidth={420}>
+      <form onSubmit={(e) => { e.preventDefault(); submit(); }}>
       <div className="mb-[18px] text-[19px] font-extrabold">Adicionar ao estoque</div>
 
       <label className={labelCls}>Nome</label>
       <input
         value={nome}
-        onChange={(e) => setNome(e.target.value)}
+        onChange={(e) => onNome(e.target.value)}
         placeholder="Ex.: Arroz"
-        className={`${field} mb-3.5`}
+        className={`${field} ${jaTem ? "mb-1.5" : "mb-3.5"}`}
         autoFocus
       />
+      {jaTem && (
+        <p className="mb-3.5 text-[12px] text-text-2">
+          Você já tem {jaTem.current} {jaTem.unit} em casa. Vamos somar a esse item.
+        </p>
+      )}
 
       <div className="mb-5 flex gap-3">
         <div className="flex-1">
@@ -71,7 +90,10 @@ export function StockAddModal({
           <label className={labelCls}>Unidade</label>
           <select
             value={unidade}
-            onChange={(e) => setUnidade(e.target.value)}
+            onChange={(e) => {
+              setUnidade(e.target.value);
+              setUnidadeManual(true);
+            }}
             className={`${field} px-2.5`}
           >
             {UNITS.map((u) => (
@@ -85,19 +107,21 @@ export function StockAddModal({
 
       <div className="flex gap-3">
         <button
+          type="button"
           onClick={close}
           className="h-[50px] flex-1 rounded-[14px] border border-border bg-card text-[15px] font-bold"
         >
           Cancelar
         </button>
         <button
-          onClick={submit}
+          type="submit"
           disabled={!valid}
           className="h-[50px] flex-[1.6] rounded-[14px] bg-brand text-[15px] font-bold text-brand-ink disabled:opacity-50"
         >
           Adicionar
         </button>
       </div>
+      </form>
     </Modal>
   );
 }

@@ -47,14 +47,15 @@ export function ListView() {
 
   async function comprar(id: string) {
     setBusy(id);
-    await buyItems([id]);
+    const r = await buyItems([id]);
     setBusy(null);
-    showToast("Comprado, estoque reposto");
+    showToast(r.ok ? "Comprado, estoque reposto" : r.erro);
   }
   async function remover(id: string) {
     setBusy(id);
-    await removeItems([id]);
+    const r = await removeItems([id]);
     setBusy(null);
+    if (!r.ok) showToast(r.erro);
   }
 
   const addBtn = (
@@ -167,7 +168,7 @@ export function ListView() {
                   onClick={() => remover(i.id)}
                   disabled={busy === i.id}
                   aria-label="Remover"
-                  className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-[18px] text-text-3 hover:bg-card-2"
+                  className="grid h-11 w-11 shrink-0 place-items-center rounded-lg text-[18px] text-text-3 hover:bg-card-2"
                 >
                   ×
                 </button>

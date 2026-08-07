@@ -33,8 +33,8 @@ export function FamiliaView() {
     if (navigator.share) {
       try {
         await navigator.share({
-          title: "Dispensa",
-          text: `Entre na nossa família no Dispensa com o código ${family.invite_code}`,
+          title: "Despensa",
+          text: `Entre na nossa família na Despensa com o código ${family.invite_code}`,
         });
         return;
       } catch {}
@@ -128,7 +128,7 @@ export function FamiliaView() {
               </button>
             </>
           ) : (
-            <>
+            <form onSubmit={(e) => { e.preventDefault(); trocarFamilia(); }}>
               <input
                 value={novoCodigo}
                 onChange={(e) => setNovoCodigo(e.target.value.toUpperCase())}
@@ -138,20 +138,21 @@ export function FamiliaView() {
               {erro && <p className="mb-3 text-[13px] font-bold text-neg">{erro}</p>}
               <div className="flex gap-3">
                 <button
+                  type="button"
                   onClick={() => { setTrocar(false); setErro(null); }}
                   className="h-11 flex-1 rounded-[12px] border border-border bg-card text-[14px] font-bold"
                 >
                   Cancelar
                 </button>
                 <button
-                  onClick={trocarFamilia}
+                  type="submit"
                   disabled={loading}
                   className="h-11 flex-[1.4] rounded-[12px] bg-brand text-[14px] font-bold text-brand-ink disabled:opacity-50"
                 >
                   {loading ? "Trocando..." : "Trocar"}
                 </button>
               </div>
-            </>
+            </form>
           )}
         </div>
 

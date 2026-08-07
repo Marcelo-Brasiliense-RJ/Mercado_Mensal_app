@@ -33,29 +33,71 @@ const EMPTY: Data = {
   trip: null,
 };
 
+// Resultado de uma escrita. `erro` ja vem em portugues, pronto pro toast: quem
+// chama nao precisa conhecer os slugs do banco.
+export type RpcResult = { ok: true } | { ok: false; erro: string };
+
+// Sugestao de nivel normal vinda do historico de compras (0025). `null` quando
+// o banco nao tem base pra sugerir: dado insuficiente nao vira chute.
+export type ParSugestao = { sugerido: number; base_compras: number };
+
+// Slugs devolvidos pelas RPCs (grep "'erro'," em supabase/migrations).
+const ERROS: Record<string, string> = {
+  sem_familia: "Sua sessão expirou. Entre de novo.",
+  nao_encontrado: "Item não encontrado. Atualize a tela.",
+  produto_nao_encontrado: "Item não encontrado. Atualize a tela.",
+  sem_nome: "Informe o nome do item.",
+  valor_invalido: "Valor inválido.",
+  ja_importada: "Essa nota já foi importada.",
+  sem_compra_aberta: "Não há compra aberta.",
+  sem_preco: "Informe o preço do item.",
+};
+
+// Uma escrita tem duas formas de falhar, e ate agora nenhuma das duas era lida:
+// o `error` do supabase-js (rede, sessao, permissao) e o {ok:false,erro} que a
+// propria RPC devolve. Este helper cobre as duas e sempre entrega texto exibivel.
+async function callRpc(
+  name: string,
+  params?: Record<string, unknown>,
+): Promise<RpcResult> {
+  try {
+    const { data, error } = await createClient().rpc(name, params);
+    if (error) return { ok: false, erro: "Não deu para salvar. Tente de novo." };
+    const res = data as { ok?: boolean; erro?: string } | null;
+    if (res && res.ok === false) {
+      return { ok: false, erro: ERROS[res.erro ?? ""] ?? "Não deu para salvar. Tente de novo." };
+    }
+    return { ok: true };
+  } catch {
+    return { ok: false, erro: "Sem conexão. Tente de novo." };
+  }
+}
+
 type Store = Data & {
   savingsTotal: number;
   dataLoading: boolean;
   toast: string | null;
   receiptOpen: boolean;
   reloadData: () => Promise<void>;
-  zerarStock: (ids: string[]) => Promise<void>;
-  baixaStock: (id: string, qty: number) => Promise<void>;
-  addStock: (item: { name: string; qty: number; unit: string }) => Promise<void>;
-  deleteStock: (ids: string[]) => Promise<void>;
-  stockToList: (ids: string[]) => Promise<void>;
+  zerarStock: (ids: string[]) => Promise<RpcResult>;
+  baixaStock: (id: string, qty: number) => Promise<RpcResult>;
+  addStock: (item: { name: string; qty: number; unit: string }) => Promise<RpcResult>;
+  setPar: (id: string, par: number) => Promise<RpcResult>;
+  parSugerido: (id: string) => Promise<ParSugestao | null>;
+  deleteStock: (ids: string[]) => Promise<RpcResult>;
+  stockToList: (ids: string[]) => Promise<RpcResult>;
   reloadTrip: () => Promise<void>;
-  finalizeTrip: () => Promise<void>;
-  removeTripItem: (id: string) => Promise<void>;
-  addShopItem: (item: Omit<ShopItem, "id" | "status">) => Promise<void>;
+  finalizeTrip: () => Promise<RpcResult>;
+  removeTripItem: (id: string) => Promise<RpcResult>;
+  addShopItem: (item: Omit<ShopItem, "id" | "status">) => Promise<RpcResult>;
   updateShopItem: (
     id: string,
     patch: { qty?: number; unit?: string; price?: number | null },
-  ) => Promise<void>;
-  addStockToList: (item: StockItem) => Promise<void>;
-  buyItems: (ids: string[]) => Promise<void>;
-  removeItems: (ids: string[]) => Promise<void>;
-  setBudget: (total: number) => void;
+  ) => Promise<RpcResult>;
+  addStockToList: (item: StockItem) => Promise<RpcResult>;
+  buyItems: (ids: string[]) => Promise<RpcResult>;
+  removeItems: (ids: string[]) => Promise<RpcResult>;
+  setBudget: (total: number) => Promise<RpcResult>;
   openReceipt: () => void;
   closeReceipt: () => void;
   confirmReceipt: (
@@ -115,44 +157,70 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
 
   const zerarStock = useCallback(
     async (ids: string[]) => {
-      await createClient().rpc("mercado_stock_zerar_web", { p_ids: ids });
-      await reloadData();
+      const r = await callRpc("mercado_stock_zerar_web", { p_ids: ids });
+      if (r.ok) await reloadData();
+      return r;
     },
     [reloadData],
   );
 
   const baixaStock = useCallback(
     async (id: string, qty: number) => {
-      await createClient().rpc("mercado_stock_baixa_web", { p_id: id, p_qty: qty });
-      await reloadData();
+      const r = await callRpc("mercado_stock_baixa_web", { p_id: id, p_qty: qty });
+      if (r.ok) await reloadData();
+      return r;
     },
     [reloadData],
   );
 
   const addStock = useCallback(
     async (item: { name: string; qty: number; unit: string }) => {
-      await createClient().rpc("mercado_stock_add_web", {
+      const r = await callRpc("mercado_stock_add_web", {
         p_name: item.name,
         p_qty: item.qty,
         p_unit: item.unit,
       });
-      await reloadData();
+      if (r.ok) await reloadData();
+      return r;
     },
     [reloadData],
   );
 
+  const setPar = useCallback(
+    async (id: string, par: number) => {
+      const r = await callRpc("mercado_stock_set_par_web", { p_id: id, p_par: par });
+      if (r.ok) await reloadData();
+      return r;
+    },
+    [reloadData],
+  );
+
+  // Leitura, nao escrita: o callRpc so devolve ok/erro e aqui o que importa e o
+  // numero. Sem sugestao (menos de 2 compras na janela) devolve null, e a tela
+  // simplesmente nao oferece nada.
+  const parSugerido = useCallback(async (id: string) => {
+    const { data } = await createClient().rpc("mercado_stock_par_sugerido_web", {
+      p_id: id,
+    });
+    const r = data as { ok?: boolean; sugerido?: number | null; base_compras?: number } | null;
+    if (!r?.ok || r.sugerido == null) return null;
+    return { sugerido: Number(r.sugerido), base_compras: Number(r.base_compras ?? 0) };
+  }, []);
+
   const deleteStock = useCallback(
     async (ids: string[]) => {
-      await createClient().rpc("mercado_stock_delete_web", { p_ids: ids });
-      await reloadData();
+      const r = await callRpc("mercado_stock_delete_web", { p_ids: ids });
+      if (r.ok) await reloadData();
+      return r;
     },
     [reloadData],
   );
 
   const stockToList = useCallback(
     async (ids: string[]) => {
-      await createClient().rpc("mercado_stock_to_list_web", { p_ids: ids });
-      await reloadData();
+      const r = await callRpc("mercado_stock_to_list_web", { p_ids: ids });
+      if (r.ok) await reloadData();
+      return r;
     },
     [reloadData],
   );
@@ -163,14 +231,17 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const finalizeTrip = useCallback(async () => {
-    await createClient().rpc("mercado_trip_finalize_web");
-    await reloadData(); // recarrega estoque/lista/economia repostos + limpa o carrinho
+    const r = await callRpc("mercado_trip_finalize_web");
+    // recarrega estoque/lista/economia repostos + limpa o carrinho
+    if (r.ok) await reloadData();
+    return r;
   }, [reloadData]);
 
   const removeTripItem = useCallback(
     async (id: string) => {
-      await createClient().rpc("mercado_trip_remove_item_web", { p_id: id });
-      await reloadTrip();
+      const r = await callRpc("mercado_trip_remove_item_web", { p_id: id });
+      if (r.ok) await reloadTrip();
+      return r;
     },
     [reloadTrip],
   );
@@ -183,13 +254,14 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
 
   const addShopItem = useCallback(
     async (item: Omit<ShopItem, "id" | "status">) => {
-      await createClient().rpc("mercado_list_add_web", {
+      const r = await callRpc("mercado_list_add_web", {
         p_name: item.name,
         p_qty: item.desired_quantity,
         p_unit: item.unit,
         p_price: item.estimated_price,
       });
-      await reloadData();
+      if (r.ok) await reloadData();
+      return r;
     },
     [reloadData],
   );
@@ -199,50 +271,56 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       id: string,
       patch: { qty?: number; unit?: string; price?: number | null },
     ) => {
-      await createClient().rpc("mercado_list_update_web", {
+      const r = await callRpc("mercado_list_update_web", {
         p_id: id,
         p_qty: patch.qty ?? null,
         p_unit: patch.unit ?? null,
         p_price: patch.price ?? null,
       });
-      await reloadData();
+      if (r.ok) await reloadData();
+      return r;
     },
     [reloadData],
   );
 
   const addStockToList = useCallback(
     async (item: StockItem) => {
-      await createClient().rpc("mercado_list_add_web", {
+      const r = await callRpc("mercado_list_add_web", {
         p_name: item.name,
         p_qty: Math.max(1, Math.round(item.normal - item.current)),
         p_unit: item.unit,
         p_price: item.priceLast,
       });
-      await reloadData();
+      if (r.ok) await reloadData();
+      return r;
     },
     [reloadData],
   );
 
   const buyItems = useCallback(
     async (ids: string[]) => {
-      await createClient().rpc("mercado_list_buy_web", { p_ids: ids });
-      await reloadData();
+      const r = await callRpc("mercado_list_buy_web", { p_ids: ids });
+      if (r.ok) await reloadData();
+      return r;
     },
     [reloadData],
   );
 
   const removeItems = useCallback(
     async (ids: string[]) => {
-      await createClient().rpc("mercado_list_remove_web", { p_ids: ids });
-      await reloadData();
+      const r = await callRpc("mercado_list_remove_web", { p_ids: ids });
+      if (r.ok) await reloadData();
+      return r;
     },
     [reloadData],
   );
 
-  const setBudget = useCallback(
-    (total: number) => setData((d) => ({ ...d, budget: { ...d.budget, total } })),
-    [],
-  );
+  // Ate a 0021 isto so mexia no estado em memoria: o orcamento sumia no reload.
+  const setBudget = useCallback(async (total: number) => {
+    const r = await callRpc("mercado_budget_set_web", { p_total: total });
+    if (r.ok) setData((d) => ({ ...d, budget: { ...d.budget, total } }));
+    return r;
+  }, []);
 
   const confirmReceipt = useCallback(
     async (
@@ -285,6 +363,8 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       zerarStock,
       baixaStock,
       addStock,
+      setPar,
+      parSugerido,
       deleteStock,
       stockToList,
       reloadTrip,
@@ -311,6 +391,8 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       zerarStock,
       baixaStock,
       addStock,
+      setPar,
+      parSugerido,
       deleteStock,
       stockToList,
       reloadTrip,

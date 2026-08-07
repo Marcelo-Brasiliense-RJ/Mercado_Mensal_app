@@ -4,10 +4,10 @@ import { AppStoreProvider } from "@/lib/store";
 import { Toast } from "@/components/ui/Toast";
 
 export const metadata: Metadata = {
-  title: "Dispensa",
-  description: "Controle da dispensa e das compras do mes, por voz no Telegram.",
+  title: "Despensa",
+  description: "Controle da despensa e das compras do mês, por voz no Telegram.",
   manifest: "/manifest.webmanifest",
-  appleWebApp: { capable: true, title: "Dispensa", statusBarStyle: "default" },
+  appleWebApp: { capable: true, title: "Despensa", statusBarStyle: "default" },
   icons: { apple: "/icon-180.png" },
 };
 

@@ -26,9 +26,9 @@ export function CartPanel() {
 
   async function finalizar() {
     setBusy(true);
-    await finalizeTrip();
+    const r = await finalizeTrip();
     setBusy(false);
-    showToast("Compra finalizada, estoque reposto");
+    showToast(r.ok ? "Compra finalizada, estoque reposto" : r.erro);
   }
 
   return (
@@ -106,7 +106,10 @@ export function CartPanel() {
                 {brl(it.quantity * it.unit_price)}
               </span>
               <button
-                onClick={() => removeTripItem(it.id)}
+                onClick={async () => {
+                  const r = await removeTripItem(it.id);
+                  if (!r.ok) showToast(r.erro);
+                }}
                 aria-label="Tirar do carrinho"
                 className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-[18px] text-text-3 hover:bg-card"
               >

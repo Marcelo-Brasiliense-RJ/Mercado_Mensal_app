@@ -40,7 +40,7 @@ export function Sidebar({ onRegistrar }: { onRegistrar: () => void }) {
       <div className="flex items-center gap-3 px-2 pb-[22px]">
         <BrandMark size={42} radius={12} />
         <div className="min-w-0">
-          <div className="text-[17px] font-extrabold leading-[1.15]">Dispensa</div>
+          <div className="text-[17px] font-extrabold leading-[1.15]">Despensa</div>
           <div className="truncate text-[12px] text-text-2">{household?.familia}</div>
         </div>
         <button

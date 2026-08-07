@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Modal } from "@/components/ui/Modal";
+import { QtyStepper } from "@/components/ui/QtyStepper";
 import { useStore } from "@/lib/store";
 import type { ShopItem } from "@/lib/types";
 
@@ -43,12 +44,13 @@ export function ListItemActions({
 
   async function salvar() {
     setBusy(true);
-    await updateShopItem(item!.id, {
+    const r = await updateShopItem(item!.id, {
       qty: Number(qtd.replace(",", ".")) || 0,
       unit: unidade,
       price: preco === "" ? null : Number(preco.replace(",", ".")) || 0,
     });
     setBusy(false);
+    if (!r.ok) return showToast(r.erro);
     showToast(`${item!.name} atualizado`);
     onClose();
   }
@@ -67,8 +69,9 @@ export function ListItemActions({
   async function baixaTotal() {
     if (!emEstoque) return;
     setBusy(true);
-    await zerarStock([emEstoque.id]);
+    const r = await zerarStock([emEstoque.id]);
     setBusy(false);
+    if (!r.ok) return showToast(r.erro);
     showToast(`${item!.name}: baixa total`);
     onClose();
   }
@@ -76,8 +79,9 @@ export function ListItemActions({
     const n = Number(qBaixa.replace(",", "."));
     if (!emEstoque || !n || n <= 0) return;
     setBusy(true);
-    await baixaStock(emEstoque.id, n);
+    const r = await baixaStock(emEstoque.id, n);
     setBusy(false);
+    if (!r.ok) return showToast(r.erro);
     showToast(`${item!.name}: baixa de ${n} ${emEstoque.unit}`);
     onClose();
   }
@@ -96,16 +100,14 @@ export function ListItemActions({
           : "Item da lista de compras."}
       </div>
 
-      {/* Editar quanto quer comprar e o preco pesquisado */}
+      {/* Editar quanto quer comprar e o preco pesquisado.
+          Form so aqui: os botoes de acao abaixo ficam de fora de proposito,
+          para Enter no campo de preco salvar a edicao e nao comprar o item. */}
+      <form onSubmit={(e) => { e.preventDefault(); salvar(); }}>
       <div className="mb-3 flex gap-3">
         <div className="flex-1">
           <label className={labelCls}>Quantidade</label>
-          <input
-            value={qtd}
-            onChange={(e) => setQtd(e.target.value)}
-            inputMode="decimal"
-            className={field}
-          />
+          <QtyStepper value={qtd} onChange={setQtd} unit={unidade} />
         </div>
         <div className="w-[104px]">
           <label className={labelCls}>Unidade</label>
@@ -136,12 +138,13 @@ export function ListItemActions({
         </div>
       )}
       <button
-        onClick={salvar}
+        type="submit"
         disabled={busy}
         className={`${btn} mb-4 bg-brand text-brand-ink`}
       >
         Salvar alterações
       </button>
+      </form>
 
       <div className="mb-2 border-t border-border" />
 
@@ -156,19 +159,21 @@ export function ListItemActions({
 
         {emEstoque &&
           (parcial ? (
-            <div className="flex gap-3">
-              <input
-                value={qBaixa}
-                onChange={(e) => setQBaixa(e.target.value)}
-                inputMode="decimal"
-                autoFocus
-                placeholder={`Quanto consumiu? (${emEstoque.unit})`}
-                className="h-[50px] flex-1 rounded-[14px] border border-border bg-card-2 px-3.5 text-[15px]"
-              />
+            <div className="flex items-center gap-3">
+              <div className="min-w-0 flex-1">
+                <QtyStepper
+                  value={qBaixa}
+                  onChange={setQBaixa}
+                  unit={emEstoque.unit}
+                  autoFocus
+                  placeholder={emEstoque.unit}
+                />
+              </div>
               <button
+                type="button"
                 onClick={baixaParcial}
                 disabled={busy || !Number(qBaixa.replace(",", "."))}
-                className="h-[50px] rounded-[14px] bg-warn px-5 text-[15px] font-bold text-white disabled:opacity-50"
+                className="h-12 shrink-0 rounded-[13px] bg-warn px-5 text-[15px] font-bold text-white disabled:opacity-50"
               >
                 Baixar
               </button>

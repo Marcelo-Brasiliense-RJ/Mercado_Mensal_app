@@ -14,10 +14,11 @@ export function BudgetModal({
   const { budget, setBudget, showToast } = useStore();
   const [valor, setValor] = useState(String(budget.total || ""));
 
-  function save() {
+  async function save() {
     const n = Number(valor.replace(/[^0-9,.-]/g, "").replace(",", "."));
     if (!n || n <= 0) return;
-    setBudget(n);
+    const r = await setBudget(n);
+    if (!r.ok) return showToast(r.erro);
     showToast("Orçamento atualizado");
     onClose();
   }
@@ -26,6 +27,7 @@ export function BudgetModal({
 
   return (
     <Modal open={open} onClose={onClose} maxWidth={420}>
+      <form onSubmit={(e) => { e.preventDefault(); save(); }}>
       <div className="mb-1.5 text-[19px] font-extrabold">Definir orçamento</div>
       <div className="mb-[18px] text-[14px] text-text-2">
         Quanto você quer gastar de mercado neste mês?
@@ -43,19 +45,21 @@ export function BudgetModal({
       />
       <div className="flex gap-3">
         <button
+          type="button"
           onClick={onClose}
           className="h-[50px] flex-1 rounded-[14px] border border-border bg-card text-[15px] font-bold"
         >
           Cancelar
         </button>
         <button
-          onClick={save}
+          type="submit"
           disabled={!valid}
           className="h-[50px] flex-[1.6] rounded-[14px] bg-brand text-[15px] font-bold text-brand-ink disabled:opacity-50"
         >
           Salvar
         </button>
       </div>
+      </form>
     </Modal>
   );
 }

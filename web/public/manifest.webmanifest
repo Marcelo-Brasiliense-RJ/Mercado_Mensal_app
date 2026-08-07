@@ -1,7 +1,7 @@
 {
-  "name": "Dispensa",
-  "short_name": "Dispensa",
-  "description": "Controle da dispensa e das compras do mes",
+  "name": "Despensa",
+  "short_name": "Despensa",
+  "description": "Controle da despensa e das compras do mês",
   "start_url": "/app/estoque",
   "scope": "/",
   "display": "standalone",
