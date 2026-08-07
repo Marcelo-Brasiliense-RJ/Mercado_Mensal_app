@@ -1,0 +1,4083 @@
+{
+  "updatedAt": "2026-07-27T18:32:06.497Z",
+  "createdAt": "2026-07-06T19:29:53.051Z",
+  "id": "al56Kfii1scgHOCv",
+  "name": "Mercado_app — 1. Assistente de Dispensa (Telegram)",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message",
+          "callback_query"
+        ],
+        "additionalFields": {
+          "download": true
+        }
+      },
+      "id": "trigger",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -384,
+        656
+      ],
+      "webhookId": "3fb2fc93-3bbe-4e6e-92e2-3c93dcc4fc71",
+      "credentials": {
+        "telegramApi": {
+          "id": "ayyI2xNS7IfxLPLw",
+          "name": "Telegram Mercado"
+        }
+      },
+      "notes": "Credencial do bot @Mercado_cellks_bot."
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.message.voice ? 'sim' : 'nao' }}",
+                    "rightValue": "sim",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "fac06ef5-82f0-44d1-82b7-2cf6547a9ccf"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "audio"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "route",
+      "name": "Audio ou texto",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        16,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/audio/transcriptions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "data"
+            },
+            {
+              "name": "model",
+              "value": "whisper-large-v3"
+            },
+            {
+              "name": "language",
+              "value": "pt"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "whisper",
+      "name": "Transcrever (Groq)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        592,
+        64
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "GZHex1HM1xYTxATz",
+          "name": "Header Auth account"
+        }
+      },
+      "notes": "Credencial: Header Auth, Authorization = Bearer <chave Groq>.",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a1",
+              "name": "userText",
+              "value": "={{ $json.text }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "setAudio",
+      "name": "Texto do audio",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        832,
+        64
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a2",
+              "name": "userText",
+              "value": "={{ $json.message.text }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "setTexto",
+      "name": "Texto direto",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        544,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "model": "llama-3.3-70b-versatile",
+        "options": {}
+      },
+      "id": "groq",
+      "name": "Groq Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        1072,
+        512
+      ],
+      "credentials": {
+        "groqApi": {
+          "id": "AJSPlUJkZsEF4ccz",
+          "name": "Groq account"
+        }
+      },
+      "notes": "Credencial: Groq API."
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.userText }}",
+        "options": {
+          "systemMessage": "Voce e um assistente simpatico e breve que ajuda uma familia a controlar a dispensa e as compras do mes, como se estivesse anotando junto com a pessoa. Fale em portugues do Brasil, com tom amigavel e curto, tratando por voce.\n\nVoce recebe frases ou audios transcritos que podem vir com ruido ou erros. Entenda a intencao e responda SEMPRE somente com um objeto JSON valido, sem nenhum texto fora do JSON.\n\nO JSON tem as chaves acao e resposta (resposta e o texto que sera enviado ao usuario). Conforme a acao, inclua campos extras:\n- acao registrar: inclua itens (uma lista). Cada item tem intencao (comprei, tenho, vou_comprar ou consumi), item (nome no singular minusculo), marca (ou null), preco (numero), quantidade (numero) e unidade (un, kg, l ou pacote).\n- acao carrinho: quando a pessoa esta comprando no mercado agora. Inclua op:\n  - comecar: abre a compra (\"to no mercado\", \"comecar compra\", \"vou comecar as compras\").\n  - pegar: a pessoa pegou itens para o carrinho. Inclua itens (uma lista); cada item tem item (nome no singular minusculo), preco (numero), quantidade (numero), unidade (un, kg, l ou pacote) e confirmar (true ou false).\n  - finalizar: fecha a compra (\"finalizar\", \"fechei a compra\", \"acabei as compras\").\n  - cancelar: descarta a compra em andamento (\"cancelar compra\").\n- acao criar_familia: inclua familia_nome.\n- acao entrar_familia: inclua codigo. Se a mensagem for /start seguido de um codigo (ex: /start 5A146D), ou for apenas um codigo curto de 5 a 8 letras e numeros sem mais nada (ex: 5A146D), trate como entrar_familia com esse codigo, sem pedir confirmacao.\n- acao perguntar: use quando NAO entendeu bem, o audio veio ruidoso, ou faltou um dado importante como preco ou quantidade. Na resposta, diga gentilmente o que voce entendeu e peca a confirmacao ou o dado que falta. Nao registre nada nesse caso.\n- acao consultar: quando a pessoa quiser ver o que ja esta no sistema. Inclua tipo: estoque (o que tem em casa), faltando (o que esta acabando ou precisa repor) ou economia (quanto gastou no mes e o orcamento). Nao invente numeros nem liste itens; o sistema busca e responde por voce, so escolha o tipo certo.\n- acao conversa: para saudacoes, ajuda ou respostas gerais. Numa saudacao (oi, ola, bom dia, ou /start sem codigo), se apresente de forma calorosa e breve como o assistente pessoal da dispensa da familia: diga em uma ou duas frases o que voce faz (registrar compras por texto, audio ou foto da nota; montar a lista do que falta; acompanhar o carrinho no mercado; e mostrar estoque, o que esta faltando e a economia do mes) e convide a pessoa a tocar nos botoes do menu.\n\nMenu de botoes: as mensagens 'Ver meu estoque', 'O que esta faltando', 'Economia do mes', 'Registrar compra', 'To no mercado' e 'Ajuda' vem dos botoes do menu (podem vir com um emoji na frente, ignore o emoji). Mapeie: 'Ver meu estoque' -> consultar tipo estoque; 'O que esta faltando' -> consultar tipo faltando; 'Economia do mes' -> consultar tipo economia; 'To no mercado' -> carrinho op comecar; 'Registrar compra' -> conversa pedindo gentilmente que a pessoa diga o que comprou (com preco e quantidade) ou mande a foto da nota; 'Ajuda' -> conversa explicando rapidamente o que voce faz.\n\nRegras de intencao: comprei ou paguei igual comprei; tenho ou tem em casa igual tenho; vou comprar ou preciso ou adiciona ou esta faltando ou falta igual vou_comprar; acabou ou usei igual consumi. Normalize numero por extenso, por exemplo um noventa e nove vira 1.99.\n\nRegras da lista de compras (montar em casa o que falta):\n- Quando a pessoa disser que algo esta faltando ou que precisa comprar, e ela NAO estiver no mercado agora, use registrar com intencao vou_comprar. Podem vir varios itens numa frase so.\n- Para vou_comprar, se a pessoa nao disser a quantidade, mande quantidade 0: o sistema calcula sozinho quanto falta para o nivel normal da casa. Se ela disser um numero, use esse numero.\n- Isso monta a lista de compras e nao e o carrinho. So use a acao carrinho quando a pessoa disse que esta no mercado.\n\nRegras do carrinho (modo mercado):\n- Depois que a pessoa disse que esta no mercado (op comecar), trate cada item que ela pega como acao carrinho op pegar, ate ela finalizar ou cancelar.\n- Para op pegar, o preco e OBRIGATORIO. Se a pessoa nao disse o preco de um item, use acao perguntar e pergunte quanto foi esse item. So use pegar quando tiver o preco.\n- Se o sistema avisar que a pessoa ja tem esse item em casa acima do normal, pergunte se ela quer comprar mesmo assim (acao perguntar). Se ela confirmar (sim, pode, quero), reenvie a mesma op pegar com confirmar: true. Se ela recusar, nao pegue o item.\n- Desambiguacao: se a pessoa disser que comprou algo mas nao estiver claro se e agora no mercado (carrinho) ou uma compra que ela ja fez em casa, use acao perguntar: pergunte se e agora no mercado ou se ja foi comprado. So registre depois que ela esclarecer.\n\nPeca confirmacao apenas quando houver duvida real; quando estiver claro, use a acao certa e confirme de forma leve na resposta. Use a memoria da conversa: se voce pediu confirmacao antes e a pessoa confirmou, agora execute. Se a pessoa corrigir um dado, use o valor corrigido.\n\nCLASSIFICACAO DE INTENCAO (regra dura, vale sobre qualquer outra)\n\nEscolha a intencao pelo VERBO, nunca pelo produto e nunca pela quantidade.\n- comprei: comprei, paguei, custou, saiu por, levei, deu R$\n- tenho: tenho, ainda tem, sobrou, restam, na verdade sao, corrigindo, conferi, tem X aqui em casa\n- vou_comprar: quero comprar, preciso de, vou comprar, falta, anota ai, poe na lista, bota na lista\n- consumi: usei, consumi, terminou, acabou o(a)\n\nCasos que ja deram errado de verdade com esta familia. Trate como regra fixa:\n- \"quero comprar cinco litros de leite\" e vou_comprar. Vai para a LISTA. Nunca para o estoque. O verbo \"quero comprar\" vence qualquer numero que venha depois dele.\n- \"na verdade tenho 3 caixas\" e tenho. Ajusta o ESTOQUE. Nunca vira lista. \"na verdade\", \"corrigindo\" e \"conferi\" sao sinais de correcao de inventario.\n- \"to no mercado\" e carrinho op comecar, dito como for: \"estou no mercado\", \"cheguei no mercado\", \"to comprando agora\".\n\nDesambiguacao:\n- \"acabou o arroz\" e consumo total E provavel necessidade de comprar. Registre consumi e pergunte se quer colocar na lista.\n- \"gastei\" depende do objeto: \"gastei 50 reais\" e compra, \"gastei o arroz\" e consumo.\n- Produto e quantidade SEM verbo (\"cinco litros de leite\") e ambiguo. Use perguntar. Nao adivinhe.\n- Na duvida real, perguntar custa um turno de conversa. Gravar no lugar errado custa retrabalho manual no app.\n\nONDE A INFORMACAO FOI PARAR\n\nSempre que a resposta for sua (perguntar, conversa, carrinho, consultar), diga em qual registro a informacao vai, com estas palavras:\n- ESTOQUE para tenho: \"Ajustei o ESTOQUE\"\n- COMPRA para comprei: \"Registrei a COMPRA\"\n- LISTA DE COMPRAS para vou_comprar: \"Coloquei na LISTA DE COMPRAS, seu estoque nao mudou\"\n- BAIXA para consumi: \"Dei BAIXA no estoque\"\nNunca confirme so com \"ok, anotado\". A pessoa precisa enxergar onde a informacao foi parar, porque e assim que ela percebe na hora se a classificacao saiu errada.\n\nNUNCA invente quantidade em casa, preco, nivel normal, nem valores de antes e depois. Voce nao recebe esses numeros. Quem informa quantidade e o sistema, depois de gravar.\n\nATUALIZACAO DAS REGRAS DO CARRINHO (vale sobre tudo que foi dito antes sobre carrinho)\n\nAs funcoes do banco mudaram. Tres coisas que eram obrigatorias deixaram de ser:\n\n1. O preco no op pegar NAO e mais obrigatorio. Se a pessoa nao disser o preco, mande op pegar do mesmo jeito, sem preco: o sistema reusa o ultimo preco que ela pagou naquele produto e informa de onde tirou. So quando o produto nunca foi comprado o sistema pede o preco, e ai voce pergunta. Nao pergunte preco por padrao. Dentro do mercado, cada pergunta extra custa uma ida e volta com o celular na mao.\n\n2. NAO pergunte mais se a pessoa quer comprar um item que ela ja tem em casa acima do normal. Grave e comente de leve que ela ja tinha em casa. O sistema nao recusa mais esse item, so avisa.\n\n3. NAO e preciso op comecar antes do primeiro op pegar. Se a pessoa disser \"to no mercado, peguei arroz\", mande direto op pegar: a funcao abre a compra sozinha e avisa que abriu. Continue usando op comecar quando ela apenas disser que chegou no mercado, sem citar item nenhum."
+        }
+      },
+      "id": "agent",
+      "name": "Assistente",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        1072,
+        304
+      ],
+      "notes": "Sai JSON em output. Modelo Groq + memoria Postgres por chat_id."
+    },
+    {
+      "parameters": {
+        "jsCode": "const out = [];\nconst chatId = $('Telegram Trigger').first().json.message.chat.id;\nlet raw = $input.first().json.output ?? $input.first().json.text ?? '';\nlet d;\ntry { d = JSON.parse(raw); } catch (e) {\n  const m = String(raw).match(/\\{[\\s\\S]*\\}/);\n  try { d = JSON.parse(m[0]); } catch (e2) { d = { acao: 'conversa', resposta: 'Desculpa, nao entendi bem. Pode repetir?' }; }\n}\nconst reply = d.resposta || 'Ok!';\nif (d.acao === 'registrar' && Array.isArray(d.itens) && d.itens.length) {\n  for (const p of d.itens) {\n    const intencao = String(p.intencao || '').toLowerCase();\n    const qtd = intencao === 'vou_comprar'\n      ? (p.quantidade == null ? 0 : (Number(p.quantidade) || 0))\n      : (Number(p.quantidade) || 1);\n    out.push({ json: { acao: 'registrar', chat_id: chatId, agentReply: reply,\n      intencao: intencao, item: p.item || '', marca: p.marca ?? null,\n      preco: Number(p.preco) || 0, quantidade: qtd, unidade: p.unidade || 'un' } });\n  }\n} else if (d.acao === 'carrinho') {\n  const op = String(d.op || '').toLowerCase();\n  if (op === 'pegar' && Array.isArray(d.itens) && d.itens.length) {\n    for (const p of d.itens) {\n      const precoRaw = p.preco;\n      const preco = (precoRaw === undefined || precoRaw === null || precoRaw === '') ? null : Number(precoRaw);\n      out.push({ json: { acao: 'carrinho', op: 'pegar', chat_id: chatId, agentReply: reply,\n        item: p.item || '', preco: preco, quantidade: Number(p.quantidade) || 1,\n        unidade: p.unidade || 'un', confirmar: p.confirmar === true } });\n    }\n  } else {\n    out.push({ json: { acao: 'carrinho', op: op, chat_id: chatId, agentReply: reply } });\n  }\n} else if (d.acao === 'criar_familia') {\n  out.push({ json: { acao: 'criar_familia', chat_id: chatId, agentReply: reply, familia_nome: d.familia_nome || 'Minha casa' } });\n} else if (d.acao === 'entrar_familia') {\n  out.push({ json: { acao: 'entrar_familia', chat_id: chatId, agentReply: reply, codigo: d.codigo || '' } });\n} else if (d.acao === 'consultar') {\n  out.push({ json: { acao: 'consultar', chat_id: chatId, agentReply: reply, tipo: String(d.tipo || 'estoque').toLowerCase(), text: reply } });\n} else {\n  out.push({ json: { acao: 'conversa', chat_id: chatId, agentReply: reply, text: reply } });\n}\nreturn out;"
+      },
+      "id": "decide",
+      "name": "Decidir",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1424,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.acao }}",
+                    "rightValue": "registrar",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "baf2bdba-afd5-40fd-8f21-dbe50be87d6c"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "registrar"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.acao }}",
+                    "rightValue": "criar_familia",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "e656a5dc-e3d7-4090-a85a-680a2bfc8bc8"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "criar_familia"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.acao }}",
+                    "rightValue": "entrar_familia",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "68ff5a8d-63b9-4217-b8cb-33dd62ce28e5"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "entrar_familia"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.acao }}",
+                    "rightValue": "carrinho",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "c1c1c1c1-0000-4000-8000-000000000001"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "carrinho"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.acao }}",
+                    "rightValue": "consultar",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "c2c2c2c2-0000-4000-8000-000000000002"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "consultar"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "acao",
+      "name": "Rotear acao",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        1648,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://eqguqkojztovfoafjqji.supabase.co/rest/v1/rpc/mercado_apply",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_chat_id: $json.chat_id, p_intencao: $json.intencao, p_name: $json.item, p_brand: $json.marca, p_price: $json.preco, p_qty: $json.quantidade, p_unit: $json.unidade }) }}",
+        "options": {}
+      },
+      "id": "rpcApply",
+      "name": "Aplicar (RPC)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1920,
+        32
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "qi1Q4nbJ4zqs9aAz",
+          "name": "Custom Auth account 2"
+        }
+      },
+      "notes": "Credencial: Supabase Custom Auth (apikey + Authorization service_role)."
+    },
+    {
+      "parameters": {
+        "jsCode": "const decItems = $('Decidir').all().map(i => i.json || {});\nconst rpcItems = $input.all().map(i => i.json || {});\nconst chatId = $('Telegram Trigger').first().json.message.chat.id;\nfunction reais(n){ return 'R$ ' + (Number(n)||0).toFixed(2).replace('.', ','); }\nfunction cap(s){ s = String(s||'').trim(); return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }\nconst linhas = [];\nfor (let idx = 0; idx < rpcItems.length; idx++) {\n  const r = rpcItems[idx] || {};\n  const d = decItems[idx] || {};\n  if (r.ok === false && r.erro === 'sem_familia') {\n    linhas.push('Você ainda não entrou numa família. Me diga \"criar família\" com um nome, ou \"entrar\" com o código de convite.');\n    continue;\n  }\n  const nome = cap(d.item || r.item || 'Item');\n  const marca = d.marca ? String(d.marca).trim() : '';\n  const preco = Number(d.preco) || 0;\n  const qtd = Number(d.quantidade) || 0;\n  const unid = d.unidade || 'un';\n  const intencao = String(d.intencao || '').toLowerCase();\n  const qtdLabel = (unid && unid !== 'un') ? (qtd + ' ' + unid) : String(qtd);\n  // ponytail: gênero pela última letra do nome (heurística cosmética; ajustar se incomodar)\n  const genero = /a$/i.test(nome) ? 'a' : 'o';\n  if (intencao === 'vou_comprar') {\n    let l = '🛒 ' + nome + ' anotado na lista de compras';\n    if (marca) l += ' (' + marca + ')';\n    if (preco > 0) l += ' (~' + reais(preco) + ')';\n    linhas.push(l);\n  } else {\n    const head = '✅ ' + nome + ' registrad' + genero + '!';\n    const det = [];\n    if (marca) det.push('Marca: ' + marca);\n    if (preco > 0 && qtd > 1) det.push(qtdLabel + ' x ' + reais(preco) + ' = ' + reais(preco * qtd));\n    else if (preco > 0) { det.push(reais(preco)); if (qtd > 1) det.push('Qtd: ' + qtdLabel); }\n    else if (qtd > 1) det.push('Qtd: ' + qtdLabel);\n    if (r.estoque_novo !== undefined && r.estoque_novo !== null) det.push('agora você tem ' + r.estoque_novo + ' em casa');\n    if (r.economia !== undefined && Number(r.economia) > 0) det.push('💰 economizou ' + reais(r.economia));\n    linhas.push(head + (det.length ? '\\n' + det.join(' · ') : ''));\n  }\n}\nconst fallback = ($('Decidir').first().json || {}).agentReply || 'Feito.';\nconst text = linhas.length ? linhas.join('\\n\\n') : fallback;\nreturn [{ json: { chat_id: chatId, text } }];"
+      },
+      "id": "format",
+      "name": "Montar resposta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2144,
+        32
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://eqguqkojztovfoafjqji.supabase.co/rest/v1/rpc/mercado_create_family",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_chat_id: $json.chat_id, p_name: $json.familia_nome, p_member_name: $('Telegram Trigger').first().json.message.from.first_name }) }}",
+        "options": {}
+      },
+      "id": "rpcCriar",
+      "name": "Criar familia (RPC)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1936,
+        240
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "qi1Q4nbJ4zqs9aAz",
+          "name": "Custom Auth account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "text": "={{ ($('Decidir').first().json.agentReply || 'Pronto!') + ($json.invite_code ? ' Seu codigo de convite e ' + $json.invite_code + '. Compartilhe com a familia.' : '') }}",
+        "additionalFields": {}
+      },
+      "id": "replyCriar",
+      "name": "Resp. criar",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2160,
+        240
+      ],
+      "webhookId": "31a5298f-170b-41a7-a436-e11c82c4fc21",
+      "credentials": {
+        "telegramApi": {
+          "id": "ayyI2xNS7IfxLPLw",
+          "name": "Telegram Mercado"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://eqguqkojztovfoafjqji.supabase.co/rest/v1/rpc/mercado_join_family",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_code: $json.codigo, p_chat_id: $json.chat_id, p_member_name: $('Telegram Trigger').first().json.message.from.first_name }) }}",
+        "options": {}
+      },
+      "id": "rpcEntrar",
+      "name": "Entrar familia (RPC)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1936,
+        480
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "qi1Q4nbJ4zqs9aAz",
+          "name": "Custom Auth account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "text": "={{ $json.ok ? (($('Decidir').first().json.agentReply || 'Pronto!') + ' Voce entrou na familia ' + $json.familia + '.') : 'Codigo invalido, confira e tente de novo.' }}",
+        "additionalFields": {}
+      },
+      "id": "replyEntrar",
+      "name": "Resp. entrar",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2160,
+        480
+      ],
+      "webhookId": "cf00c2da-0585-49be-bad4-9e82d7eb741c",
+      "credentials": {
+        "telegramApi": {
+          "id": "ayyI2xNS7IfxLPLw",
+          "name": "Telegram Mercado"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chat_id }}",
+        "text": "={{ $json.text }}",
+        "additionalFields": {},
+        "replyMarkup": "replyKeyboard",
+        "replyKeyboard": {
+          "rows": [
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "📦 Ver meu estoque"
+                  },
+                  {
+                    "text": "🛒 O que está faltando"
+                  }
+                ]
+              }
+            },
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "💰 Economia do mês"
+                  },
+                  {
+                    "text": "🧾 Registrar compra"
+                  }
+                ]
+              }
+            },
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "🛍️ Tô no mercado"
+                  },
+                  {
+                    "text": "❓ Ajuda"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "replyKeyboardOptions": {
+          "resize_keyboard": true
+        }
+      },
+      "id": "reply",
+      "name": "Responder",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2576,
+        352
+      ],
+      "webhookId": "daa088fc-f48f-4ddc-8f8d-18b396bc4bf7",
+      "credentials": {
+        "telegramApi": {
+          "id": "ayyI2xNS7IfxLPLw",
+          "name": "Telegram Mercado"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.message && $json.message.photo ? 'sim' : 'nao' }}",
+                    "rightValue": "sim",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "foto"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.callback_query ? 'sim' : 'nao' }}",
+                    "rightValue": "sim",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "callback"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "c5c985c6-7778-45af-8544-dd19955d1274",
+      "name": "Tipo de update",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        -128,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://eqguqkojztovfoafjqji.supabase.co/rest/v1/rpc/mercado_draft_add_photo",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_chat_id: $json.message.chat.id, p_file_id: $json.message.photo[$json.message.photo.length-1].file_id }) }}",
+        "options": {}
+      },
+      "id": "b492147d-1880-456e-91b0-a98b50ff3c00",
+      "name": "Foto: guardar (RPC)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        96,
+        624
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "qi1Q4nbJ4zqs9aAz",
+          "name": "Custom Auth account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Tipo de update').item.json.message.chat.id }}",
+        "text": "={{ 'Recebi ' + $json.fotos + ' foto(s) da nota. Mande mais fotos ou toque em Processar quando terminar.' }}",
+        "replyMarkup": "inlineKeyboard",
+        "inlineKeyboard": {
+          "rows": [
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "Processar",
+                    "additionalFields": {
+                      "callback_data": "rcpt_process"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "Enviar mais fotos",
+                    "additionalFields": {
+                      "callback_data": "rcpt_more"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "Cancelar",
+                    "additionalFields": {
+                      "callback_data": "rcpt_cancel"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "additionalFields": {}
+      },
+      "id": "9b8354e4-c576-4d69-bef5-b5844f348c29",
+      "name": "Resp. foto",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        336,
+        624
+      ],
+      "webhookId": "858d9cd0-d10b-4269-8a56-0733cc07a833",
+      "credentials": {
+        "telegramApi": {
+          "id": "ayyI2xNS7IfxLPLw",
+          "name": "Telegram Mercado"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.callback_query.data }}",
+                    "rightValue": "rcpt_process",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "processar"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.callback_query.data }}",
+                    "rightValue": "rcpt_confirm",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "confirmar"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.callback_query.data }}",
+                    "rightValue": "rcpt_cancel",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "cancelar"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.callback_query.data }}",
+                    "rightValue": "rcpt_more",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "mais"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "ae4444ba-e83f-4bba-a55d-1df9a65aa29e",
+      "name": "Rotear callback",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        48,
+        1040
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://eqguqkojztovfoafjqji.supabase.co/rest/v1/rpc/mercado_draft_get",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_chat_id: $json.callback_query.message.chat.id }) }}",
+        "options": {}
+      },
+      "id": "93b684b7-c6d5-4e33-8ff1-d53553a85bbe",
+      "name": "Ler rascunho (RPC)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        448,
+        816
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "qi1Q4nbJ4zqs9aAz",
+          "name": "Custom Auth account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://eqguqkojztovfoafjqji.supabase.co/rest/v1/rpc/mercado_apply_receipt",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_chat_id: $json.callback_query.message.chat.id }) }}",
+        "options": {}
+      },
+      "id": "a37524be-31b2-45d4-a1f6-12df8ffc4445",
+      "name": "Aplicar nota (RPC)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        448,
+        1040
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "qi1Q4nbJ4zqs9aAz",
+          "name": "Custom Auth account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Rotear callback').item.json.callback_query.message.chat.id }}",
+        "text": "={{ 'Pronto! Lancei ' + $json.itens + ' itens (' + $json.novos + ' novos). Total R$ ' + $json.total + ($json.economia > 0 ? '. Economia R$ ' + $json.economia : '') }}",
+        "additionalFields": {}
+      },
+      "id": "526f933f-a358-4744-96e3-6f383460756d",
+      "name": "Resp. nota",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        688,
+        1040
+      ],
+      "webhookId": "c78b2726-dfa1-47ff-bdfb-7397e9b07c7c",
+      "credentials": {
+        "telegramApi": {
+          "id": "ayyI2xNS7IfxLPLw",
+          "name": "Telegram Mercado"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://eqguqkojztovfoafjqji.supabase.co/rest/v1/rpc/mercado_draft_cancel",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_chat_id: $json.callback_query.message.chat.id }) }}",
+        "options": {}
+      },
+      "id": "d6ea5ef4-5431-4e8e-8738-ddc5f8c50554",
+      "name": "Cancelar nota (RPC)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        448,
+        1248
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "qi1Q4nbJ4zqs9aAz",
+          "name": "Custom Auth account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Rotear callback').item.json.callback_query.message.chat.id }}",
+        "text": "Ok, cancelei a nota. Pode mandar outra quando quiser.",
+        "additionalFields": {}
+      },
+      "id": "adb12e38-efb9-4b9f-b142-549141d95cf6",
+      "name": "Resp. cancelar",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        688,
+        1248
+      ],
+      "webhookId": "c02a0577-2526-4b70-9d3f-287b7df7d518",
+      "credentials": {
+        "telegramApi": {
+          "id": "ayyI2xNS7IfxLPLw",
+          "name": "Telegram Mercado"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "fileId": "={{ $json.file_id }}",
+        "additionalFields": {}
+      },
+      "id": "463f4361-da0c-4830-8d0c-16ffd84f2cb2",
+      "name": "Baixar foto",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        896,
+        816
+      ],
+      "webhookId": "842ac7c1-883a-4318-9bbe-74143a046596",
+      "credentials": {
+        "telegramApi": {
+          "id": "ayyI2xNS7IfxLPLw",
+          "name": "Telegram Mercado"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst chatId = $('Rotear callback').first().json.callback_query.message.chat.id;\nconst prompt = 'Você recebe fotos de uma ou mais notas fiscais de supermercado do Brasil. Extraia os itens comprados. Responda SOMENTE um objeto JSON no formato {\"itens\":[{\"nome\":\"\",\"marca\":\"\",\"qtd\":0,\"preco\":0,\"unidade\":\"un\"}]}. Regras: nome = nome genérico do produto em minúsculas, sem marca (ex: \"arroz\", \"leite\", \"sabão em pó\"); marca = marca separada minúscula, ou \"\" se não houver; cada item aparece como DESCRICAO seguida de QTD x PRECO_UNITARIO (ex: 2 X 7,19 significa qtd 2 e preco 7.19); qtd = o numero inteiro ANTES do x (use 1 se nao houver x) e NUNCA use o preco como qtd (se o que voce leria como qtd for igual ao preco, use 1); preco = o valor APOS o x com ponto decimal; unidade = quase sempre \"un\", use \"kg\" apenas para granel por peso e \"l\" apenas para liquido vendido a granel, NUNCA use o peso ou volume do rotulo (por exemplo 800g, 500ml, 2l) como unidade nem como qtd. Ignore descontos, subtotais, total, impostos e linhas que não sejam produtos. Não invente itens.';\nconst content = [{ type: 'text', text: prompt }];\nfor (let i = 0; i < items.length; i++) {\n  const buf = await this.helpers.getBinaryDataBuffer(i, 'data');\n  content.push({ type: 'image_url', image_url: { url: 'data:image/jpeg;base64,' + buf.toString('base64') } });\n}\n// ponytail: modelo de visao real do Groq; troque aqui se quiser outro (era qwen/qwen3.6-27b no spec, inexistente)\nconst body = {\n  model: 'meta-llama/llama-4-scout-17b-16e-instruct',\n  temperature: 0,\n  response_format: { type: 'json_object' },\n  messages: [{ role: 'user', content }]\n};\nreturn [{ json: { chat_id: chatId, body } }];"
+      },
+      "id": "dac7b16a-a79d-4b76-ba24-a2fc53efdc5f",
+      "name": "Montar visão",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1104,
+        816
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.body) }}",
+        "options": {}
+      },
+      "id": "b9dbdcbe-e13f-457a-81d5-175cc80c0bc7",
+      "name": "Ler nota (visão)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1328,
+        816
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "GZHex1HM1xYTxATz",
+          "name": "Header Auth account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = ($json.choices && $json.choices[0] && $json.choices[0].message && $json.choices[0].message.content) || '{}';\nlet parsed = {};\ntry { parsed = JSON.parse(raw); } catch (e) { parsed = {}; }\nconst itens = parsed.itens || parsed.items || [];\nconst chatId = $('Rotear callback').first().json.callback_query.message.chat.id;\nreturn [{ json: { chat_id: chatId, itens } }];"
+      },
+      "id": "1e0a51f7-a5b6-4629-b969-fa1778a11e88",
+      "name": "Extrair itens",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1552,
+        816
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://eqguqkojztovfoafjqji.supabase.co/rest/v1/rpc/mercado_draft_set_items",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_chat_id: $json.chat_id, p_items: $json.itens }) }}",
+        "options": {}
+      },
+      "id": "3e134986-d4a4-4a75-8303-ba353443b59b",
+      "name": "Salvar itens (RPC)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1776,
+        816
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "qi1Q4nbJ4zqs9aAz",
+          "name": "Custom Auth account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Rotear callback').first().json.callback_query.message.chat.id }}",
+        "text": "={{ 'Confira a nota (' + ($json.itens || []).length + ' itens):\\n' + ($json.itens || []).map(function(it, i){ return (i+1) + '. ' + (it.duvida ? '⚠️ ' : '') + it.nome + (it.marca ? ' (' + it.marca + ')' : '') + '  ' + it.qtd + 'x  R$ ' + it.preco; }).join('\\n') + '\\n\\nTotal: R$ ' + $json.total + '\\n\\n⚠️ = fiquei em duvida, confira o nome. Se estiver certo, toque em Confirmar.' }}",
+        "replyMarkup": "inlineKeyboard",
+        "inlineKeyboard": {
+          "rows": [
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "Confirmar",
+                    "additionalFields": {
+                      "callback_data": "rcpt_confirm"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "Cancelar",
+                    "additionalFields": {
+                      "callback_data": "rcpt_cancel"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "additionalFields": {}
+      },
+      "id": "5af60c60-4cd9-4432-a0ee-f22443e8cf2c",
+      "name": "Resp. revisão",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1984,
+        816
+      ],
+      "webhookId": "17081cfc-76e2-4e3f-bbc1-91b092719d83",
+      "credentials": {
+        "telegramApi": {
+          "id": "ayyI2xNS7IfxLPLw",
+          "name": "Telegram Mercado"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "fileId": "={{ $json.message.voice.file_id }}",
+        "additionalFields": {}
+      },
+      "id": "ac3b20a5-27f0-4694-802c-9bbdedc4b4fb",
+      "name": "Baixar audio",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        192,
+        64
+      ],
+      "webhookId": "225f686a-d379-4710-9f86-de8c8631acf7",
+      "credentials": {
+        "telegramApi": {
+          "id": "ayyI2xNS7IfxLPLw",
+          "name": "Telegram Mercado"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Groq valida o tipo pela extensao do nome do arquivo. O Telegram baixa voz\n// como .oga, que a Groq nao aceita; renomeia para .ogg (mesmo formato).\nfor (const item of $input.all()) {\n  if (item.binary && item.binary.data) {\n    item.binary.data.fileName = 'audio.ogg';\n    item.binary.data.fileExtension = 'ogg';\n    item.binary.data.mimeType = 'audio/ogg';\n  }\n}\nreturn $input.all();"
+      },
+      "id": "011431c6-9a65-4313-8544-f13d36988585",
+      "name": "Renomear audio",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        384,
+        64
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const photos = $input.first().json.photos || [];\nconst chatId = $('Rotear callback').first().json.callback_query.message.chat.id;\n// ponytail: cap 5 imgs (limite da Groq); o botao Processar so aparece com >=1 foto, sem guarda de vazio\nreturn photos.slice(0, 5).map(file_id => ({ json: { file_id, chat_id: chatId } }));"
+      },
+      "id": "c8c15ad6-4c99-4116-9203-9d6ddd0a2356",
+      "name": "Fotos -> lista",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        688,
+        816
+      ]
+    },
+    {
+      "id": "715a967a-f4e5-4731-ab19-0a0c7397d542",
+      "name": "Montar norm",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1560,
+        1000
+      ],
+      "parameters": {
+        "jsCode": "const chatId=$('Rotear callback').first().json.callback_query.message.chat.id; const itens=$json.itens||[]; const lista=itens.map((it,i)=>({i:i,t:(it.nome||'')+(it.marca?(' '+it.marca):'')})); const prompt='Normalize nomes de itens de nota fiscal de supermercado do Brasil. Abreviacoes comuns: det=detergente, det san=detergente sanitario, cre den=creme dental, desod=desodorante, sab e sabonaceo=sabonete, amaciant=amaciante, pap hig=papel higienico, lava rou=lava roupas, abs=absorvente, refri e ref=refrigerante, ach=achocolatado. Para cada item devolva nome generico minusculo sem marca, a marca (ou vazio) e duvida=true se voce NAO tiver certeza do produto. Mantenha o mesmo indice i. Responda SOMENTE JSON: {\"itens\":[{\"i\":0,\"nome\":\"\",\"marca\":\"\",\"duvida\":false}]}. Itens: '+JSON.stringify(lista); const body={model:'meta/llama-3.1-8b-instruct',temperature:0,max_tokens:3500,messages:[{role:'user',content:prompt}]}; return [{json:{chat_id:chatId,body:body,itensOrig:itens}}];"
+      }
+    },
+    {
+      "id": "49ef30e2-3939-418e-9ca9-5fd39aebb46e",
+      "name": "Normalizar (NVIDIA)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1720,
+        1000
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://integrate.api.nvidia.com/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.body) }}",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "P1IqKKYZNig40eoZ",
+          "name": "NVIDIA NIM"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "7f89af9e-d7c8-4ced-8376-862ef6bbfee8",
+      "name": "Aplicar norm",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1880,
+        1000
+      ],
+      "parameters": {
+        "jsCode": "const raw=($json.choices&&$json.choices[0]&&$json.choices[0].message&&$json.choices[0].message.content)||'{}'; let p={}; try{p=JSON.parse(raw);}catch(e){p={};} const norm=p.itens||[]; const orig=$('Montar norm').first().json.itensOrig||[]; const chatId=$('Montar norm').first().json.chat_id; const by={}; for(const n of norm){by[n.i]=n;} const ok=['un','kg','l','pacote']; const itens=orig.map((it,i)=>{const n=by[i]||{}; let q=Number(it.qtd)||1; const pr=Number(it.preco)||0; if(q===pr&&q>1)q=1; let u=String(it.unidade||'').toLowerCase(); if(!ok.includes(u))u='un'; return {nome:(n.nome||it.nome),marca:(n.marca!==undefined?n.marca:(it.marca||'')),qtd:q,preco:pr,unidade:u,duvida:!!n.duvida};}); return [{json:{chat_id:chatId,itens:itens}}];"
+      }
+    },
+    {
+      "id": "3c0da2b1-af8f-46f5-b2c3-65e6ca45caec",
+      "name": "Resp. mais fotos",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        460,
+        1400
+      ],
+      "parameters": {
+        "chatId": "={{ $('Rotear callback').first().json.callback_query.message.chat.id }}",
+        "text": "Beleza! Pode enviar as próximas fotos. Quando terminar, toque em Processar.",
+        "additionalFields": {}
+      },
+      "credentials": {
+        "telegramApi": {
+          "id": "ayyI2xNS7IfxLPLw",
+          "name": "Telegram Mercado"
+        }
+      }
+    },
+    {
+      "id": "13fec406-f2c7-4706-aa6b-4feffdbc1076",
+      "name": "Memoria",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.4,
+      "position": [
+        1072,
+        700
+      ],
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "contextWindowLength": 12
+      }
+    },
+    {
+      "id": "e433e8e2-da14-4a37-85be-d6e99ba6afb7",
+      "name": "Transcrever (Groq 2)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        592,
+        220
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/audio/transcriptions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "data"
+            },
+            {
+              "parameterType": "formData",
+              "name": "model",
+              "value": "whisper-large-v3"
+            },
+            {
+              "parameterType": "formData",
+              "name": "language",
+              "value": "pt"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "nQxpUu2GMTzALgwr",
+          "name": "Groq Transcricao 2"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "445443ab-4269-4275-a471-58bbaf500a22",
+      "name": "Transcrever (Groq 3)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        592,
+        380
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/audio/transcriptions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "data"
+            },
+            {
+              "parameterType": "formData",
+              "name": "model",
+              "value": "whisper-large-v3"
+            },
+            {
+              "parameterType": "formData",
+              "name": "language",
+              "value": "pt"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "UuvvptNmJ1xK3cRN",
+          "name": "Groq Transcricao 3"
+        }
+      }
+    },
+    {
+      "id": "9434aee7-f9df-4a37-837d-e52340e5abeb",
+      "name": "Ler nota 2",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1300,
+        1140
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Montar visão').item.json.body) }}",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "nQxpUu2GMTzALgwr",
+          "name": "Groq Transcricao 2"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "82a5e81f-fdcc-4037-aa8c-50fb352fe522",
+      "name": "Ler nota 3",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1300,
+        1280
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Montar visão').item.json.body) }}",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "UuvvptNmJ1xK3cRN",
+          "name": "Groq Transcricao 3"
+        }
+      }
+    },
+    {
+      "id": "ad07ea58-3114-44d7-b70c-6c12bfd83ed3",
+      "name": "Carrinho (RPC)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1920,
+        620
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://eqguqkojztovfoafjqji.supabase.co/rest/v1/rpc/mercado_cart_apply",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_chat_id: $json.chat_id, p_op: $json.op, p_name: $json.item, p_price: $json.preco, p_qty: $json.quantidade, p_unit: $json.unidade, p_confirm: $json.confirmar }) }}",
+        "options": {}
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "qi1Q4nbJ4zqs9aAz",
+          "name": "Custom Auth account 2"
+        }
+      }
+    },
+    {
+      "id": "86b6564e-ea1c-4e96-9c63-c77a4bfd6ee2",
+      "name": "Montar resp. carrinho",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2144,
+        620
+      ],
+      "parameters": {
+        "jsCode": "const dec = $('Decidir').first().json || {};\nconst op = String(dec.op || '').toLowerCase();\nconst agentReply = dec.agentReply || '';\nconst chatId = $('Telegram Trigger').first().json.message.chat.id;\nconst APP = 'https://mercado-mensal-app.vercel.app/';\nconst results = $input.all().map(i => i.json || {});\nconst decItems = $('Decidir').all().map(i => i.json || {});\nfunction reais(n){ return 'R$ ' + (Number(n)||0).toFixed(2).replace('.', ','); }\nfunction cap(s){ s = String(s||'').trim(); return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }\nlet text = '';\nif (op === 'comecar') {\n  const r = results[0] || {};\n  text = (r.ok === false) ? (agentReply || 'Não consegui abrir a compra.')\n       : '🛒 Compra aberta! Vá falando o que for pegando que eu vou somando o total.\\nAcompanhe pelo painel: ' + APP;\n} else if (op === 'pegar') {\n  const linhas = [];\n  let total = null;\n  for (let idx = 0; idx < results.length; idx++) {\n    const r = results[idx] || {};\n    const d = decItems[idx] || {};\n    if (r.ok === false && r.erro === 'sem_compra_aberta') { linhas.push('Você não está numa compra. Diga \"tô no mercado\" para começar.'); continue; }\n    if (r.ok === false && r.erro === 'sem_preco') { linhas.push('Quanto foi o ' + cap(d.item || r.item || 'item') + '?'); continue; }\n    if (r.needs_confirm === true) { linhas.push('Você já tem ' + r.estoque_atual + ' ' + (d.item || r.item) + ' em casa (acima do normal). Confirma que quer comprar mesmo assim?'); continue; }\n    if (r.ok === true) {\n      const nome = cap(d.item || r.item || 'Item');\n      const marca = d.marca ? String(d.marca).trim() : '';\n      const preco = Number(d.preco) || 0;\n      const qtd = Number(d.quantidade) || 1;\n      const unid = d.unidade || 'un';\n      const qtdLabel = (unid && unid !== 'un') ? (qtd + ' ' + unid) : String(qtd);\n      let l = '✅ ' + nome;\n      if (marca) l += ' (' + marca + ')';\n      if (preco > 0 && qtd > 1) l += ' · ' + qtdLabel + ' x ' + reais(preco) + ' = ' + reais(preco * qtd);\n      else if (preco > 0) l += ' · ' + reais(preco);\n      else if (qtd > 1) l += ' · ' + qtdLabel;\n      linhas.push(l);\n      if (r.total_parcial !== undefined && r.total_parcial !== null) total = r.total_parcial;\n    }\n  }\n  if (total !== null) linhas.push('🧾 Total do carrinho: ' + reais(total));\n  text = linhas.join('\\n');\n} else if (op === 'finalizar') {\n  const r = results[0] || {};\n  text = (r.ok === false) ? 'Você não está numa compra aberta.'\n       : '🎉 Compra finalizada! ' + r.itens + ' itens, total ' + reais(r.total) + (r.economia > 0 ? '\\n💰 Você economizou ' + reais(r.economia) : '') + '\\nVeja no painel: ' + APP;\n} else if (op === 'cancelar') {\n  const r = results[0] || {};\n  text = r.cancelada ? 'Compra cancelada.' : 'Não havia compra aberta.';\n} else {\n  text = agentReply || 'Feito.';\n}\nreturn [{ json: { chat_id: chatId, text: text || 'Feito.' } }];"
+      }
+    },
+    {
+      "id": "06f030f8-e5d4-424a-a8e6-768c7300de36",
+      "name": "Consultar (RPC)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1920,
+        780
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://eqguqkojztovfoafjqji.supabase.co/rest/v1/rpc/mercado_consulta_texto",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_chat_id: $json.chat_id, p_tipo: $json.tipo }) }}",
+        "options": {}
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "qi1Q4nbJ4zqs9aAz",
+          "name": "Custom Auth account 2"
+        }
+      }
+    },
+    {
+      "id": "6a3c3d7c-2a89-4e60-892b-f208960cd773",
+      "name": "Montar consulta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2144,
+        780
+      ],
+      "parameters": {
+        "jsCode": "const chatId = $('Telegram Trigger').first().json.message.chat.id;\nconst r = $input.first().json || {};\nreturn [{ json: { chat_id: chatId, text: r.text || 'Nao consegui consultar agora. Tente de novo.' } }];"
+      }
+    }
+  ],
+  "connections": {
+    "Audio ou texto": {
+      "main": [
+        [
+          {
+            "node": "Baixar audio",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Texto direto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcrever (Groq)": {
+      "main": [
+        [
+          {
+            "node": "Texto do audio",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Transcrever (Groq 2)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Texto do audio": {
+      "main": [
+        [
+          {
+            "node": "Assistente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Texto direto": {
+      "main": [
+        [
+          {
+            "node": "Assistente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Assistente",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Assistente": {
+      "main": [
+        [
+          {
+            "node": "Decidir",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decidir": {
+      "main": [
+        [
+          {
+            "node": "Rotear acao",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rotear acao": {
+      "main": [
+        [
+          {
+            "node": "Aplicar (RPC)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Criar familia (RPC)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Entrar familia (RPC)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Carrinho (RPC)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Consultar (RPC)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aplicar (RPC)": {
+      "main": [
+        [
+          {
+            "node": "Montar resposta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Montar resposta": {
+      "main": [
+        [
+          {
+            "node": "Responder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Criar familia (RPC)": {
+      "main": [
+        [
+          {
+            "node": "Resp. criar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Entrar familia (RPC)": {
+      "main": [
+        [
+          {
+            "node": "Resp. entrar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tipo de update": {
+      "main": [
+        [
+          {
+            "node": "Foto: guardar (RPC)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Rotear callback",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Audio ou texto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Foto: guardar (RPC)": {
+      "main": [
+        [
+          {
+            "node": "Resp. foto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rotear callback": {
+      "main": [
+        [
+          {
+            "node": "Ler rascunho (RPC)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Aplicar nota (RPC)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Cancelar nota (RPC)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Resp. mais fotos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aplicar nota (RPC)": {
+      "main": [
+        [
+          {
+            "node": "Resp. nota",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cancelar nota (RPC)": {
+      "main": [
+        [
+          {
+            "node": "Resp. cancelar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ler rascunho (RPC)": {
+      "main": [
+        [
+          {
+            "node": "Fotos -> lista",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Baixar foto": {
+      "main": [
+        [
+          {
+            "node": "Montar visão",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Montar visão": {
+      "main": [
+        [
+          {
+            "node": "Ler nota (visão)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ler nota (visão)": {
+      "main": [
+        [
+          {
+            "node": "Extrair itens",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ler nota 2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Salvar itens (RPC)": {
+      "main": [
+        [
+          {
+            "node": "Resp. revisão",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Tipo de update",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Baixar audio": {
+      "main": [
+        [
+          {
+            "node": "Renomear audio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Renomear audio": {
+      "main": [
+        [
+          {
+            "node": "Transcrever (Groq)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fotos -> lista": {
+      "main": [
+        [
+          {
+            "node": "Baixar foto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extrair itens": {
+      "main": [
+        [
+          {
+            "node": "Montar norm",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Montar norm": {
+      "main": [
+        [
+          {
+            "node": "Normalizar (NVIDIA)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalizar (NVIDIA)": {
+      "main": [
+        [
+          {
+            "node": "Aplicar norm",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aplicar norm": {
+      "main": [
+        [
+          {
+            "node": "Salvar itens (RPC)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Memoria": {
+      "ai_memory": [
+        [
+          {
+            "node": "Assistente",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcrever (Groq 2)": {
+      "main": [
+        [
+          {
+            "node": "Texto do audio",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Transcrever (Groq 3)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcrever (Groq 3)": {
+      "main": [
+        [
+          {
+            "node": "Texto do audio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ler nota 2": {
+      "main": [
+        [
+          {
+            "node": "Extrair itens",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ler nota 3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ler nota 3": {
+      "main": [
+        [
+          {
+            "node": "Extrair itens",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Carrinho (RPC)": {
+      "main": [
+        [
+          {
+            "node": "Montar resp. carrinho",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Montar resp. carrinho": {
+      "main": [
+        [
+          {
+            "node": "Responder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar (RPC)": {
+      "main": [
+        [
+          {
+            "node": "Montar consulta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Montar consulta": {
+      "main": [
+        [
+          {
+            "node": "Responder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "saveManualExecutions": true,
+    "saveExecutionProgress": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false,
+    "binaryMode": "separate"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {
+    "Telegram Trigger": [
+      {
+        "json": {
+          "update_id": 453158217,
+          "message": {
+            "message_id": 28,
+            "from": {
+              "id": 5071784998,
+              "is_bot": false,
+              "first_name": "Cellks",
+              "language_code": "pt-br"
+            },
+            "chat": {
+              "id": 5071784998,
+              "first_name": "Cellks",
+              "type": "private"
+            },
+            "date": 1783521259,
+            "voice": {
+              "duration": 5,
+              "mime_type": "audio/ogg",
+              "file_id": "AwACAgEAAxkBAAMcak5f64RwDRDFjVQsCEXQszFe3YQAAt8GAALrAXFGqNM_tTSNBA88BA",
+              "file_unique_id": "AgAD3wYAAusBcUY",
+              "file_size": 19202
+            }
+          }
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "versionId": "27a42572-5c39-46a0-9ff8-7b6507b50b1a",
+  "activeVersionId": "27a42572-5c39-46a0-9ff8-7b6507b50b1a",
+  "versionCounter": 164,
+  "triggerCount": 1,
+  "shared": [
+    {
+      "updatedAt": "2026-07-06T19:29:53.051Z",
+      "createdAt": "2026-07-06T19:29:53.051Z",
+      "role": "workflow:owner",
+      "workflowId": "al56Kfii1scgHOCv",
+      "projectId": "RPUtSziCyiCyXAaM",
+      "project": {
+        "updatedAt": "2026-03-29T18:10:35.220Z",
+        "createdAt": "2026-03-29T18:06:52.356Z",
+        "id": "RPUtSziCyiCyXAaM",
+        "name": "Isabelle Pinheiro <isabelledecastrosilveira@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "568fbd46-55fb-44d2-99e7-1569ed938f2e"
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": {
+    "updatedAt": "2026-07-27T18:32:06.501Z",
+    "createdAt": "2026-07-27T18:32:06.501Z",
+    "versionId": "27a42572-5c39-46a0-9ff8-7b6507b50b1a",
+    "workflowId": "al56Kfii1scgHOCv",
+    "nodes": [
+      {
+        "parameters": {
+          "updates": [
+            "message",
+            "callback_query"
+          ],
+          "additionalFields": {
+            "download": true
+          }
+        },
+        "id": "trigger",
+        "name": "Telegram Trigger",
+        "type": "n8n-nodes-base.telegramTrigger",
+        "typeVersion": 1.2,
+        "position": [
+          -384,
+          656
+        ],
+        "webhookId": "3fb2fc93-3bbe-4e6e-92e2-3c93dcc4fc71",
+        "credentials": {
+          "telegramApi": {
+            "id": "ayyI2xNS7IfxLPLw",
+            "name": "Telegram Mercado"
+          }
+        },
+        "notes": "Credencial do bot @Mercado_cellks_bot."
+      },
+      {
+        "parameters": {
+          "rules": {
+            "values": [
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 2
+                  },
+                  "conditions": [
+                    {
+                      "leftValue": "={{ $json.message.voice ? 'sim' : 'nao' }}",
+                      "rightValue": "sim",
+                      "operator": {
+                        "type": "string",
+                        "operation": "equals"
+                      },
+                      "id": "fac06ef5-82f0-44d1-82b7-2cf6547a9ccf"
+                    }
+                  ],
+                  "combinator": "and"
+                },
+                "renameOutput": true,
+                "outputKey": "audio"
+              }
+            ]
+          },
+          "options": {
+            "fallbackOutput": "extra"
+          }
+        },
+        "id": "route",
+        "name": "Audio ou texto",
+        "type": "n8n-nodes-base.switch",
+        "typeVersion": 3.2,
+        "position": [
+          16,
+          288
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.groq.com/openai/v1/audio/transcriptions",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpHeaderAuth",
+          "sendBody": true,
+          "contentType": "multipart-form-data",
+          "bodyParameters": {
+            "parameters": [
+              {
+                "parameterType": "formBinaryData",
+                "name": "file",
+                "inputDataFieldName": "data"
+              },
+              {
+                "name": "model",
+                "value": "whisper-large-v3"
+              },
+              {
+                "name": "language",
+                "value": "pt"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "whisper",
+        "name": "Transcrever (Groq)",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          592,
+          64
+        ],
+        "credentials": {
+          "httpHeaderAuth": {
+            "id": "GZHex1HM1xYTxATz",
+            "name": "Header Auth account"
+          }
+        },
+        "notes": "Credencial: Header Auth, Authorization = Bearer <chave Groq>.",
+        "onError": "continueErrorOutput"
+      },
+      {
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "a1",
+                "name": "userText",
+                "value": "={{ $json.text }}",
+                "type": "string"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "setAudio",
+        "name": "Texto do audio",
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [
+          832,
+          64
+        ]
+      },
+      {
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "a2",
+                "name": "userText",
+                "value": "={{ $json.message.text }}",
+                "type": "string"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "setTexto",
+        "name": "Texto direto",
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [
+          544,
+          304
+        ]
+      },
+      {
+        "parameters": {
+          "model": "llama-3.3-70b-versatile",
+          "options": {}
+        },
+        "id": "groq",
+        "name": "Groq Model",
+        "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+        "typeVersion": 1,
+        "position": [
+          1072,
+          512
+        ],
+        "credentials": {
+          "groqApi": {
+            "id": "AJSPlUJkZsEF4ccz",
+            "name": "Groq account"
+          }
+        },
+        "notes": "Credencial: Groq API."
+      },
+      {
+        "parameters": {
+          "promptType": "define",
+          "text": "={{ $json.userText }}",
+          "options": {
+            "systemMessage": "Voce e um assistente simpatico e breve que ajuda uma familia a controlar a dispensa e as compras do mes, como se estivesse anotando junto com a pessoa. Fale em portugues do Brasil, com tom amigavel e curto, tratando por voce.\n\nVoce recebe frases ou audios transcritos que podem vir com ruido ou erros. Entenda a intencao e responda SEMPRE somente com um objeto JSON valido, sem nenhum texto fora do JSON.\n\nO JSON tem as chaves acao e resposta (resposta e o texto que sera enviado ao usuario). Conforme a acao, inclua campos extras:\n- acao registrar: inclua itens (uma lista). Cada item tem intencao (comprei, tenho, vou_comprar ou consumi), item (nome no singular minusculo), marca (ou null), preco (numero), quantidade (numero) e unidade (un, kg, l ou pacote).\n- acao carrinho: quando a pessoa esta comprando no mercado agora. Inclua op:\n  - comecar: abre a compra (\"to no mercado\", \"comecar compra\", \"vou comecar as compras\").\n  - pegar: a pessoa pegou itens para o carrinho. Inclua itens (uma lista); cada item tem item (nome no singular minusculo), preco (numero), quantidade (numero), unidade (un, kg, l ou pacote) e confirmar (true ou false).\n  - finalizar: fecha a compra (\"finalizar\", \"fechei a compra\", \"acabei as compras\").\n  - cancelar: descarta a compra em andamento (\"cancelar compra\").\n- acao criar_familia: inclua familia_nome.\n- acao entrar_familia: inclua codigo. Se a mensagem for /start seguido de um codigo (ex: /start 5A146D), ou for apenas um codigo curto de 5 a 8 letras e numeros sem mais nada (ex: 5A146D), trate como entrar_familia com esse codigo, sem pedir confirmacao.\n- acao perguntar: use quando NAO entendeu bem, o audio veio ruidoso, ou faltou um dado importante como preco ou quantidade. Na resposta, diga gentilmente o que voce entendeu e peca a confirmacao ou o dado que falta. Nao registre nada nesse caso.\n- acao consultar: quando a pessoa quiser ver o que ja esta no sistema. Inclua tipo: estoque (o que tem em casa), faltando (o que esta acabando ou precisa repor) ou economia (quanto gastou no mes e o orcamento). Nao invente numeros nem liste itens; o sistema busca e responde por voce, so escolha o tipo certo.\n- acao conversa: para saudacoes, ajuda ou respostas gerais. Numa saudacao (oi, ola, bom dia, ou /start sem codigo), se apresente de forma calorosa e breve como o assistente pessoal da dispensa da familia: diga em uma ou duas frases o que voce faz (registrar compras por texto, audio ou foto da nota; montar a lista do que falta; acompanhar o carrinho no mercado; e mostrar estoque, o que esta faltando e a economia do mes) e convide a pessoa a tocar nos botoes do menu.\n\nMenu de botoes: as mensagens 'Ver meu estoque', 'O que esta faltando', 'Economia do mes', 'Registrar compra', 'To no mercado' e 'Ajuda' vem dos botoes do menu (podem vir com um emoji na frente, ignore o emoji). Mapeie: 'Ver meu estoque' -> consultar tipo estoque; 'O que esta faltando' -> consultar tipo faltando; 'Economia do mes' -> consultar tipo economia; 'To no mercado' -> carrinho op comecar; 'Registrar compra' -> conversa pedindo gentilmente que a pessoa diga o que comprou (com preco e quantidade) ou mande a foto da nota; 'Ajuda' -> conversa explicando rapidamente o que voce faz.\n\nRegras de intencao: comprei ou paguei igual comprei; tenho ou tem em casa igual tenho; vou comprar ou preciso ou adiciona ou esta faltando ou falta igual vou_comprar; acabou ou usei igual consumi. Normalize numero por extenso, por exemplo um noventa e nove vira 1.99.\n\nRegras da lista de compras (montar em casa o que falta):\n- Quando a pessoa disser que algo esta faltando ou que precisa comprar, e ela NAO estiver no mercado agora, use registrar com intencao vou_comprar. Podem vir varios itens numa frase so.\n- Para vou_comprar, se a pessoa nao disser a quantidade, mande quantidade 0: o sistema calcula sozinho quanto falta para o nivel normal da casa. Se ela disser um numero, use esse numero.\n- Isso monta a lista de compras e nao e o carrinho. So use a acao carrinho quando a pessoa disse que esta no mercado.\n\nRegras do carrinho (modo mercado):\n- Depois que a pessoa disse que esta no mercado (op comecar), trate cada item que ela pega como acao carrinho op pegar, ate ela finalizar ou cancelar.\n- Para op pegar, o preco e OBRIGATORIO. Se a pessoa nao disse o preco de um item, use acao perguntar e pergunte quanto foi esse item. So use pegar quando tiver o preco.\n- Se o sistema avisar que a pessoa ja tem esse item em casa acima do normal, pergunte se ela quer comprar mesmo assim (acao perguntar). Se ela confirmar (sim, pode, quero), reenvie a mesma op pegar com confirmar: true. Se ela recusar, nao pegue o item.\n- Desambiguacao: se a pessoa disser que comprou algo mas nao estiver claro se e agora no mercado (carrinho) ou uma compra que ela ja fez em casa, use acao perguntar: pergunte se e agora no mercado ou se ja foi comprado. So registre depois que ela esclarecer.\n\nPeca confirmacao apenas quando houver duvida real; quando estiver claro, use a acao certa e confirme de forma leve na resposta. Use a memoria da conversa: se voce pediu confirmacao antes e a pessoa confirmou, agora execute. Se a pessoa corrigir um dado, use o valor corrigido.\n\nCLASSIFICACAO DE INTENCAO (regra dura, vale sobre qualquer outra)\n\nEscolha a intencao pelo VERBO, nunca pelo produto e nunca pela quantidade.\n- comprei: comprei, paguei, custou, saiu por, levei, deu R$\n- tenho: tenho, ainda tem, sobrou, restam, na verdade sao, corrigindo, conferi, tem X aqui em casa\n- vou_comprar: quero comprar, preciso de, vou comprar, falta, anota ai, poe na lista, bota na lista\n- consumi: usei, consumi, terminou, acabou o(a)\n\nCasos que ja deram errado de verdade com esta familia. Trate como regra fixa:\n- \"quero comprar cinco litros de leite\" e vou_comprar. Vai para a LISTA. Nunca para o estoque. O verbo \"quero comprar\" vence qualquer numero que venha depois dele.\n- \"na verdade tenho 3 caixas\" e tenho. Ajusta o ESTOQUE. Nunca vira lista. \"na verdade\", \"corrigindo\" e \"conferi\" sao sinais de correcao de inventario.\n- \"to no mercado\" e carrinho op comecar, dito como for: \"estou no mercado\", \"cheguei no mercado\", \"to comprando agora\".\n\nDesambiguacao:\n- \"acabou o arroz\" e consumo total E provavel necessidade de comprar. Registre consumi e pergunte se quer colocar na lista.\n- \"gastei\" depende do objeto: \"gastei 50 reais\" e compra, \"gastei o arroz\" e consumo.\n- Produto e quantidade SEM verbo (\"cinco litros de leite\") e ambiguo. Use perguntar. Nao adivinhe.\n- Na duvida real, perguntar custa um turno de conversa. Gravar no lugar errado custa retrabalho manual no app.\n\nONDE A INFORMACAO FOI PARAR\n\nSempre que a resposta for sua (perguntar, conversa, carrinho, consultar), diga em qual registro a informacao vai, com estas palavras:\n- ESTOQUE para tenho: \"Ajustei o ESTOQUE\"\n- COMPRA para comprei: \"Registrei a COMPRA\"\n- LISTA DE COMPRAS para vou_comprar: \"Coloquei na LISTA DE COMPRAS, seu estoque nao mudou\"\n- BAIXA para consumi: \"Dei BAIXA no estoque\"\nNunca confirme so com \"ok, anotado\". A pessoa precisa enxergar onde a informacao foi parar, porque e assim que ela percebe na hora se a classificacao saiu errada.\n\nNUNCA invente quantidade em casa, preco, nivel normal, nem valores de antes e depois. Voce nao recebe esses numeros. Quem informa quantidade e o sistema, depois de gravar.\n\nATUALIZACAO DAS REGRAS DO CARRINHO (vale sobre tudo que foi dito antes sobre carrinho)\n\nAs funcoes do banco mudaram. Tres coisas que eram obrigatorias deixaram de ser:\n\n1. O preco no op pegar NAO e mais obrigatorio. Se a pessoa nao disser o preco, mande op pegar do mesmo jeito, sem preco: o sistema reusa o ultimo preco que ela pagou naquele produto e informa de onde tirou. So quando o produto nunca foi comprado o sistema pede o preco, e ai voce pergunta. Nao pergunte preco por padrao. Dentro do mercado, cada pergunta extra custa uma ida e volta com o celular na mao.\n\n2. NAO pergunte mais se a pessoa quer comprar um item que ela ja tem em casa acima do normal. Grave e comente de leve que ela ja tinha em casa. O sistema nao recusa mais esse item, so avisa.\n\n3. NAO e preciso op comecar antes do primeiro op pegar. Se a pessoa disser \"to no mercado, peguei arroz\", mande direto op pegar: a funcao abre a compra sozinha e avisa que abriu. Continue usando op comecar quando ela apenas disser que chegou no mercado, sem citar item nenhum."
+          }
+        },
+        "id": "agent",
+        "name": "Assistente",
+        "type": "@n8n/n8n-nodes-langchain.agent",
+        "typeVersion": 3.1,
+        "position": [
+          1072,
+          304
+        ],
+        "notes": "Sai JSON em output. Modelo Groq + memoria Postgres por chat_id."
+      },
+      {
+        "parameters": {
+          "jsCode": "const out = [];\nconst chatId = $('Telegram Trigger').first().json.message.chat.id;\nlet raw = $input.first().json.output ?? $input.first().json.text ?? '';\nlet d;\ntry { d = JSON.parse(raw); } catch (e) {\n  const m = String(raw).match(/\\{[\\s\\S]*\\}/);\n  try { d = JSON.parse(m[0]); } catch (e2) { d = { acao: 'conversa', resposta: 'Desculpa, nao entendi bem. Pode repetir?' }; }\n}\nconst reply = d.resposta || 'Ok!';\nif (d.acao === 'registrar' && Array.isArray(d.itens) && d.itens.length) {\n  for (const p of d.itens) {\n    const intencao = String(p.intencao || '').toLowerCase();\n    const qtd = intencao === 'vou_comprar'\n      ? (p.quantidade == null ? 0 : (Number(p.quantidade) || 0))\n      : (Number(p.quantidade) || 1);\n    out.push({ json: { acao: 'registrar', chat_id: chatId, agentReply: reply,\n      intencao: intencao, item: p.item || '', marca: p.marca ?? null,\n      preco: Number(p.preco) || 0, quantidade: qtd, unidade: p.unidade || 'un' } });\n  }\n} else if (d.acao === 'carrinho') {\n  const op = String(d.op || '').toLowerCase();\n  if (op === 'pegar' && Array.isArray(d.itens) && d.itens.length) {\n    for (const p of d.itens) {\n      const precoRaw = p.preco;\n      const preco = (precoRaw === undefined || precoRaw === null || precoRaw === '') ? null : Number(precoRaw);\n      out.push({ json: { acao: 'carrinho', op: 'pegar', chat_id: chatId, agentReply: reply,\n        item: p.item || '', preco: preco, quantidade: Number(p.quantidade) || 1,\n        unidade: p.unidade || 'un', confirmar: p.confirmar === true } });\n    }\n  } else {\n    out.push({ json: { acao: 'carrinho', op: op, chat_id: chatId, agentReply: reply } });\n  }\n} else if (d.acao === 'criar_familia') {\n  out.push({ json: { acao: 'criar_familia', chat_id: chatId, agentReply: reply, familia_nome: d.familia_nome || 'Minha casa' } });\n} else if (d.acao === 'entrar_familia') {\n  out.push({ json: { acao: 'entrar_familia', chat_id: chatId, agentReply: reply, codigo: d.codigo || '' } });\n} else if (d.acao === 'consultar') {\n  out.push({ json: { acao: 'consultar', chat_id: chatId, agentReply: reply, tipo: String(d.tipo || 'estoque').toLowerCase(), text: reply } });\n} else {\n  out.push({ json: { acao: 'conversa', chat_id: chatId, agentReply: reply, text: reply } });\n}\nreturn out;"
+        },
+        "id": "decide",
+        "name": "Decidir",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1424,
+          304
+        ]
+      },
+      {
+        "parameters": {
+          "rules": {
+            "values": [
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 2
+                  },
+                  "conditions": [
+                    {
+                      "leftValue": "={{ $json.acao }}",
+                      "rightValue": "registrar",
+                      "operator": {
+                        "type": "string",
+                        "operation": "equals"
+                      },
+                      "id": "baf2bdba-afd5-40fd-8f21-dbe50be87d6c"
+                    }
+                  ],
+                  "combinator": "and"
+                },
+                "renameOutput": true,
+                "outputKey": "registrar"
+              },
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 2
+                  },
+                  "conditions": [
+                    {
+                      "leftValue": "={{ $json.acao }}",
+                      "rightValue": "criar_familia",
+                      "operator": {
+                        "type": "string",
+                        "operation": "equals"
+                      },
+                      "id": "e656a5dc-e3d7-4090-a85a-680a2bfc8bc8"
+                    }
+                  ],
+                  "combinator": "and"
+                },
+                "renameOutput": true,
+                "outputKey": "criar_familia"
+              },
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 2
+                  },
+                  "conditions": [
+                    {
+                      "leftValue": "={{ $json.acao }}",
+                      "rightValue": "entrar_familia",
+                      "operator": {
+                        "type": "string",
+                        "operation": "equals"
+                      },
+                      "id": "68ff5a8d-63b9-4217-b8cb-33dd62ce28e5"
+                    }
+                  ],
+                  "combinator": "and"
+                },
+                "renameOutput": true,
+                "outputKey": "entrar_familia"
+              },
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 2
+                  },
+                  "conditions": [
+                    {
+                      "leftValue": "={{ $json.acao }}",
+                      "rightValue": "carrinho",
+                      "operator": {
+                        "type": "string",
+                        "operation": "equals"
+                      },
+                      "id": "c1c1c1c1-0000-4000-8000-000000000001"
+                    }
+                  ],
+                  "combinator": "and"
+                },
+                "renameOutput": true,
+                "outputKey": "carrinho"
+              },
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 2
+                  },
+                  "conditions": [
+                    {
+                      "leftValue": "={{ $json.acao }}",
+                      "rightValue": "consultar",
+                      "operator": {
+                        "type": "string",
+                        "operation": "equals"
+                      },
+                      "id": "c2c2c2c2-0000-4000-8000-000000000002"
+                    }
+                  ],
+                  "combinator": "and"
+                },
+                "renameOutput": true,
+                "outputKey": "consultar"
+              }
+            ]
+          },
+          "options": {
+            "fallbackOutput": "extra"
+          }
+        },
+        "id": "acao",
+        "name": "Rotear acao",
+        "type": "n8n-nodes-base.switch",
+        "typeVersion": 3.2,
+        "position": [
+          1648,
+          272
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://eqguqkojztovfoafjqji.supabase.co/rest/v1/rpc/mercado_apply",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpCustomAuth",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ p_chat_id: $json.chat_id, p_intencao: $json.intencao, p_name: $json.item, p_brand: $json.marca, p_price: $json.preco, p_qty: $json.quantidade, p_unit: $json.unidade }) }}",
+          "options": {}
+        },
+        "id": "rpcApply",
+        "name": "Aplicar (RPC)",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1920,
+          32
+        ],
+        "credentials": {
+          "httpCustomAuth": {
+            "id": "qi1Q4nbJ4zqs9aAz",
+            "name": "Custom Auth account 2"
+          }
+        },
+        "notes": "Credencial: Supabase Custom Auth (apikey + Authorization service_role)."
+      },
+      {
+        "parameters": {
+          "jsCode": "const decItems = $('Decidir').all().map(i => i.json || {});\nconst rpcItems = $input.all().map(i => i.json || {});\nconst chatId = $('Telegram Trigger').first().json.message.chat.id;\nfunction reais(n){ return 'R$ ' + (Number(n)||0).toFixed(2).replace('.', ','); }\nfunction cap(s){ s = String(s||'').trim(); return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }\nconst linhas = [];\nfor (let idx = 0; idx < rpcItems.length; idx++) {\n  const r = rpcItems[idx] || {};\n  const d = decItems[idx] || {};\n  if (r.ok === false && r.erro === 'sem_familia') {\n    linhas.push('Você ainda não entrou numa família. Me diga \"criar família\" com um nome, ou \"entrar\" com o código de convite.');\n    continue;\n  }\n  const nome = cap(d.item || r.item || 'Item');\n  const marca = d.marca ? String(d.marca).trim() : '';\n  const preco = Number(d.preco) || 0;\n  const qtd = Number(d.quantidade) || 0;\n  const unid = d.unidade || 'un';\n  const intencao = String(d.intencao || '').toLowerCase();\n  const qtdLabel = (unid && unid !== 'un') ? (qtd + ' ' + unid) : String(qtd);\n  // ponytail: gênero pela última letra do nome (heurística cosmética; ajustar se incomodar)\n  const genero = /a$/i.test(nome) ? 'a' : 'o';\n  if (intencao === 'vou_comprar') {\n    let l = '🛒 ' + nome + ' anotado na lista de compras';\n    if (marca) l += ' (' + marca + ')';\n    if (preco > 0) l += ' (~' + reais(preco) + ')';\n    linhas.push(l);\n  } else {\n    const head = '✅ ' + nome + ' registrad' + genero + '!';\n    const det = [];\n    if (marca) det.push('Marca: ' + marca);\n    if (preco > 0 && qtd > 1) det.push(qtdLabel + ' x ' + reais(preco) + ' = ' + reais(preco * qtd));\n    else if (preco > 0) { det.push(reais(preco)); if (qtd > 1) det.push('Qtd: ' + qtdLabel); }\n    else if (qtd > 1) det.push('Qtd: ' + qtdLabel);\n    if (r.estoque_novo !== undefined && r.estoque_novo !== null) det.push('agora você tem ' + r.estoque_novo + ' em casa');\n    if (r.economia !== undefined && Number(r.economia) > 0) det.push('💰 economizou ' + reais(r.economia));\n    linhas.push(head + (det.length ? '\\n' + det.join(' · ') : ''));\n  }\n}\nconst fallback = ($('Decidir').first().json || {}).agentReply || 'Feito.';\nconst text = linhas.length ? linhas.join('\\n\\n') : fallback;\nreturn [{ json: { chat_id: chatId, text } }];"
+        },
+        "id": "format",
+        "name": "Montar resposta",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          2144,
+          32
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://eqguqkojztovfoafjqji.supabase.co/rest/v1/rpc/mercado_create_family",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpCustomAuth",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ p_chat_id: $json.chat_id, p_name: $json.familia_nome, p_member_name: $('Telegram Trigger').first().json.message.from.first_name }) }}",
+          "options": {}
+        },
+        "id": "rpcCriar",
+        "name": "Criar familia (RPC)",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1936,
+          240
+        ],
+        "credentials": {
+          "httpCustomAuth": {
+            "id": "qi1Q4nbJ4zqs9aAz",
+            "name": "Custom Auth account 2"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+          "text": "={{ ($('Decidir').first().json.agentReply || 'Pronto!') + ($json.invite_code ? ' Seu codigo de convite e ' + $json.invite_code + '. Compartilhe com a familia.' : '') }}",
+          "additionalFields": {}
+        },
+        "id": "replyCriar",
+        "name": "Resp. criar",
+        "type": "n8n-nodes-base.telegram",
+        "typeVersion": 1.2,
+        "position": [
+          2160,
+          240
+        ],
+        "webhookId": "31a5298f-170b-41a7-a436-e11c82c4fc21",
+        "credentials": {
+          "telegramApi": {
+            "id": "ayyI2xNS7IfxLPLw",
+            "name": "Telegram Mercado"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://eqguqkojztovfoafjqji.supabase.co/rest/v1/rpc/mercado_join_family",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpCustomAuth",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ p_code: $json.codigo, p_chat_id: $json.chat_id, p_member_name: $('Telegram Trigger').first().json.message.from.first_name }) }}",
+          "options": {}
+        },
+        "id": "rpcEntrar",
+        "name": "Entrar familia (RPC)",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1936,
+          480
+        ],
+        "credentials": {
+          "httpCustomAuth": {
+            "id": "qi1Q4nbJ4zqs9aAz",
+            "name": "Custom Auth account 2"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+          "text": "={{ $json.ok ? (($('Decidir').first().json.agentReply || 'Pronto!') + ' Voce entrou na familia ' + $json.familia + '.') : 'Codigo invalido, confira e tente de novo.' }}",
+          "additionalFields": {}
+        },
+        "id": "replyEntrar",
+        "name": "Resp. entrar",
+        "type": "n8n-nodes-base.telegram",
+        "typeVersion": 1.2,
+        "position": [
+          2160,
+          480
+        ],
+        "webhookId": "cf00c2da-0585-49be-bad4-9e82d7eb741c",
+        "credentials": {
+          "telegramApi": {
+            "id": "ayyI2xNS7IfxLPLw",
+            "name": "Telegram Mercado"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "chatId": "={{ $json.chat_id }}",
+          "text": "={{ $json.text }}",
+          "additionalFields": {},
+          "replyMarkup": "replyKeyboard",
+          "replyKeyboard": {
+            "rows": [
+              {
+                "row": {
+                  "buttons": [
+                    {
+                      "text": "📦 Ver meu estoque"
+                    },
+                    {
+                      "text": "🛒 O que está faltando"
+                    }
+                  ]
+                }
+              },
+              {
+                "row": {
+                  "buttons": [
+                    {
+                      "text": "💰 Economia do mês"
+                    },
+                    {
+                      "text": "🧾 Registrar compra"
+                    }
+                  ]
+                }
+              },
+              {
+                "row": {
+                  "buttons": [
+                    {
+                      "text": "🛍️ Tô no mercado"
+                    },
+                    {
+                      "text": "❓ Ajuda"
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          "replyKeyboardOptions": {
+            "resize_keyboard": true
+          }
+        },
+        "id": "reply",
+        "name": "Responder",
+        "type": "n8n-nodes-base.telegram",
+        "typeVersion": 1.2,
+        "position": [
+          2576,
+          352
+        ],
+        "webhookId": "daa088fc-f48f-4ddc-8f8d-18b396bc4bf7",
+        "credentials": {
+          "telegramApi": {
+            "id": "ayyI2xNS7IfxLPLw",
+            "name": "Telegram Mercado"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "rules": {
+            "values": [
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 2
+                  },
+                  "conditions": [
+                    {
+                      "leftValue": "={{ $json.message && $json.message.photo ? 'sim' : 'nao' }}",
+                      "rightValue": "sim",
+                      "operator": {
+                        "type": "string",
+                        "operation": "equals"
+                      }
+                    }
+                  ],
+                  "combinator": "and"
+                },
+                "renameOutput": true,
+                "outputKey": "foto"
+              },
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 2
+                  },
+                  "conditions": [
+                    {
+                      "leftValue": "={{ $json.callback_query ? 'sim' : 'nao' }}",
+                      "rightValue": "sim",
+                      "operator": {
+                        "type": "string",
+                        "operation": "equals"
+                      }
+                    }
+                  ],
+                  "combinator": "and"
+                },
+                "renameOutput": true,
+                "outputKey": "callback"
+              }
+            ]
+          },
+          "options": {
+            "fallbackOutput": "extra"
+          }
+        },
+        "id": "c5c985c6-7778-45af-8544-dd19955d1274",
+        "name": "Tipo de update",
+        "type": "n8n-nodes-base.switch",
+        "typeVersion": 3.2,
+        "position": [
+          -128,
+          640
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://eqguqkojztovfoafjqji.supabase.co/rest/v1/rpc/mercado_draft_add_photo",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpCustomAuth",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ p_chat_id: $json.message.chat.id, p_file_id: $json.message.photo[$json.message.photo.length-1].file_id }) }}",
+          "options": {}
+        },
+        "id": "b492147d-1880-456e-91b0-a98b50ff3c00",
+        "name": "Foto: guardar (RPC)",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          96,
+          624
+        ],
+        "credentials": {
+          "httpCustomAuth": {
+            "id": "qi1Q4nbJ4zqs9aAz",
+            "name": "Custom Auth account 2"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "chatId": "={{ $('Tipo de update').item.json.message.chat.id }}",
+          "text": "={{ 'Recebi ' + $json.fotos + ' foto(s) da nota. Mande mais fotos ou toque em Processar quando terminar.' }}",
+          "replyMarkup": "inlineKeyboard",
+          "inlineKeyboard": {
+            "rows": [
+              {
+                "row": {
+                  "buttons": [
+                    {
+                      "text": "Processar",
+                      "additionalFields": {
+                        "callback_data": "rcpt_process"
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "row": {
+                  "buttons": [
+                    {
+                      "text": "Enviar mais fotos",
+                      "additionalFields": {
+                        "callback_data": "rcpt_more"
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "row": {
+                  "buttons": [
+                    {
+                      "text": "Cancelar",
+                      "additionalFields": {
+                        "callback_data": "rcpt_cancel"
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          "additionalFields": {}
+        },
+        "id": "9b8354e4-c576-4d69-bef5-b5844f348c29",
+        "name": "Resp. foto",
+        "type": "n8n-nodes-base.telegram",
+        "typeVersion": 1.2,
+        "position": [
+          336,
+          624
+        ],
+        "webhookId": "858d9cd0-d10b-4269-8a56-0733cc07a833",
+        "credentials": {
+          "telegramApi": {
+            "id": "ayyI2xNS7IfxLPLw",
+            "name": "Telegram Mercado"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "rules": {
+            "values": [
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 2
+                  },
+                  "conditions": [
+                    {
+                      "leftValue": "={{ $json.callback_query.data }}",
+                      "rightValue": "rcpt_process",
+                      "operator": {
+                        "type": "string",
+                        "operation": "equals"
+                      }
+                    }
+                  ],
+                  "combinator": "and"
+                },
+                "renameOutput": true,
+                "outputKey": "processar"
+              },
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 2
+                  },
+                  "conditions": [
+                    {
+                      "leftValue": "={{ $json.callback_query.data }}",
+                      "rightValue": "rcpt_confirm",
+                      "operator": {
+                        "type": "string",
+                        "operation": "equals"
+                      }
+                    }
+                  ],
+                  "combinator": "and"
+                },
+                "renameOutput": true,
+                "outputKey": "confirmar"
+              },
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 2
+                  },
+                  "conditions": [
+                    {
+                      "leftValue": "={{ $json.callback_query.data }}",
+                      "rightValue": "rcpt_cancel",
+                      "operator": {
+                        "type": "string",
+                        "operation": "equals"
+                      }
+                    }
+                  ],
+                  "combinator": "and"
+                },
+                "renameOutput": true,
+                "outputKey": "cancelar"
+              },
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 2
+                  },
+                  "conditions": [
+                    {
+                      "leftValue": "={{ $json.callback_query.data }}",
+                      "rightValue": "rcpt_more",
+                      "operator": {
+                        "type": "string",
+                        "operation": "equals"
+                      }
+                    }
+                  ],
+                  "combinator": "and"
+                },
+                "renameOutput": true,
+                "outputKey": "mais"
+              }
+            ]
+          },
+          "options": {
+            "fallbackOutput": "extra"
+          }
+        },
+        "id": "ae4444ba-e83f-4bba-a55d-1df9a65aa29e",
+        "name": "Rotear callback",
+        "type": "n8n-nodes-base.switch",
+        "typeVersion": 3.2,
+        "position": [
+          48,
+          1040
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://eqguqkojztovfoafjqji.supabase.co/rest/v1/rpc/mercado_draft_get",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpCustomAuth",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ p_chat_id: $json.callback_query.message.chat.id }) }}",
+          "options": {}
+        },
+        "id": "93b684b7-c6d5-4e33-8ff1-d53553a85bbe",
+        "name": "Ler rascunho (RPC)",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          448,
+          816
+        ],
+        "credentials": {
+          "httpCustomAuth": {
+            "id": "qi1Q4nbJ4zqs9aAz",
+            "name": "Custom Auth account 2"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://eqguqkojztovfoafjqji.supabase.co/rest/v1/rpc/mercado_apply_receipt",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpCustomAuth",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ p_chat_id: $json.callback_query.message.chat.id }) }}",
+          "options": {}
+        },
+        "id": "a37524be-31b2-45d4-a1f6-12df8ffc4445",
+        "name": "Aplicar nota (RPC)",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          448,
+          1040
+        ],
+        "credentials": {
+          "httpCustomAuth": {
+            "id": "qi1Q4nbJ4zqs9aAz",
+            "name": "Custom Auth account 2"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "chatId": "={{ $('Rotear callback').item.json.callback_query.message.chat.id }}",
+          "text": "={{ 'Pronto! Lancei ' + $json.itens + ' itens (' + $json.novos + ' novos). Total R$ ' + $json.total + ($json.economia > 0 ? '. Economia R$ ' + $json.economia : '') }}",
+          "additionalFields": {}
+        },
+        "id": "526f933f-a358-4744-96e3-6f383460756d",
+        "name": "Resp. nota",
+        "type": "n8n-nodes-base.telegram",
+        "typeVersion": 1.2,
+        "position": [
+          688,
+          1040
+        ],
+        "webhookId": "c78b2726-dfa1-47ff-bdfb-7397e9b07c7c",
+        "credentials": {
+          "telegramApi": {
+            "id": "ayyI2xNS7IfxLPLw",
+            "name": "Telegram Mercado"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://eqguqkojztovfoafjqji.supabase.co/rest/v1/rpc/mercado_draft_cancel",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpCustomAuth",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ p_chat_id: $json.callback_query.message.chat.id }) }}",
+          "options": {}
+        },
+        "id": "d6ea5ef4-5431-4e8e-8738-ddc5f8c50554",
+        "name": "Cancelar nota (RPC)",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          448,
+          1248
+        ],
+        "credentials": {
+          "httpCustomAuth": {
+            "id": "qi1Q4nbJ4zqs9aAz",
+            "name": "Custom Auth account 2"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "chatId": "={{ $('Rotear callback').item.json.callback_query.message.chat.id }}",
+          "text": "Ok, cancelei a nota. Pode mandar outra quando quiser.",
+          "additionalFields": {}
+        },
+        "id": "adb12e38-efb9-4b9f-b142-549141d95cf6",
+        "name": "Resp. cancelar",
+        "type": "n8n-nodes-base.telegram",
+        "typeVersion": 1.2,
+        "position": [
+          688,
+          1248
+        ],
+        "webhookId": "c02a0577-2526-4b70-9d3f-287b7df7d518",
+        "credentials": {
+          "telegramApi": {
+            "id": "ayyI2xNS7IfxLPLw",
+            "name": "Telegram Mercado"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "resource": "file",
+          "fileId": "={{ $json.file_id }}",
+          "additionalFields": {}
+        },
+        "id": "463f4361-da0c-4830-8d0c-16ffd84f2cb2",
+        "name": "Baixar foto",
+        "type": "n8n-nodes-base.telegram",
+        "typeVersion": 1.2,
+        "position": [
+          896,
+          816
+        ],
+        "webhookId": "842ac7c1-883a-4318-9bbe-74143a046596",
+        "credentials": {
+          "telegramApi": {
+            "id": "ayyI2xNS7IfxLPLw",
+            "name": "Telegram Mercado"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\nconst chatId = $('Rotear callback').first().json.callback_query.message.chat.id;\nconst prompt = 'Você recebe fotos de uma ou mais notas fiscais de supermercado do Brasil. Extraia os itens comprados. Responda SOMENTE um objeto JSON no formato {\"itens\":[{\"nome\":\"\",\"marca\":\"\",\"qtd\":0,\"preco\":0,\"unidade\":\"un\"}]}. Regras: nome = nome genérico do produto em minúsculas, sem marca (ex: \"arroz\", \"leite\", \"sabão em pó\"); marca = marca separada minúscula, ou \"\" se não houver; cada item aparece como DESCRICAO seguida de QTD x PRECO_UNITARIO (ex: 2 X 7,19 significa qtd 2 e preco 7.19); qtd = o numero inteiro ANTES do x (use 1 se nao houver x) e NUNCA use o preco como qtd (se o que voce leria como qtd for igual ao preco, use 1); preco = o valor APOS o x com ponto decimal; unidade = quase sempre \"un\", use \"kg\" apenas para granel por peso e \"l\" apenas para liquido vendido a granel, NUNCA use o peso ou volume do rotulo (por exemplo 800g, 500ml, 2l) como unidade nem como qtd. Ignore descontos, subtotais, total, impostos e linhas que não sejam produtos. Não invente itens.';\nconst content = [{ type: 'text', text: prompt }];\nfor (let i = 0; i < items.length; i++) {\n  const buf = await this.helpers.getBinaryDataBuffer(i, 'data');\n  content.push({ type: 'image_url', image_url: { url: 'data:image/jpeg;base64,' + buf.toString('base64') } });\n}\n// ponytail: modelo de visao real do Groq; troque aqui se quiser outro (era qwen/qwen3.6-27b no spec, inexistente)\nconst body = {\n  model: 'meta-llama/llama-4-scout-17b-16e-instruct',\n  temperature: 0,\n  response_format: { type: 'json_object' },\n  messages: [{ role: 'user', content }]\n};\nreturn [{ json: { chat_id: chatId, body } }];"
+        },
+        "id": "dac7b16a-a79d-4b76-ba24-a2fc53efdc5f",
+        "name": "Montar visão",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1104,
+          816
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.groq.com/openai/v1/chat/completions",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpHeaderAuth",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify($json.body) }}",
+          "options": {}
+        },
+        "id": "b9dbdcbe-e13f-457a-81d5-175cc80c0bc7",
+        "name": "Ler nota (visão)",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1328,
+          816
+        ],
+        "credentials": {
+          "httpHeaderAuth": {
+            "id": "GZHex1HM1xYTxATz",
+            "name": "Header Auth account"
+          }
+        },
+        "onError": "continueErrorOutput"
+      },
+      {
+        "parameters": {
+          "jsCode": "const raw = ($json.choices && $json.choices[0] && $json.choices[0].message && $json.choices[0].message.content) || '{}';\nlet parsed = {};\ntry { parsed = JSON.parse(raw); } catch (e) { parsed = {}; }\nconst itens = parsed.itens || parsed.items || [];\nconst chatId = $('Rotear callback').first().json.callback_query.message.chat.id;\nreturn [{ json: { chat_id: chatId, itens } }];"
+        },
+        "id": "1e0a51f7-a5b6-4629-b969-fa1778a11e88",
+        "name": "Extrair itens",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1552,
+          816
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://eqguqkojztovfoafjqji.supabase.co/rest/v1/rpc/mercado_draft_set_items",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpCustomAuth",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ p_chat_id: $json.chat_id, p_items: $json.itens }) }}",
+          "options": {}
+        },
+        "id": "3e134986-d4a4-4a75-8303-ba353443b59b",
+        "name": "Salvar itens (RPC)",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1776,
+          816
+        ],
+        "credentials": {
+          "httpCustomAuth": {
+            "id": "qi1Q4nbJ4zqs9aAz",
+            "name": "Custom Auth account 2"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "chatId": "={{ $('Rotear callback').first().json.callback_query.message.chat.id }}",
+          "text": "={{ 'Confira a nota (' + ($json.itens || []).length + ' itens):\\n' + ($json.itens || []).map(function(it, i){ return (i+1) + '. ' + (it.duvida ? '⚠️ ' : '') + it.nome + (it.marca ? ' (' + it.marca + ')' : '') + '  ' + it.qtd + 'x  R$ ' + it.preco; }).join('\\n') + '\\n\\nTotal: R$ ' + $json.total + '\\n\\n⚠️ = fiquei em duvida, confira o nome. Se estiver certo, toque em Confirmar.' }}",
+          "replyMarkup": "inlineKeyboard",
+          "inlineKeyboard": {
+            "rows": [
+              {
+                "row": {
+                  "buttons": [
+                    {
+                      "text": "Confirmar",
+                      "additionalFields": {
+                        "callback_data": "rcpt_confirm"
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "row": {
+                  "buttons": [
+                    {
+                      "text": "Cancelar",
+                      "additionalFields": {
+                        "callback_data": "rcpt_cancel"
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          "additionalFields": {}
+        },
+        "id": "5af60c60-4cd9-4432-a0ee-f22443e8cf2c",
+        "name": "Resp. revisão",
+        "type": "n8n-nodes-base.telegram",
+        "typeVersion": 1.2,
+        "position": [
+          1984,
+          816
+        ],
+        "webhookId": "17081cfc-76e2-4e3f-bbc1-91b092719d83",
+        "credentials": {
+          "telegramApi": {
+            "id": "ayyI2xNS7IfxLPLw",
+            "name": "Telegram Mercado"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "resource": "file",
+          "fileId": "={{ $json.message.voice.file_id }}",
+          "additionalFields": {}
+        },
+        "id": "ac3b20a5-27f0-4694-802c-9bbdedc4b4fb",
+        "name": "Baixar audio",
+        "type": "n8n-nodes-base.telegram",
+        "typeVersion": 1.2,
+        "position": [
+          192,
+          64
+        ],
+        "webhookId": "225f686a-d379-4710-9f86-de8c8631acf7",
+        "credentials": {
+          "telegramApi": {
+            "id": "ayyI2xNS7IfxLPLw",
+            "name": "Telegram Mercado"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "// Groq valida o tipo pela extensao do nome do arquivo. O Telegram baixa voz\n// como .oga, que a Groq nao aceita; renomeia para .ogg (mesmo formato).\nfor (const item of $input.all()) {\n  if (item.binary && item.binary.data) {\n    item.binary.data.fileName = 'audio.ogg';\n    item.binary.data.fileExtension = 'ogg';\n    item.binary.data.mimeType = 'audio/ogg';\n  }\n}\nreturn $input.all();"
+        },
+        "id": "011431c6-9a65-4313-8544-f13d36988585",
+        "name": "Renomear audio",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          384,
+          64
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "const photos = $input.first().json.photos || [];\nconst chatId = $('Rotear callback').first().json.callback_query.message.chat.id;\n// ponytail: cap 5 imgs (limite da Groq); o botao Processar so aparece com >=1 foto, sem guarda de vazio\nreturn photos.slice(0, 5).map(file_id => ({ json: { file_id, chat_id: chatId } }));"
+        },
+        "id": "c8c15ad6-4c99-4116-9203-9d6ddd0a2356",
+        "name": "Fotos -> lista",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          688,
+          816
+        ]
+      },
+      {
+        "id": "715a967a-f4e5-4731-ab19-0a0c7397d542",
+        "name": "Montar norm",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1560,
+          1000
+        ],
+        "parameters": {
+          "jsCode": "const chatId=$('Rotear callback').first().json.callback_query.message.chat.id; const itens=$json.itens||[]; const lista=itens.map((it,i)=>({i:i,t:(it.nome||'')+(it.marca?(' '+it.marca):'')})); const prompt='Normalize nomes de itens de nota fiscal de supermercado do Brasil. Abreviacoes comuns: det=detergente, det san=detergente sanitario, cre den=creme dental, desod=desodorante, sab e sabonaceo=sabonete, amaciant=amaciante, pap hig=papel higienico, lava rou=lava roupas, abs=absorvente, refri e ref=refrigerante, ach=achocolatado. Para cada item devolva nome generico minusculo sem marca, a marca (ou vazio) e duvida=true se voce NAO tiver certeza do produto. Mantenha o mesmo indice i. Responda SOMENTE JSON: {\"itens\":[{\"i\":0,\"nome\":\"\",\"marca\":\"\",\"duvida\":false}]}. Itens: '+JSON.stringify(lista); const body={model:'meta/llama-3.1-8b-instruct',temperature:0,max_tokens:3500,messages:[{role:'user',content:prompt}]}; return [{json:{chat_id:chatId,body:body,itensOrig:itens}}];"
+        }
+      },
+      {
+        "id": "49ef30e2-3939-418e-9ca9-5fd39aebb46e",
+        "name": "Normalizar (NVIDIA)",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1720,
+          1000
+        ],
+        "parameters": {
+          "method": "POST",
+          "url": "https://integrate.api.nvidia.com/v1/chat/completions",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpHeaderAuth",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify($json.body) }}",
+          "options": {}
+        },
+        "credentials": {
+          "httpHeaderAuth": {
+            "id": "P1IqKKYZNig40eoZ",
+            "name": "NVIDIA NIM"
+          }
+        },
+        "onError": "continueRegularOutput"
+      },
+      {
+        "id": "7f89af9e-d7c8-4ced-8376-862ef6bbfee8",
+        "name": "Aplicar norm",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1880,
+          1000
+        ],
+        "parameters": {
+          "jsCode": "const raw=($json.choices&&$json.choices[0]&&$json.choices[0].message&&$json.choices[0].message.content)||'{}'; let p={}; try{p=JSON.parse(raw);}catch(e){p={};} const norm=p.itens||[]; const orig=$('Montar norm').first().json.itensOrig||[]; const chatId=$('Montar norm').first().json.chat_id; const by={}; for(const n of norm){by[n.i]=n;} const ok=['un','kg','l','pacote']; const itens=orig.map((it,i)=>{const n=by[i]||{}; let q=Number(it.qtd)||1; const pr=Number(it.preco)||0; if(q===pr&&q>1)q=1; let u=String(it.unidade||'').toLowerCase(); if(!ok.includes(u))u='un'; return {nome:(n.nome||it.nome),marca:(n.marca!==undefined?n.marca:(it.marca||'')),qtd:q,preco:pr,unidade:u,duvida:!!n.duvida};}); return [{json:{chat_id:chatId,itens:itens}}];"
+        }
+      },
+      {
+        "id": "3c0da2b1-af8f-46f5-b2c3-65e6ca45caec",
+        "name": "Resp. mais fotos",
+        "type": "n8n-nodes-base.telegram",
+        "typeVersion": 1.2,
+        "position": [
+          460,
+          1400
+        ],
+        "parameters": {
+          "chatId": "={{ $('Rotear callback').first().json.callback_query.message.chat.id }}",
+          "text": "Beleza! Pode enviar as próximas fotos. Quando terminar, toque em Processar.",
+          "additionalFields": {}
+        },
+        "credentials": {
+          "telegramApi": {
+            "id": "ayyI2xNS7IfxLPLw",
+            "name": "Telegram Mercado"
+          }
+        }
+      },
+      {
+        "id": "13fec406-f2c7-4706-aa6b-4feffdbc1076",
+        "name": "Memoria",
+        "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+        "typeVersion": 1.4,
+        "position": [
+          1072,
+          700
+        ],
+        "parameters": {
+          "sessionIdType": "customKey",
+          "sessionKey": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+          "contextWindowLength": 12
+        }
+      },
+      {
+        "id": "e433e8e2-da14-4a37-85be-d6e99ba6afb7",
+        "name": "Transcrever (Groq 2)",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          592,
+          220
+        ],
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.groq.com/openai/v1/audio/transcriptions",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpHeaderAuth",
+          "sendBody": true,
+          "contentType": "multipart-form-data",
+          "bodyParameters": {
+            "parameters": [
+              {
+                "parameterType": "formBinaryData",
+                "name": "file",
+                "inputDataFieldName": "data"
+              },
+              {
+                "parameterType": "formData",
+                "name": "model",
+                "value": "whisper-large-v3"
+              },
+              {
+                "parameterType": "formData",
+                "name": "language",
+                "value": "pt"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "credentials": {
+          "httpHeaderAuth": {
+            "id": "nQxpUu2GMTzALgwr",
+            "name": "Groq Transcricao 2"
+          }
+        },
+        "onError": "continueErrorOutput"
+      },
+      {
+        "id": "445443ab-4269-4275-a471-58bbaf500a22",
+        "name": "Transcrever (Groq 3)",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          592,
+          380
+        ],
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.groq.com/openai/v1/audio/transcriptions",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpHeaderAuth",
+          "sendBody": true,
+          "contentType": "multipart-form-data",
+          "bodyParameters": {
+            "parameters": [
+              {
+                "parameterType": "formBinaryData",
+                "name": "file",
+                "inputDataFieldName": "data"
+              },
+              {
+                "parameterType": "formData",
+                "name": "model",
+                "value": "whisper-large-v3"
+              },
+              {
+                "parameterType": "formData",
+                "name": "language",
+                "value": "pt"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "credentials": {
+          "httpHeaderAuth": {
+            "id": "UuvvptNmJ1xK3cRN",
+            "name": "Groq Transcricao 3"
+          }
+        }
+      },
+      {
+        "id": "9434aee7-f9df-4a37-837d-e52340e5abeb",
+        "name": "Ler nota 2",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1300,
+          1140
+        ],
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.groq.com/openai/v1/chat/completions",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpHeaderAuth",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify($('Montar visão').item.json.body) }}",
+          "options": {}
+        },
+        "credentials": {
+          "httpHeaderAuth": {
+            "id": "nQxpUu2GMTzALgwr",
+            "name": "Groq Transcricao 2"
+          }
+        },
+        "onError": "continueErrorOutput"
+      },
+      {
+        "id": "82a5e81f-fdcc-4037-aa8c-50fb352fe522",
+        "name": "Ler nota 3",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1300,
+          1280
+        ],
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.groq.com/openai/v1/chat/completions",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpHeaderAuth",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify($('Montar visão').item.json.body) }}",
+          "options": {}
+        },
+        "credentials": {
+          "httpHeaderAuth": {
+            "id": "UuvvptNmJ1xK3cRN",
+            "name": "Groq Transcricao 3"
+          }
+        }
+      },
+      {
+        "id": "ad07ea58-3114-44d7-b70c-6c12bfd83ed3",
+        "name": "Carrinho (RPC)",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1920,
+          620
+        ],
+        "parameters": {
+          "method": "POST",
+          "url": "https://eqguqkojztovfoafjqji.supabase.co/rest/v1/rpc/mercado_cart_apply",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpCustomAuth",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ p_chat_id: $json.chat_id, p_op: $json.op, p_name: $json.item, p_price: $json.preco, p_qty: $json.quantidade, p_unit: $json.unidade, p_confirm: $json.confirmar }) }}",
+          "options": {}
+        },
+        "credentials": {
+          "httpCustomAuth": {
+            "id": "qi1Q4nbJ4zqs9aAz",
+            "name": "Custom Auth account 2"
+          }
+        }
+      },
+      {
+        "id": "86b6564e-ea1c-4e96-9c63-c77a4bfd6ee2",
+        "name": "Montar resp. carrinho",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          2144,
+          620
+        ],
+        "parameters": {
+          "jsCode": "const dec = $('Decidir').first().json || {};\nconst op = String(dec.op || '').toLowerCase();\nconst agentReply = dec.agentReply || '';\nconst chatId = $('Telegram Trigger').first().json.message.chat.id;\nconst APP = 'https://mercado-mensal-app.vercel.app/';\nconst results = $input.all().map(i => i.json || {});\nconst decItems = $('Decidir').all().map(i => i.json || {});\nfunction reais(n){ return 'R$ ' + (Number(n)||0).toFixed(2).replace('.', ','); }\nfunction cap(s){ s = String(s||'').trim(); return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }\nlet text = '';\nif (op === 'comecar') {\n  const r = results[0] || {};\n  text = (r.ok === false) ? (agentReply || 'Não consegui abrir a compra.')\n       : '🛒 Compra aberta! Vá falando o que for pegando que eu vou somando o total.\\nAcompanhe pelo painel: ' + APP;\n} else if (op === 'pegar') {\n  const linhas = [];\n  let total = null;\n  for (let idx = 0; idx < results.length; idx++) {\n    const r = results[idx] || {};\n    const d = decItems[idx] || {};\n    if (r.ok === false && r.erro === 'sem_compra_aberta') { linhas.push('Você não está numa compra. Diga \"tô no mercado\" para começar.'); continue; }\n    if (r.ok === false && r.erro === 'sem_preco') { linhas.push('Quanto foi o ' + cap(d.item || r.item || 'item') + '?'); continue; }\n    if (r.needs_confirm === true) { linhas.push('Você já tem ' + r.estoque_atual + ' ' + (d.item || r.item) + ' em casa (acima do normal). Confirma que quer comprar mesmo assim?'); continue; }\n    if (r.ok === true) {\n      const nome = cap(d.item || r.item || 'Item');\n      const marca = d.marca ? String(d.marca).trim() : '';\n      const preco = Number(d.preco) || 0;\n      const qtd = Number(d.quantidade) || 1;\n      const unid = d.unidade || 'un';\n      const qtdLabel = (unid && unid !== 'un') ? (qtd + ' ' + unid) : String(qtd);\n      let l = '✅ ' + nome;\n      if (marca) l += ' (' + marca + ')';\n      if (preco > 0 && qtd > 1) l += ' · ' + qtdLabel + ' x ' + reais(preco) + ' = ' + reais(preco * qtd);\n      else if (preco > 0) l += ' · ' + reais(preco);\n      else if (qtd > 1) l += ' · ' + qtdLabel;\n      linhas.push(l);\n      if (r.total_parcial !== undefined && r.total_parcial !== null) total = r.total_parcial;\n    }\n  }\n  if (total !== null) linhas.push('🧾 Total do carrinho: ' + reais(total));\n  text = linhas.join('\\n');\n} else if (op === 'finalizar') {\n  const r = results[0] || {};\n  text = (r.ok === false) ? 'Você não está numa compra aberta.'\n       : '🎉 Compra finalizada! ' + r.itens + ' itens, total ' + reais(r.total) + (r.economia > 0 ? '\\n💰 Você economizou ' + reais(r.economia) : '') + '\\nVeja no painel: ' + APP;\n} else if (op === 'cancelar') {\n  const r = results[0] || {};\n  text = r.cancelada ? 'Compra cancelada.' : 'Não havia compra aberta.';\n} else {\n  text = agentReply || 'Feito.';\n}\nreturn [{ json: { chat_id: chatId, text: text || 'Feito.' } }];"
+        }
+      },
+      {
+        "id": "06f030f8-e5d4-424a-a8e6-768c7300de36",
+        "name": "Consultar (RPC)",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1920,
+          780
+        ],
+        "parameters": {
+          "method": "POST",
+          "url": "https://eqguqkojztovfoafjqji.supabase.co/rest/v1/rpc/mercado_consulta_texto",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpCustomAuth",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ p_chat_id: $json.chat_id, p_tipo: $json.tipo }) }}",
+          "options": {}
+        },
+        "credentials": {
+          "httpCustomAuth": {
+            "id": "qi1Q4nbJ4zqs9aAz",
+            "name": "Custom Auth account 2"
+          }
+        }
+      },
+      {
+        "id": "6a3c3d7c-2a89-4e60-892b-f208960cd773",
+        "name": "Montar consulta",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          2144,
+          780
+        ],
+        "parameters": {
+          "jsCode": "const chatId = $('Telegram Trigger').first().json.message.chat.id;\nconst r = $input.first().json || {};\nreturn [{ json: { chat_id: chatId, text: r.text || 'Nao consegui consultar agora. Tente de novo.' } }];"
+        }
+      }
+    ],
+    "connections": {
+      "Audio ou texto": {
+        "main": [
+          [
+            {
+              "node": "Baixar audio",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Texto direto",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Transcrever (Groq)": {
+        "main": [
+          [
+            {
+              "node": "Texto do audio",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Transcrever (Groq 2)",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Texto do audio": {
+        "main": [
+          [
+            {
+              "node": "Assistente",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Texto direto": {
+        "main": [
+          [
+            {
+              "node": "Assistente",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Groq Model": {
+        "ai_languageModel": [
+          [
+            {
+              "node": "Assistente",
+              "type": "ai_languageModel",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Assistente": {
+        "main": [
+          [
+            {
+              "node": "Decidir",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Decidir": {
+        "main": [
+          [
+            {
+              "node": "Rotear acao",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Rotear acao": {
+        "main": [
+          [
+            {
+              "node": "Aplicar (RPC)",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Criar familia (RPC)",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Entrar familia (RPC)",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Carrinho (RPC)",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Consultar (RPC)",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Responder",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Aplicar (RPC)": {
+        "main": [
+          [
+            {
+              "node": "Montar resposta",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Montar resposta": {
+        "main": [
+          [
+            {
+              "node": "Responder",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Criar familia (RPC)": {
+        "main": [
+          [
+            {
+              "node": "Resp. criar",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Entrar familia (RPC)": {
+        "main": [
+          [
+            {
+              "node": "Resp. entrar",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Tipo de update": {
+        "main": [
+          [
+            {
+              "node": "Foto: guardar (RPC)",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Rotear callback",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Audio ou texto",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Foto: guardar (RPC)": {
+        "main": [
+          [
+            {
+              "node": "Resp. foto",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Rotear callback": {
+        "main": [
+          [
+            {
+              "node": "Ler rascunho (RPC)",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Aplicar nota (RPC)",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Cancelar nota (RPC)",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Resp. mais fotos",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Aplicar nota (RPC)": {
+        "main": [
+          [
+            {
+              "node": "Resp. nota",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Cancelar nota (RPC)": {
+        "main": [
+          [
+            {
+              "node": "Resp. cancelar",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Ler rascunho (RPC)": {
+        "main": [
+          [
+            {
+              "node": "Fotos -> lista",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Baixar foto": {
+        "main": [
+          [
+            {
+              "node": "Montar visão",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Montar visão": {
+        "main": [
+          [
+            {
+              "node": "Ler nota (visão)",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Ler nota (visão)": {
+        "main": [
+          [
+            {
+              "node": "Extrair itens",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Ler nota 2",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Salvar itens (RPC)": {
+        "main": [
+          [
+            {
+              "node": "Resp. revisão",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Telegram Trigger": {
+        "main": [
+          [
+            {
+              "node": "Tipo de update",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Baixar audio": {
+        "main": [
+          [
+            {
+              "node": "Renomear audio",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Renomear audio": {
+        "main": [
+          [
+            {
+              "node": "Transcrever (Groq)",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Fotos -> lista": {
+        "main": [
+          [
+            {
+              "node": "Baixar foto",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Extrair itens": {
+        "main": [
+          [
+            {
+              "node": "Montar norm",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Montar norm": {
+        "main": [
+          [
+            {
+              "node": "Normalizar (NVIDIA)",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Normalizar (NVIDIA)": {
+        "main": [
+          [
+            {
+              "node": "Aplicar norm",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Aplicar norm": {
+        "main": [
+          [
+            {
+              "node": "Salvar itens (RPC)",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Memoria": {
+        "ai_memory": [
+          [
+            {
+              "node": "Assistente",
+              "type": "ai_memory",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Transcrever (Groq 2)": {
+        "main": [
+          [
+            {
+              "node": "Texto do audio",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Transcrever (Groq 3)",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Transcrever (Groq 3)": {
+        "main": [
+          [
+            {
+              "node": "Texto do audio",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Ler nota 2": {
+        "main": [
+          [
+            {
+              "node": "Extrair itens",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Ler nota 3",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Ler nota 3": {
+        "main": [
+          [
+            {
+              "node": "Extrair itens",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Carrinho (RPC)": {
+        "main": [
+          [
+            {
+              "node": "Montar resp. carrinho",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Montar resp. carrinho": {
+        "main": [
+          [
+            {
+              "node": "Responder",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Consultar (RPC)": {
+        "main": [
+          [
+            {
+              "node": "Montar consulta",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Montar consulta": {
+        "main": [
+          [
+            {
+              "node": "Responder",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "authors": "Isabelle Pinheiro",
+    "name": null,
+    "description": null,
+    "autosaved": false,
+    "workflowPublishHistory": [
+      {
+        "createdAt": "2026-07-27T18:32:06.650Z",
+        "id": 697,
+        "workflowId": "al56Kfii1scgHOCv",
+        "versionId": "27a42572-5c39-46a0-9ff8-7b6507b50b1a",
+        "event": "deactivated",
+        "userId": "568fbd46-55fb-44d2-99e7-1569ed938f2e"
+      },
+      {
+        "createdAt": "2026-07-27T18:32:06.784Z",
+        "id": 698,
+        "workflowId": "al56Kfii1scgHOCv",
+        "versionId": "27a42572-5c39-46a0-9ff8-7b6507b50b1a",
+        "event": "activated",
+        "userId": "568fbd46-55fb-44d2-99e7-1569ed938f2e"
+      }
+    ]
+  }
+}

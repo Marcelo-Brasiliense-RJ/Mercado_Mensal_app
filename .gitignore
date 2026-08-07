@@ -24,3 +24,6 @@ Thumbs.db
 
 # Utilitarios locais (nao versionar)
 anti_idle/
+
+# Saida do /uxaudit: screenshots, relatorios e zips gerados (19 MB por rodada)
+.agents/
