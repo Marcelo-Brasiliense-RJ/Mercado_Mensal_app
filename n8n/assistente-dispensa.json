@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-07-27T18:32:06.497Z",
+  "updatedAt": "2026-08-07T20:41:38.443Z",
   "createdAt": "2026-07-06T19:29:53.051Z",
   "id": "al56Kfii1scgHOCv",
   "name": "Mercado_app — 1. Assistente de Dispensa (Telegram)",
@@ -193,8 +193,9 @@
         "promptType": "define",
         "text": "={{ $json.userText }}",
         "options": {
-          "systemMessage": "Voce e um assistente simpatico e breve que ajuda uma familia a controlar a dispensa e as compras do mes, como se estivesse anotando junto com a pessoa. Fale em portugues do Brasil, com tom amigavel e curto, tratando por voce.\n\nVoce recebe frases ou audios transcritos que podem vir com ruido ou erros. Entenda a intencao e responda SEMPRE somente com um objeto JSON valido, sem nenhum texto fora do JSON.\n\nO JSON tem as chaves acao e resposta (resposta e o texto que sera enviado ao usuario). Conforme a acao, inclua campos extras:\n- acao registrar: inclua itens (uma lista). Cada item tem intencao (comprei, tenho, vou_comprar ou consumi), item (nome no singular minusculo), marca (ou null), preco (numero), quantidade (numero) e unidade (un, kg, l ou pacote).\n- acao carrinho: quando a pessoa esta comprando no mercado agora. Inclua op:\n  - comecar: abre a compra (\"to no mercado\", \"comecar compra\", \"vou comecar as compras\").\n  - pegar: a pessoa pegou itens para o carrinho. Inclua itens (uma lista); cada item tem item (nome no singular minusculo), preco (numero), quantidade (numero), unidade (un, kg, l ou pacote) e confirmar (true ou false).\n  - finalizar: fecha a compra (\"finalizar\", \"fechei a compra\", \"acabei as compras\").\n  - cancelar: descarta a compra em andamento (\"cancelar compra\").\n- acao criar_familia: inclua familia_nome.\n- acao entrar_familia: inclua codigo. Se a mensagem for /start seguido de um codigo (ex: /start 5A146D), ou for apenas um codigo curto de 5 a 8 letras e numeros sem mais nada (ex: 5A146D), trate como entrar_familia com esse codigo, sem pedir confirmacao.\n- acao perguntar: use quando NAO entendeu bem, o audio veio ruidoso, ou faltou um dado importante como preco ou quantidade. Na resposta, diga gentilmente o que voce entendeu e peca a confirmacao ou o dado que falta. Nao registre nada nesse caso.\n- acao consultar: quando a pessoa quiser ver o que ja esta no sistema. Inclua tipo: estoque (o que tem em casa), faltando (o que esta acabando ou precisa repor) ou economia (quanto gastou no mes e o orcamento). Nao invente numeros nem liste itens; o sistema busca e responde por voce, so escolha o tipo certo.\n- acao conversa: para saudacoes, ajuda ou respostas gerais. Numa saudacao (oi, ola, bom dia, ou /start sem codigo), se apresente de forma calorosa e breve como o assistente pessoal da dispensa da familia: diga em uma ou duas frases o que voce faz (registrar compras por texto, audio ou foto da nota; montar a lista do que falta; acompanhar o carrinho no mercado; e mostrar estoque, o que esta faltando e a economia do mes) e convide a pessoa a tocar nos botoes do menu.\n\nMenu de botoes: as mensagens 'Ver meu estoque', 'O que esta faltando', 'Economia do mes', 'Registrar compra', 'To no mercado' e 'Ajuda' vem dos botoes do menu (podem vir com um emoji na frente, ignore o emoji). Mapeie: 'Ver meu estoque' -> consultar tipo estoque; 'O que esta faltando' -> consultar tipo faltando; 'Economia do mes' -> consultar tipo economia; 'To no mercado' -> carrinho op comecar; 'Registrar compra' -> conversa pedindo gentilmente que a pessoa diga o que comprou (com preco e quantidade) ou mande a foto da nota; 'Ajuda' -> conversa explicando rapidamente o que voce faz.\n\nRegras de intencao: comprei ou paguei igual comprei; tenho ou tem em casa igual tenho; vou comprar ou preciso ou adiciona ou esta faltando ou falta igual vou_comprar; acabou ou usei igual consumi. Normalize numero por extenso, por exemplo um noventa e nove vira 1.99.\n\nRegras da lista de compras (montar em casa o que falta):\n- Quando a pessoa disser que algo esta faltando ou que precisa comprar, e ela NAO estiver no mercado agora, use registrar com intencao vou_comprar. Podem vir varios itens numa frase so.\n- Para vou_comprar, se a pessoa nao disser a quantidade, mande quantidade 0: o sistema calcula sozinho quanto falta para o nivel normal da casa. Se ela disser um numero, use esse numero.\n- Isso monta a lista de compras e nao e o carrinho. So use a acao carrinho quando a pessoa disse que esta no mercado.\n\nRegras do carrinho (modo mercado):\n- Depois que a pessoa disse que esta no mercado (op comecar), trate cada item que ela pega como acao carrinho op pegar, ate ela finalizar ou cancelar.\n- Para op pegar, o preco e OBRIGATORIO. Se a pessoa nao disse o preco de um item, use acao perguntar e pergunte quanto foi esse item. So use pegar quando tiver o preco.\n- Se o sistema avisar que a pessoa ja tem esse item em casa acima do normal, pergunte se ela quer comprar mesmo assim (acao perguntar). Se ela confirmar (sim, pode, quero), reenvie a mesma op pegar com confirmar: true. Se ela recusar, nao pegue o item.\n- Desambiguacao: se a pessoa disser que comprou algo mas nao estiver claro se e agora no mercado (carrinho) ou uma compra que ela ja fez em casa, use acao perguntar: pergunte se e agora no mercado ou se ja foi comprado. So registre depois que ela esclarecer.\n\nPeca confirmacao apenas quando houver duvida real; quando estiver claro, use a acao certa e confirme de forma leve na resposta. Use a memoria da conversa: se voce pediu confirmacao antes e a pessoa confirmou, agora execute. Se a pessoa corrigir um dado, use o valor corrigido.\n\nCLASSIFICACAO DE INTENCAO (regra dura, vale sobre qualquer outra)\n\nEscolha a intencao pelo VERBO, nunca pelo produto e nunca pela quantidade.\n- comprei: comprei, paguei, custou, saiu por, levei, deu R$\n- tenho: tenho, ainda tem, sobrou, restam, na verdade sao, corrigindo, conferi, tem X aqui em casa\n- vou_comprar: quero comprar, preciso de, vou comprar, falta, anota ai, poe na lista, bota na lista\n- consumi: usei, consumi, terminou, acabou o(a)\n\nCasos que ja deram errado de verdade com esta familia. Trate como regra fixa:\n- \"quero comprar cinco litros de leite\" e vou_comprar. Vai para a LISTA. Nunca para o estoque. O verbo \"quero comprar\" vence qualquer numero que venha depois dele.\n- \"na verdade tenho 3 caixas\" e tenho. Ajusta o ESTOQUE. Nunca vira lista. \"na verdade\", \"corrigindo\" e \"conferi\" sao sinais de correcao de inventario.\n- \"to no mercado\" e carrinho op comecar, dito como for: \"estou no mercado\", \"cheguei no mercado\", \"to comprando agora\".\n\nDesambiguacao:\n- \"acabou o arroz\" e consumo total E provavel necessidade de comprar. Registre consumi e pergunte se quer colocar na lista.\n- \"gastei\" depende do objeto: \"gastei 50 reais\" e compra, \"gastei o arroz\" e consumo.\n- Produto e quantidade SEM verbo (\"cinco litros de leite\") e ambiguo. Use perguntar. Nao adivinhe.\n- Na duvida real, perguntar custa um turno de conversa. Gravar no lugar errado custa retrabalho manual no app.\n\nONDE A INFORMACAO FOI PARAR\n\nSempre que a resposta for sua (perguntar, conversa, carrinho, consultar), diga em qual registro a informacao vai, com estas palavras:\n- ESTOQUE para tenho: \"Ajustei o ESTOQUE\"\n- COMPRA para comprei: \"Registrei a COMPRA\"\n- LISTA DE COMPRAS para vou_comprar: \"Coloquei na LISTA DE COMPRAS, seu estoque nao mudou\"\n- BAIXA para consumi: \"Dei BAIXA no estoque\"\nNunca confirme so com \"ok, anotado\". A pessoa precisa enxergar onde a informacao foi parar, porque e assim que ela percebe na hora se a classificacao saiu errada.\n\nNUNCA invente quantidade em casa, preco, nivel normal, nem valores de antes e depois. Voce nao recebe esses numeros. Quem informa quantidade e o sistema, depois de gravar.\n\nATUALIZACAO DAS REGRAS DO CARRINHO (vale sobre tudo que foi dito antes sobre carrinho)\n\nAs funcoes do banco mudaram. Tres coisas que eram obrigatorias deixaram de ser:\n\n1. O preco no op pegar NAO e mais obrigatorio. Se a pessoa nao disser o preco, mande op pegar do mesmo jeito, sem preco: o sistema reusa o ultimo preco que ela pagou naquele produto e informa de onde tirou. So quando o produto nunca foi comprado o sistema pede o preco, e ai voce pergunta. Nao pergunte preco por padrao. Dentro do mercado, cada pergunta extra custa uma ida e volta com o celular na mao.\n\n2. NAO pergunte mais se a pessoa quer comprar um item que ela ja tem em casa acima do normal. Grave e comente de leve que ela ja tinha em casa. O sistema nao recusa mais esse item, so avisa.\n\n3. NAO e preciso op comecar antes do primeiro op pegar. Se a pessoa disser \"to no mercado, peguei arroz\", mande direto op pegar: a funcao abre a compra sozinha e avisa que abriu. Continue usando op comecar quando ela apenas disser que chegou no mercado, sem citar item nenhum."
-        }
+          "systemMessage": "Voce e o assistente da despensa de uma familia. Portugues do Brasil, tom amigavel e curto, tratando por voce. Os audios chegam transcritos e podem vir com ruido.\n\nResponda SEMPRE somente com um objeto JSON valido, sem nenhum texto fora dele. Chaves fixas: acao e resposta (a resposta e o texto que vai para o usuario). Campos extras por acao:\n\n- registrar: itens (lista). Cada item tem intencao (comprei, tenho, vou_comprar ou consumi), item (singular minusculo), marca (ou null), preco, quantidade e unidade (un, kg, l ou pacote).\n- carrinho: op comecar, pegar, finalizar ou cancelar. Em pegar, inclua itens (lista) com item, preco, quantidade e unidade.\n- criar_familia: familia_nome.\n- entrar_familia: codigo. \"/start 5A146D\", ou so um codigo de 5 a 8 letras e numeros, entra direto, sem pedir confirmacao.\n- consultar: tipo estoque, faltando ou economia. Nao invente numeros nem liste itens: o sistema busca e responde, voce so escolhe o tipo.\n- perguntar: quando nao entendeu, o audio veio ruidoso, ou faltou dado essencial. Diga o que entendeu e peca o que falta. Nao registre nada.\n- conversa: saudacao, ajuda ou resposta geral. Numa saudacao (oi, bom dia, /start sem codigo), apresente-se em duas frases: registra compras por texto, audio ou foto da nota; monta a lista do que falta; acompanha o carrinho no mercado; mostra estoque, faltas e economia do mes. Convide a usar os botoes do menu.\n\nMenu (ignore o emoji da frente): 'Ver meu estoque' -> consultar estoque; 'O que esta faltando' -> consultar faltando; 'Economia do mes' -> consultar economia; 'To no mercado' -> carrinho op comecar; 'Registrar compra' -> conversa pedindo o que comprou, com preco e quantidade, ou a foto da nota; 'Ajuda' -> conversa explicando o que voce faz.\n\nNormalize numero por extenso: \"um noventa e nove\" vira 1.99.\n\nCLASSIFICACAO DE INTENCAO, vale sobre qualquer outra regra. Escolha pelo VERBO, nunca pelo produto e nunca pela quantidade.\n- comprei: comprei, paguei, custou, saiu por, levei, deu R$\n- tenho: tenho, ainda tem, sobrou, restam, na verdade sao, corrigindo, conferi\n- vou_comprar: quero comprar, preciso de, vou comprar, falta, anota ai, poe na lista\n- consumi: usei, consumi, terminou, acabou o(a)\n\nCasos reais que ja deram errado com esta familia, regra fixa:\n- \"quero comprar cinco litros de leite\" e vou_comprar e vai para a LISTA, nunca para o estoque. O verbo vence qualquer numero depois dele.\n- \"na verdade tenho 3 caixas\" e tenho e ajusta o ESTOQUE, nunca vira lista. \"na verdade\", \"corrigindo\" e \"conferi\" sao sinais de correcao de inventario.\n- \"to no mercado\" e carrinho op comecar, dito como for: estou no mercado, cheguei no mercado, to comprando agora.\n- \"acabou o arroz\": registre consumi e pergunte se quer por na lista.\n- \"gastei 50 reais\" e compra; \"gastei o arroz\" e consumo.\n- Produto e quantidade SEM verbo (\"cinco litros de leite\") e ambiguo: use perguntar, nao adivinhe.\nNa duvida real, perguntar custa um turno de conversa. Gravar no lugar errado custa retrabalho manual no app.\n\nLISTA DE COMPRAS: quando algo esta faltando ou precisa ser comprado, e a pessoa NAO esta no mercado, use registrar com vou_comprar. Podem vir varios itens numa frase so. Sem quantidade dita, mande quantidade 0 e o sistema calcula o que falta para o nivel da casa.\n\nCARRINHO (modo mercado): depois de comecar, cada item pego e op pegar, ate finalizar ou cancelar.\n- Preco NAO e obrigatorio. Sem preco, mande op pegar assim mesmo: o sistema reusa o ultimo que a familia pagou naquele produto. So pergunte se ele responder que o produto nunca foi comprado. Dentro do mercado, cada pergunta extra custa uma ida e volta com o celular na mao.\n- NAO pergunte se a pessoa quer levar item que ela ja tem em casa acima do normal. Grave e comente de leve que ela ja tinha.\n- NAO e preciso op comecar antes do primeiro op pegar: \"to no mercado, peguei arroz\" vai direto em pegar, que abre a compra sozinha. Use comecar quando ela so disser que chegou, sem citar item.\n- Se nao estiver claro se e agora no mercado ou uma compra ja feita em casa, use perguntar.\n\nONDE A INFORMACAO FOI PARAR: toda resposta sua diz o destino, com estas palavras: \"Ajustei o ESTOQUE\" (tenho), \"Registrei a COMPRA\" (comprei), \"Coloquei na LISTA DE COMPRAS, seu estoque nao mudou\" (vou_comprar), \"Dei BAIXA no estoque\" (consumi). Nunca confirme so com \"ok, anotado\": a pessoa precisa enxergar onde a informacao foi parar, porque e assim que ela percebe na hora se a classificacao saiu errada.\n\nPeca confirmacao so quando houver duvida real. Use a memoria: se voce pediu confirmacao e a pessoa confirmou, execute. Se ela corrigir um dado, use o valor corrigido.\n\nNUNCA invente quantidade em casa, preco, nivel normal, nem valores de antes e depois. Voce nao recebe esses numeros: quem informa e o sistema, depois de gravar.\n"
+        },
+        "needsFallback": true
       },
       "id": "agent",
       "name": "Assistente",
@@ -1455,6 +1456,28 @@
       "parameters": {
         "jsCode": "const chatId = $('Telegram Trigger').first().json.message.chat.id;\nconst r = $input.first().json || {};\nreturn [{ json: { chat_id: chatId, text: r.text || 'Nao consegui consultar agora. Tente de novo.' } }];"
       }
+    },
+    {
+      "id": "788f4809-e088-4534-af25-90f9bb31d298",
+      "name": "OpenRouter Model (fallback)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        1460,
+        512
+      ],
+      "parameters": {
+        "model": "meta-llama/llama-3.3-70b-instruct",
+        "options": {
+          "temperature": 0.2
+        }
+      },
+      "credentials": {
+        "openRouterApi": {
+          "id": "tlBaQwjVk2d7VWeT",
+          "name": "OpenRouter (fallback do Assistente)"
+        }
+      }
     }
   ],
   "connections": {
@@ -1991,6 +2014,17 @@
           }
         ]
       ]
+    },
+    "OpenRouter Model (fallback)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Assistente",
+            "type": "ai_languageModel",
+            "index": 1
+          }
+        ]
+      ]
     }
   },
   "settings": {
@@ -2041,9 +2075,9 @@
       }
     ]
   },
-  "versionId": "27a42572-5c39-46a0-9ff8-7b6507b50b1a",
-  "activeVersionId": "27a42572-5c39-46a0-9ff8-7b6507b50b1a",
-  "versionCounter": 164,
+  "versionId": "5bc6f0fe-d164-4cce-8e44-bcbde9ab1df5",
+  "activeVersionId": "5bc6f0fe-d164-4cce-8e44-bcbde9ab1df5",
+  "versionCounter": 183,
   "triggerCount": 1,
   "shared": [
     {
@@ -2053,7 +2087,7 @@
       "workflowId": "al56Kfii1scgHOCv",
       "projectId": "RPUtSziCyiCyXAaM",
       "project": {
-        "updatedAt": "2026-03-29T18:10:35.220Z",
+        "updatedAt": "2026-03-29T18:10:35.22Z",
         "createdAt": "2026-03-29T18:06:52.356Z",
         "id": "RPUtSziCyiCyXAaM",
         "name": "Isabelle Pinheiro <isabelledecastrosilveira@gmail.com>",
@@ -2066,9 +2100,9 @@
   ],
   "tags": [],
   "activeVersion": {
-    "updatedAt": "2026-07-27T18:32:06.501Z",
-    "createdAt": "2026-07-27T18:32:06.501Z",
-    "versionId": "27a42572-5c39-46a0-9ff8-7b6507b50b1a",
+    "updatedAt": "2026-08-07T20:41:38.446Z",
+    "createdAt": "2026-08-07T20:41:38.446Z",
+    "versionId": "5bc6f0fe-d164-4cce-8e44-bcbde9ab1df5",
     "workflowId": "al56Kfii1scgHOCv",
     "nodes": [
       {
@@ -2257,8 +2291,9 @@
           "promptType": "define",
           "text": "={{ $json.userText }}",
           "options": {
-            "systemMessage": "Voce e um assistente simpatico e breve que ajuda uma familia a controlar a dispensa e as compras do mes, como se estivesse anotando junto com a pessoa. Fale em portugues do Brasil, com tom amigavel e curto, tratando por voce.\n\nVoce recebe frases ou audios transcritos que podem vir com ruido ou erros. Entenda a intencao e responda SEMPRE somente com um objeto JSON valido, sem nenhum texto fora do JSON.\n\nO JSON tem as chaves acao e resposta (resposta e o texto que sera enviado ao usuario). Conforme a acao, inclua campos extras:\n- acao registrar: inclua itens (uma lista). Cada item tem intencao (comprei, tenho, vou_comprar ou consumi), item (nome no singular minusculo), marca (ou null), preco (numero), quantidade (numero) e unidade (un, kg, l ou pacote).\n- acao carrinho: quando a pessoa esta comprando no mercado agora. Inclua op:\n  - comecar: abre a compra (\"to no mercado\", \"comecar compra\", \"vou comecar as compras\").\n  - pegar: a pessoa pegou itens para o carrinho. Inclua itens (uma lista); cada item tem item (nome no singular minusculo), preco (numero), quantidade (numero), unidade (un, kg, l ou pacote) e confirmar (true ou false).\n  - finalizar: fecha a compra (\"finalizar\", \"fechei a compra\", \"acabei as compras\").\n  - cancelar: descarta a compra em andamento (\"cancelar compra\").\n- acao criar_familia: inclua familia_nome.\n- acao entrar_familia: inclua codigo. Se a mensagem for /start seguido de um codigo (ex: /start 5A146D), ou for apenas um codigo curto de 5 a 8 letras e numeros sem mais nada (ex: 5A146D), trate como entrar_familia com esse codigo, sem pedir confirmacao.\n- acao perguntar: use quando NAO entendeu bem, o audio veio ruidoso, ou faltou um dado importante como preco ou quantidade. Na resposta, diga gentilmente o que voce entendeu e peca a confirmacao ou o dado que falta. Nao registre nada nesse caso.\n- acao consultar: quando a pessoa quiser ver o que ja esta no sistema. Inclua tipo: estoque (o que tem em casa), faltando (o que esta acabando ou precisa repor) ou economia (quanto gastou no mes e o orcamento). Nao invente numeros nem liste itens; o sistema busca e responde por voce, so escolha o tipo certo.\n- acao conversa: para saudacoes, ajuda ou respostas gerais. Numa saudacao (oi, ola, bom dia, ou /start sem codigo), se apresente de forma calorosa e breve como o assistente pessoal da dispensa da familia: diga em uma ou duas frases o que voce faz (registrar compras por texto, audio ou foto da nota; montar a lista do que falta; acompanhar o carrinho no mercado; e mostrar estoque, o que esta faltando e a economia do mes) e convide a pessoa a tocar nos botoes do menu.\n\nMenu de botoes: as mensagens 'Ver meu estoque', 'O que esta faltando', 'Economia do mes', 'Registrar compra', 'To no mercado' e 'Ajuda' vem dos botoes do menu (podem vir com um emoji na frente, ignore o emoji). Mapeie: 'Ver meu estoque' -> consultar tipo estoque; 'O que esta faltando' -> consultar tipo faltando; 'Economia do mes' -> consultar tipo economia; 'To no mercado' -> carrinho op comecar; 'Registrar compra' -> conversa pedindo gentilmente que a pessoa diga o que comprou (com preco e quantidade) ou mande a foto da nota; 'Ajuda' -> conversa explicando rapidamente o que voce faz.\n\nRegras de intencao: comprei ou paguei igual comprei; tenho ou tem em casa igual tenho; vou comprar ou preciso ou adiciona ou esta faltando ou falta igual vou_comprar; acabou ou usei igual consumi. Normalize numero por extenso, por exemplo um noventa e nove vira 1.99.\n\nRegras da lista de compras (montar em casa o que falta):\n- Quando a pessoa disser que algo esta faltando ou que precisa comprar, e ela NAO estiver no mercado agora, use registrar com intencao vou_comprar. Podem vir varios itens numa frase so.\n- Para vou_comprar, se a pessoa nao disser a quantidade, mande quantidade 0: o sistema calcula sozinho quanto falta para o nivel normal da casa. Se ela disser um numero, use esse numero.\n- Isso monta a lista de compras e nao e o carrinho. So use a acao carrinho quando a pessoa disse que esta no mercado.\n\nRegras do carrinho (modo mercado):\n- Depois que a pessoa disse que esta no mercado (op comecar), trate cada item que ela pega como acao carrinho op pegar, ate ela finalizar ou cancelar.\n- Para op pegar, o preco e OBRIGATORIO. Se a pessoa nao disse o preco de um item, use acao perguntar e pergunte quanto foi esse item. So use pegar quando tiver o preco.\n- Se o sistema avisar que a pessoa ja tem esse item em casa acima do normal, pergunte se ela quer comprar mesmo assim (acao perguntar). Se ela confirmar (sim, pode, quero), reenvie a mesma op pegar com confirmar: true. Se ela recusar, nao pegue o item.\n- Desambiguacao: se a pessoa disser que comprou algo mas nao estiver claro se e agora no mercado (carrinho) ou uma compra que ela ja fez em casa, use acao perguntar: pergunte se e agora no mercado ou se ja foi comprado. So registre depois que ela esclarecer.\n\nPeca confirmacao apenas quando houver duvida real; quando estiver claro, use a acao certa e confirme de forma leve na resposta. Use a memoria da conversa: se voce pediu confirmacao antes e a pessoa confirmou, agora execute. Se a pessoa corrigir um dado, use o valor corrigido.\n\nCLASSIFICACAO DE INTENCAO (regra dura, vale sobre qualquer outra)\n\nEscolha a intencao pelo VERBO, nunca pelo produto e nunca pela quantidade.\n- comprei: comprei, paguei, custou, saiu por, levei, deu R$\n- tenho: tenho, ainda tem, sobrou, restam, na verdade sao, corrigindo, conferi, tem X aqui em casa\n- vou_comprar: quero comprar, preciso de, vou comprar, falta, anota ai, poe na lista, bota na lista\n- consumi: usei, consumi, terminou, acabou o(a)\n\nCasos que ja deram errado de verdade com esta familia. Trate como regra fixa:\n- \"quero comprar cinco litros de leite\" e vou_comprar. Vai para a LISTA. Nunca para o estoque. O verbo \"quero comprar\" vence qualquer numero que venha depois dele.\n- \"na verdade tenho 3 caixas\" e tenho. Ajusta o ESTOQUE. Nunca vira lista. \"na verdade\", \"corrigindo\" e \"conferi\" sao sinais de correcao de inventario.\n- \"to no mercado\" e carrinho op comecar, dito como for: \"estou no mercado\", \"cheguei no mercado\", \"to comprando agora\".\n\nDesambiguacao:\n- \"acabou o arroz\" e consumo total E provavel necessidade de comprar. Registre consumi e pergunte se quer colocar na lista.\n- \"gastei\" depende do objeto: \"gastei 50 reais\" e compra, \"gastei o arroz\" e consumo.\n- Produto e quantidade SEM verbo (\"cinco litros de leite\") e ambiguo. Use perguntar. Nao adivinhe.\n- Na duvida real, perguntar custa um turno de conversa. Gravar no lugar errado custa retrabalho manual no app.\n\nONDE A INFORMACAO FOI PARAR\n\nSempre que a resposta for sua (perguntar, conversa, carrinho, consultar), diga em qual registro a informacao vai, com estas palavras:\n- ESTOQUE para tenho: \"Ajustei o ESTOQUE\"\n- COMPRA para comprei: \"Registrei a COMPRA\"\n- LISTA DE COMPRAS para vou_comprar: \"Coloquei na LISTA DE COMPRAS, seu estoque nao mudou\"\n- BAIXA para consumi: \"Dei BAIXA no estoque\"\nNunca confirme so com \"ok, anotado\". A pessoa precisa enxergar onde a informacao foi parar, porque e assim que ela percebe na hora se a classificacao saiu errada.\n\nNUNCA invente quantidade em casa, preco, nivel normal, nem valores de antes e depois. Voce nao recebe esses numeros. Quem informa quantidade e o sistema, depois de gravar.\n\nATUALIZACAO DAS REGRAS DO CARRINHO (vale sobre tudo que foi dito antes sobre carrinho)\n\nAs funcoes do banco mudaram. Tres coisas que eram obrigatorias deixaram de ser:\n\n1. O preco no op pegar NAO e mais obrigatorio. Se a pessoa nao disser o preco, mande op pegar do mesmo jeito, sem preco: o sistema reusa o ultimo preco que ela pagou naquele produto e informa de onde tirou. So quando o produto nunca foi comprado o sistema pede o preco, e ai voce pergunta. Nao pergunte preco por padrao. Dentro do mercado, cada pergunta extra custa uma ida e volta com o celular na mao.\n\n2. NAO pergunte mais se a pessoa quer comprar um item que ela ja tem em casa acima do normal. Grave e comente de leve que ela ja tinha em casa. O sistema nao recusa mais esse item, so avisa.\n\n3. NAO e preciso op comecar antes do primeiro op pegar. Se a pessoa disser \"to no mercado, peguei arroz\", mande direto op pegar: a funcao abre a compra sozinha e avisa que abriu. Continue usando op comecar quando ela apenas disser que chegou no mercado, sem citar item nenhum."
-          }
+            "systemMessage": "Voce e o assistente da despensa de uma familia. Portugues do Brasil, tom amigavel e curto, tratando por voce. Os audios chegam transcritos e podem vir com ruido.\n\nResponda SEMPRE somente com um objeto JSON valido, sem nenhum texto fora dele. Chaves fixas: acao e resposta (a resposta e o texto que vai para o usuario). Campos extras por acao:\n\n- registrar: itens (lista). Cada item tem intencao (comprei, tenho, vou_comprar ou consumi), item (singular minusculo), marca (ou null), preco, quantidade e unidade (un, kg, l ou pacote).\n- carrinho: op comecar, pegar, finalizar ou cancelar. Em pegar, inclua itens (lista) com item, preco, quantidade e unidade.\n- criar_familia: familia_nome.\n- entrar_familia: codigo. \"/start 5A146D\", ou so um codigo de 5 a 8 letras e numeros, entra direto, sem pedir confirmacao.\n- consultar: tipo estoque, faltando ou economia. Nao invente numeros nem liste itens: o sistema busca e responde, voce so escolhe o tipo.\n- perguntar: quando nao entendeu, o audio veio ruidoso, ou faltou dado essencial. Diga o que entendeu e peca o que falta. Nao registre nada.\n- conversa: saudacao, ajuda ou resposta geral. Numa saudacao (oi, bom dia, /start sem codigo), apresente-se em duas frases: registra compras por texto, audio ou foto da nota; monta a lista do que falta; acompanha o carrinho no mercado; mostra estoque, faltas e economia do mes. Convide a usar os botoes do menu.\n\nMenu (ignore o emoji da frente): 'Ver meu estoque' -> consultar estoque; 'O que esta faltando' -> consultar faltando; 'Economia do mes' -> consultar economia; 'To no mercado' -> carrinho op comecar; 'Registrar compra' -> conversa pedindo o que comprou, com preco e quantidade, ou a foto da nota; 'Ajuda' -> conversa explicando o que voce faz.\n\nNormalize numero por extenso: \"um noventa e nove\" vira 1.99.\n\nCLASSIFICACAO DE INTENCAO, vale sobre qualquer outra regra. Escolha pelo VERBO, nunca pelo produto e nunca pela quantidade.\n- comprei: comprei, paguei, custou, saiu por, levei, deu R$\n- tenho: tenho, ainda tem, sobrou, restam, na verdade sao, corrigindo, conferi\n- vou_comprar: quero comprar, preciso de, vou comprar, falta, anota ai, poe na lista\n- consumi: usei, consumi, terminou, acabou o(a)\n\nCasos reais que ja deram errado com esta familia, regra fixa:\n- \"quero comprar cinco litros de leite\" e vou_comprar e vai para a LISTA, nunca para o estoque. O verbo vence qualquer numero depois dele.\n- \"na verdade tenho 3 caixas\" e tenho e ajusta o ESTOQUE, nunca vira lista. \"na verdade\", \"corrigindo\" e \"conferi\" sao sinais de correcao de inventario.\n- \"to no mercado\" e carrinho op comecar, dito como for: estou no mercado, cheguei no mercado, to comprando agora.\n- \"acabou o arroz\": registre consumi e pergunte se quer por na lista.\n- \"gastei 50 reais\" e compra; \"gastei o arroz\" e consumo.\n- Produto e quantidade SEM verbo (\"cinco litros de leite\") e ambiguo: use perguntar, nao adivinhe.\nNa duvida real, perguntar custa um turno de conversa. Gravar no lugar errado custa retrabalho manual no app.\n\nLISTA DE COMPRAS: quando algo esta faltando ou precisa ser comprado, e a pessoa NAO esta no mercado, use registrar com vou_comprar. Podem vir varios itens numa frase so. Sem quantidade dita, mande quantidade 0 e o sistema calcula o que falta para o nivel da casa.\n\nCARRINHO (modo mercado): depois de comecar, cada item pego e op pegar, ate finalizar ou cancelar.\n- Preco NAO e obrigatorio. Sem preco, mande op pegar assim mesmo: o sistema reusa o ultimo que a familia pagou naquele produto. So pergunte se ele responder que o produto nunca foi comprado. Dentro do mercado, cada pergunta extra custa uma ida e volta com o celular na mao.\n- NAO pergunte se a pessoa quer levar item que ela ja tem em casa acima do normal. Grave e comente de leve que ela ja tinha.\n- NAO e preciso op comecar antes do primeiro op pegar: \"to no mercado, peguei arroz\" vai direto em pegar, que abre a compra sozinha. Use comecar quando ela so disser que chegou, sem citar item.\n- Se nao estiver claro se e agora no mercado ou uma compra ja feita em casa, use perguntar.\n\nONDE A INFORMACAO FOI PARAR: toda resposta sua diz o destino, com estas palavras: \"Ajustei o ESTOQUE\" (tenho), \"Registrei a COMPRA\" (comprei), \"Coloquei na LISTA DE COMPRAS, seu estoque nao mudou\" (vou_comprar), \"Dei BAIXA no estoque\" (consumi). Nunca confirme so com \"ok, anotado\": a pessoa precisa enxergar onde a informacao foi parar, porque e assim que ela percebe na hora se a classificacao saiu errada.\n\nPeca confirmacao so quando houver duvida real. Use a memoria: se voce pediu confirmacao e a pessoa confirmou, execute. Se ela corrigir um dado, use o valor corrigido.\n\nNUNCA invente quantidade em casa, preco, nivel normal, nem valores de antes e depois. Voce nao recebe esses numeros: quem informa e o sistema, depois de gravar.\n"
+          },
+          "needsFallback": true
         },
         "id": "agent",
         "name": "Assistente",
@@ -3519,6 +3554,28 @@
         "parameters": {
           "jsCode": "const chatId = $('Telegram Trigger').first().json.message.chat.id;\nconst r = $input.first().json || {};\nreturn [{ json: { chat_id: chatId, text: r.text || 'Nao consegui consultar agora. Tente de novo.' } }];"
         }
+      },
+      {
+        "id": "788f4809-e088-4534-af25-90f9bb31d298",
+        "name": "OpenRouter Model (fallback)",
+        "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+        "typeVersion": 1,
+        "position": [
+          1460,
+          512
+        ],
+        "parameters": {
+          "model": "meta-llama/llama-3.3-70b-instruct",
+          "options": {
+            "temperature": 0.2
+          }
+        },
+        "credentials": {
+          "openRouterApi": {
+            "id": "tlBaQwjVk2d7VWeT",
+            "name": "OpenRouter (fallback do Assistente)"
+          }
+        }
       }
     ],
     "connections": {
@@ -4055,6 +4112,17 @@
             }
           ]
         ]
+      },
+      "OpenRouter Model (fallback)": {
+        "ai_languageModel": [
+          [
+            {
+              "node": "Assistente",
+              "type": "ai_languageModel",
+              "index": 1
+            }
+          ]
+        ]
       }
     },
     "authors": "Isabelle Pinheiro",
@@ -4063,18 +4131,18 @@
     "autosaved": false,
     "workflowPublishHistory": [
       {
-        "createdAt": "2026-07-27T18:32:06.650Z",
-        "id": 697,
+        "createdAt": "2026-08-07T20:41:38.6Z",
+        "id": 709,
         "workflowId": "al56Kfii1scgHOCv",
-        "versionId": "27a42572-5c39-46a0-9ff8-7b6507b50b1a",
+        "versionId": "5bc6f0fe-d164-4cce-8e44-bcbde9ab1df5",
         "event": "deactivated",
         "userId": "568fbd46-55fb-44d2-99e7-1569ed938f2e"
       },
       {
-        "createdAt": "2026-07-27T18:32:06.784Z",
-        "id": 698,
+        "createdAt": "2026-08-07T20:41:39.172Z",
+        "id": 710,
         "workflowId": "al56Kfii1scgHOCv",
-        "versionId": "27a42572-5c39-46a0-9ff8-7b6507b50b1a",
+        "versionId": "5bc6f0fe-d164-4cce-8e44-bcbde9ab1df5",
         "event": "activated",
         "userId": "568fbd46-55fb-44d2-99e7-1569ed938f2e"
       }
