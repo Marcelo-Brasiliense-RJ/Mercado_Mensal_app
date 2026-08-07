@@ -3,15 +3,97 @@
 import { useState } from "react";
 import { brl } from "@/lib/format";
 import { useStore } from "@/lib/store";
+import { QtyStepper } from "@/components/ui/QtyStepper";
+import { unitFor, findByName } from "@/lib/defaults";
 
-// Painel do modo "No mercado": aparece quando ha uma compra aberta (aberta pelo
-// Telegram). Mostra o carrinho e o total subindo. A entrada de itens e no bot;
-// aqui so acompanha, tira engano e finaliza.
+// Painel do modo "No mercado". Ate a 0026 a compra so podia ser aberta e
+// alimentada pelo Telegram, e o painel era inalcancavel sem o bot. Agora o ciclo
+// inteiro cabe aqui: abrir, pegar, tirar engano, desistir e finalizar.
 export function CartPanel() {
-  const { trip, shopping, finalizeTrip, removeTripItem, showToast } = useStore();
+  const {
+    trip,
+    shopping,
+    stock,
+    startTrip,
+    addTripItem,
+    cancelTrip,
+    finalizeTrip,
+    removeTripItem,
+    showToast,
+  } = useStore();
   const [busy, setBusy] = useState(false);
+  const [nome, setNome] = useState("");
+  const [qtd, setQtd] = useState("1");
+  const [preco, setPreco] = useState("");
 
-  if (!trip) return null;
+  // Regra 2 da entrada de dados: o campo nasce preenchido. Unidade pela palavra
+  // do nome, preco pelo ultimo pago naquele item.
+  const conhecido = findByName(nome, stock);
+  const unidade = conhecido?.unit ?? unitFor(nome);
+
+  function onNome(v: string) {
+    setNome(v);
+    const item = findByName(v, stock);
+    setPreco(item?.priceLast != null ? String(item.priceLast) : "");
+  }
+
+  async function abrir() {
+    setBusy(true);
+    const r = await startTrip();
+    setBusy(false);
+    if (!r.ok) return showToast(r.erro);
+    showToast("Compra aberta. Vá anotando o que pegar.");
+  }
+
+  async function pegar() {
+    if (!nome.trim()) return;
+    setBusy(true);
+    const r = await addTripItem({
+      name: nome.trim(),
+      // Sem preco digitado, o banco cai no ultimo preco pago; se o item nunca
+      // foi comprado, ele responde sem_preco e o toast pede o valor.
+      price: preco.trim() === "" ? null : Number(preco.replace(",", ".")) || 0,
+      qty: Number(qtd.replace(",", ".")) || 1,
+      unit: unidade,
+    });
+    setBusy(false);
+    if (!r.ok) return showToast(r.erro);
+    setNome("");
+    setQtd("1");
+    setPreco("");
+  }
+
+  async function desistir() {
+    if (!confirm("Cancelar esta compra? Os itens do carrinho são descartados.")) return;
+    setBusy(true);
+    const r = await cancelTrip();
+    setBusy(false);
+    showToast(r.ok ? "Compra cancelada" : r.erro);
+  }
+
+  // Sem compra aberta o painel nao some: e daqui que se comeca.
+  if (!trip) {
+    return (
+      <div className="rounded-[20px] border border-border bg-card p-[18px] shadow-[0_1px_3px_var(--shadow)] lg:p-[22px]">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-[16px] font-extrabold">Vai ao mercado agora?</div>
+            <div className="mt-0.5 text-[13px] leading-snug text-text-2">
+              Abra a compra e vá anotando o que pegar, com o total subindo em tempo real.
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={abrir}
+            disabled={busy}
+            className="h-[50px] shrink-0 rounded-[14px] bg-brand px-5 text-[15px] font-bold text-brand-ink disabled:opacity-50"
+          >
+            Estou no mercado
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   // Preco que a pessoa pesquisou/estimou na lista, por nome (compara com o do
   // carrinho pra mostrar se ta mais caro ou mais barato do que ela esperava).
@@ -55,8 +137,8 @@ export function CartPanel() {
 
       {trip.items.length === 0 ? (
         <p className="mt-4 text-[14px] leading-relaxed text-text-3">
-          Carrinho aberto. Vá falando o que for pegando no Telegram que aparece
-          aqui.
+          Carrinho aberto. Anote abaixo o que for pegando, ou fale no Telegram que
+          aparece aqui.
         </p>
       ) : (
         <ul className="mt-4 space-y-2">
@@ -121,13 +203,66 @@ export function CartPanel() {
         </ul>
       )}
 
-      <button
-        onClick={finalizar}
-        disabled={busy || trip.items.length === 0}
-        className="mt-4 h-[50px] w-full rounded-[14px] bg-brand text-[15px] font-bold text-brand-ink disabled:opacity-50"
+      {/* Pegar item sem sair da tela. Preco em branco usa o ultimo pago. */}
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          pegar();
+        }}
+        className="mt-4 rounded-[14px] border border-border bg-card-2 p-3"
       >
-        {busy ? "Finalizando…" : "Finalizar compra"}
-      </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            value={nome}
+            onChange={(e) => onNome(e.target.value)}
+            placeholder="O que você pegou?"
+            aria-label="Item"
+            className="h-12 min-w-0 flex-[2] rounded-[13px] border border-border bg-card px-3.5 text-[15px]"
+          />
+          <div className="min-w-[148px] flex-1">
+            <QtyStepper value={qtd} onChange={setQtd} unit={unidade} />
+          </div>
+          <input
+            value={preco}
+            onChange={(e) => setPreco(e.target.value)}
+            inputMode="decimal"
+            placeholder="preço"
+            aria-label="Preço"
+            className="h-12 w-[92px] shrink-0 rounded-[13px] border border-border bg-card px-3 text-right text-[15px]"
+          />
+          <button
+            type="submit"
+            disabled={busy || !nome.trim()}
+            className="h-12 shrink-0 rounded-[13px] bg-brand px-5 text-[15px] font-bold text-brand-ink disabled:opacity-50"
+          >
+            Peguei
+          </button>
+        </div>
+        <div className="mt-1.5 text-[12px] text-text-3">
+          {conhecido?.priceLast != null
+            ? `Em ${unidade}, com o preço da última compra já preenchido.`
+            : `Em ${unidade}. Sem preço, usamos o da última compra desse item.`}
+        </div>
+      </form>
+
+      <div className="mt-3 flex gap-3">
+        <button
+          type="button"
+          onClick={desistir}
+          disabled={busy}
+          className="h-[50px] flex-1 rounded-[14px] border border-border bg-card text-[15px] font-bold text-text-2 disabled:opacity-50"
+        >
+          Cancelar compra
+        </button>
+        <button
+          type="button"
+          onClick={finalizar}
+          disabled={busy || trip.items.length === 0}
+          className="h-[50px] flex-[2] rounded-[14px] bg-brand text-[15px] font-bold text-brand-ink disabled:opacity-50"
+        >
+          {busy ? "Finalizando…" : "Finalizar compra"}
+        </button>
+      </div>
     </div>
   );
 }

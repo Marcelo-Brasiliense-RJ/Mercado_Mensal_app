@@ -87,6 +87,14 @@ type Store = Data & {
   deleteStock: (ids: string[]) => Promise<RpcResult>;
   stockToList: (ids: string[]) => Promise<RpcResult>;
   reloadTrip: () => Promise<void>;
+  startTrip: () => Promise<RpcResult>;
+  addTripItem: (item: {
+    name: string;
+    price: number | null;
+    qty: number;
+    unit: string;
+  }) => Promise<RpcResult>;
+  cancelTrip: () => Promise<RpcResult>;
   finalizeTrip: () => Promise<RpcResult>;
   removeTripItem: (id: string) => Promise<RpcResult>;
   addShopItem: (item: Omit<ShopItem, "id" | "status">) => Promise<RpcResult>;
@@ -230,6 +238,34 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
     setData((d) => ({ ...d, trip: (data as Trip | null) ?? null }));
   }, []);
 
+  // Ate a 0026 o carrinho so podia ser aberto e alimentado pelo bot: o app lia,
+  // finalizava e tirava item, mas nao tinha como comecar nem como pegar.
+  const startTrip = useCallback(async () => {
+    const r = await callRpc("mercado_trip_start_web");
+    if (r.ok) await reloadTrip();
+    return r;
+  }, [reloadTrip]);
+
+  const addTripItem = useCallback(
+    async (item: { name: string; price: number | null; qty: number; unit: string }) => {
+      const r = await callRpc("mercado_trip_add_web", {
+        p_name: item.name,
+        p_price: item.price,
+        p_qty: item.qty,
+        p_unit: item.unit,
+      });
+      if (r.ok) await reloadTrip();
+      return r;
+    },
+    [reloadTrip],
+  );
+
+  const cancelTrip = useCallback(async () => {
+    const r = await callRpc("mercado_trip_cancel_web");
+    if (r.ok) await reloadTrip();
+    return r;
+  }, [reloadTrip]);
+
   const finalizeTrip = useCallback(async () => {
     const r = await callRpc("mercado_trip_finalize_web");
     // recarrega estoque/lista/economia repostos + limpa o carrinho
@@ -368,6 +404,9 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       deleteStock,
       stockToList,
       reloadTrip,
+      startTrip,
+      addTripItem,
+      cancelTrip,
       finalizeTrip,
       removeTripItem,
       addShopItem,
@@ -396,6 +435,9 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       deleteStock,
       stockToList,
       reloadTrip,
+      startTrip,
+      addTripItem,
+      cancelTrip,
       finalizeTrip,
       removeTripItem,
       addShopItem,
