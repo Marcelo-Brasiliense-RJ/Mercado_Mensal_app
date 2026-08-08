@@ -106,6 +106,10 @@ type Store = Data & {
     unit: string;
   }) => Promise<RpcResult>;
   cancelTrip: () => Promise<RpcResult>;
+  updateTripItem: (
+    id: string,
+    patch: { qty?: number; price?: number },
+  ) => Promise<RpcResult>;
   finalizeTrip: () => Promise<RpcResult>;
   removeTripItem: (id: string) => Promise<RpcResult>;
   addShopItem: (item: Omit<ShopItem, "id" | "status">) => Promise<RpcResult>;
@@ -268,6 +272,21 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
         p_price: item.price,
         p_qty: item.qty,
         p_unit: item.unit,
+      });
+      if (r.ok) await reloadTrip();
+      return r;
+    },
+    [reloadTrip],
+  );
+
+  // Item de carrinho nao mexe no estoque ate finalizar, entao editar aqui e barato:
+  // basta recarregar o carrinho, sem tocar no resto dos dados.
+  const updateTripItem = useCallback(
+    async (id: string, patch: { qty?: number; price?: number }) => {
+      const r = await callRpc("mercado_trip_update_item_web", {
+        p_id: id,
+        p_qty: patch.qty ?? null,
+        p_price: patch.price ?? null,
       });
       if (r.ok) await reloadTrip();
       return r;
@@ -465,6 +484,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       startTrip,
       addTripItem,
       cancelTrip,
+      updateTripItem,
       finalizeTrip,
       removeTripItem,
       addShopItem,
@@ -500,6 +520,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       startTrip,
       addTripItem,
       cancelTrip,
+      updateTripItem,
       finalizeTrip,
       removeTripItem,
       addShopItem,
