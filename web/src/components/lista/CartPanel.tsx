@@ -4,7 +4,9 @@ import { useState } from "react";
 import { brl } from "@/lib/format";
 import { useStore } from "@/lib/store";
 import { QtyStepper } from "@/components/ui/QtyStepper";
+import { CartItemModal } from "./CartItemModal";
 import { unitFor, findByName } from "@/lib/defaults";
+import type { TripItem } from "@/lib/types";
 
 // Painel do modo "No mercado". Ate a 0026 a compra so podia ser aberta e
 // alimentada pelo Telegram, e o painel era inalcancavel sem o bot. Agora o ciclo
@@ -17,29 +19,14 @@ export function CartPanel() {
     startTrip,
     addTripItem,
     cancelTrip,
-    updateTripItem,
     finalizeTrip,
-    removeTripItem,
     showToast,
   } = useStore();
   const [busy, setBusy] = useState(false);
-  // Edicao de item que ja esta no carrinho. O preco falado erra com frequencia
-  // (a etiqueta e da embalagem e a transcricao come a virgula), entao corrigir
-  // na hora e o gesto mais comum de todos.
-  const [editId, setEditId] = useState<string | null>(null);
-  const [eQtd, setEQtd] = useState("");
-  const [ePreco, setEPreco] = useState("");
-
-  async function salvarItem(id: string) {
-    const q = Number(eQtd.replace(",", "."));
-    const p = Number(ePreco.replace(",", "."));
-    if (!(q > 0) || !(p >= 0)) return showToast("Quantidade e preço precisam ser válidos.");
-    setBusy(true);
-    const r = await updateTripItem(id, { qty: q, price: p });
-    setBusy(false);
-    if (!r.ok) return showToast(r.erro);
-    setEditId(null);
-  }
+  // Item aberto no popup de editar. O preco falado erra com frequencia (a etiqueta
+  // e da embalagem e a transcricao come a virgula), entao corrigir na hora e o
+  // gesto mais comum de todos.
+  const [editar, setEditar] = useState<TripItem | null>(null);
   const [nome, setNome] = useState("");
   const [qtd, setQtd] = useState("1");
   const [preco, setPreco] = useState("");
@@ -164,46 +151,14 @@ export function CartPanel() {
             const esp = estimado(it.name);
             const diff = esp != null ? it.unit_price - esp : null;
             return (
-            <li
-              key={it.id}
-              className="rounded-[14px] border border-border bg-card-2 p-3"
-            >
-            {editId === it.id ? (
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="min-w-0 flex-1 truncate font-bold">{it.name}</span>
-                <input
-                  value={eQtd}
-                  onChange={(e) => setEQtd(e.target.value)}
-                  inputMode="decimal"
-                  aria-label="Quantidade"
-                  className="h-11 w-16 rounded-[11px] border border-border bg-card px-2 text-center text-[14px]"
-                />
-                <span className="text-[12px] text-text-3">{it.unit} ×</span>
-                <input
-                  value={ePreco}
-                  onChange={(e) => setEPreco(e.target.value)}
-                  inputMode="decimal"
-                  aria-label="Preço por unidade"
-                  className="h-11 w-24 rounded-[11px] border border-border bg-card px-2 text-right text-[14px]"
-                />
-                <button
-                  type="button"
-                  onClick={() => salvarItem(it.id)}
-                  disabled={busy}
-                  className="h-11 shrink-0 rounded-[11px] bg-brand px-3.5 text-[14px] font-bold text-brand-ink disabled:opacity-50"
-                >
-                  Salvar
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEditId(null)}
-                  className="h-11 shrink-0 px-2 text-[13px] font-bold text-text-2"
-                >
-                  Cancelar
-                </button>
-              </div>
-            ) : (
-            <div className="flex items-center gap-3">
+            <li key={it.id}>
+              {/* A linha inteira abre o popup de editar: alvo grande erra menos
+                  com o celular na mao dentro do mercado. */}
+              <button
+                type="button"
+                onClick={() => setEditar(it)}
+                className="flex w-full items-center gap-3 rounded-[14px] border border-border bg-card-2 p-3 text-left"
+              >
               <div className="min-w-0 flex-1">
                 <div className="font-bold">{it.name}</div>
                 <div className="text-[13px] text-text-3">
@@ -241,30 +196,10 @@ export function CartPanel() {
               <span className="shrink-0 text-[16px] font-extrabold">
                 {brl(it.quantity * it.unit_price)}
               </span>
-              <button
-                type="button"
-                onClick={() => {
-                  setEditId(it.id);
-                  setEQtd(String(it.quantity));
-                  setEPreco(String(it.unit_price));
-                }}
-                className="h-11 shrink-0 px-1.5 text-[13px] font-bold text-brand"
-              >
+              <span className="shrink-0 text-[13px] font-bold text-brand">
                 Editar
+              </span>
               </button>
-              <button
-                type="button"
-                onClick={async () => {
-                  const r = await removeTripItem(it.id);
-                  if (!r.ok) showToast(r.erro);
-                }}
-                aria-label="Tirar do carrinho"
-                className="grid h-11 w-8 shrink-0 place-items-center rounded-lg text-[18px] text-text-3 hover:bg-card"
-              >
-                ×
-              </button>
-            </div>
-            )}
             </li>
             );
           })}
@@ -331,6 +266,8 @@ export function CartPanel() {
           {busy ? "Finalizando…" : "Finalizar compra"}
         </button>
       </div>
+
+      <CartItemModal item={editar} onClose={() => setEditar(null)} />
     </div>
   );
 }
