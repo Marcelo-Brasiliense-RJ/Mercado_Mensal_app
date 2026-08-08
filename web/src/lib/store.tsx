@@ -41,6 +41,17 @@ export type RpcResult = { ok: true } | { ok: false; erro: string };
 // o banco nao tem base pra sugerir: dado insuficiente nao vira chute.
 export type ParSugestao = { sugerido: number; base_compras: number };
 
+// Uma compra ja registrada no mes, como a aba Economia lista para editar.
+export type Compra = {
+  id: string;
+  name: string;
+  qty: number;
+  unit: string;
+  price: number;
+  total: number;
+  at: string;
+};
+
 // Slugs devolvidos pelas RPCs (grep "'erro'," em supabase/migrations).
 const ERROS: Record<string, string> = {
   sem_familia: "Sua sessão expirou. Entre de novo.",
@@ -106,6 +117,10 @@ type Store = Data & {
   buyItems: (ids: string[]) => Promise<RpcResult>;
   removeItems: (ids: string[]) => Promise<RpcResult>;
   setBudget: (total: number) => Promise<RpcResult>;
+  loadCompras: () => Promise<Compra[]>;
+  updateCompra: (id: string, patch: { qty?: number; price?: number }) => Promise<RpcResult>;
+  deleteCompra: (id: string) => Promise<RpcResult>;
+  addCompra: (c: { name: string; qty: number; price: number; unit: string }) => Promise<RpcResult>;
   openReceipt: () => void;
   closeReceipt: () => void;
   confirmReceipt: (
@@ -358,6 +373,49 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
     return r;
   }, []);
 
+  // Compras ja registradas do mes. Editar mexe em duas coisas, o gasto e o estoque,
+  // e quem cuida disso e a 0033; aqui so recarregamos tudo depois de cada escrita.
+  const loadCompras = useCallback(async () => {
+    const { data } = await createClient().rpc("mercado_compras_web");
+    return (data as Compra[] | null) ?? [];
+  }, []);
+
+  const updateCompra = useCallback(
+    async (id: string, patch: { qty?: number; price?: number }) => {
+      const r = await callRpc("mercado_compra_update_web", {
+        p_id: id,
+        p_qty: patch.qty ?? null,
+        p_price: patch.price ?? null,
+      });
+      if (r.ok) await reloadData();
+      return r;
+    },
+    [reloadData],
+  );
+
+  const deleteCompra = useCallback(
+    async (id: string) => {
+      const r = await callRpc("mercado_compra_delete_web", { p_id: id });
+      if (r.ok) await reloadData();
+      return r;
+    },
+    [reloadData],
+  );
+
+  const addCompra = useCallback(
+    async (c: { name: string; qty: number; price: number; unit: string }) => {
+      const r = await callRpc("mercado_compra_add_web", {
+        p_name: c.name,
+        p_qty: c.qty,
+        p_price: c.price,
+        p_unit: c.unit,
+      });
+      if (r.ok) await reloadData();
+      return r;
+    },
+    [reloadData],
+  );
+
   const confirmReceipt = useCallback(
     async (
       items: { nome: string; marca?: string; qtd: number; preco: number; unidade: string }[],
@@ -415,6 +473,10 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       buyItems,
       removeItems,
       setBudget,
+      loadCompras,
+      updateCompra,
+      deleteCompra,
+      addCompra,
       confirmReceipt,
       showToast,
     }),
@@ -446,6 +508,10 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       buyItems,
       removeItems,
       setBudget,
+      loadCompras,
+      updateCompra,
+      deleteCompra,
+      addCompra,
       confirmReceipt,
       showToast,
     ],

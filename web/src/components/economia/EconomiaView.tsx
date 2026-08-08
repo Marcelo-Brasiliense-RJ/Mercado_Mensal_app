@@ -6,6 +6,7 @@ import { ScreenHeader } from "@/components/layout/ScreenHeader";
 import { useStore } from "@/lib/store";
 import { BudgetModal } from "./BudgetModal";
 import { PrevistoRealizadoChart } from "./PrevistoRealizadoChart";
+import { ComprasDoMes } from "./ComprasDoMes";
 
 const cardCls =
   "rounded-[20px] border border-border bg-card p-[18px] shadow-[0_2px_12px_var(--shadow)] lg:p-[22px]";
@@ -112,6 +113,8 @@ export function EconomiaView() {
 
         {/* Previsto (orcamento) x realizado (gasto) por mes */}
         <PrevistoRealizadoChart months={months} orcado={orcado} />
+
+        <ComprasDoMes />
       </div>
 
       <BudgetModal open={budgetOpen} onClose={() => setBudgetOpen(false)} />
