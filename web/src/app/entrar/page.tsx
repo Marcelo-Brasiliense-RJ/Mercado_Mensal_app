@@ -45,6 +45,8 @@ export default function Entrar() {
   const [nome, setNome] = useState("");
 
   const [erro, setErro] = useState<string | null>(null);
+  // Ver o que se digita: sem isso, senha errada no celular e adivinhacao.
+  const [verSenha, setVerSenha] = useState(false);
   const [loading, setLoading] = useState(false);
 
   // Mensagem quando o link de e-mail falha (vem de /auth/confirm).
@@ -55,7 +57,8 @@ export default function Entrar() {
 
   async function entrar() {
     setErro(null);
-    if (!emailValido(email) || !senha) return setErro("Informe e-mail e senha.");
+    if (!emailValido(email)) return setErro("Informe um e-mail válido.");
+    if (!senha) return setErro("Digite sua senha no campo acima.");
     setLoading(true);
     const { error } = await supabase.auth.signInWithPassword({ email, password: senha });
     setLoading(false);
@@ -112,20 +115,39 @@ export default function Entrar() {
               autoComplete="email"
               inputMode="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                setErro(null);
+              }}
               placeholder="voce@email.com"
               className={`${field} mb-3.5`}
             />
             <label className={labelCls}>Senha</label>
-            <input
-              type="password"
-              name="current-password"
-              autoComplete="current-password"
-              value={senha}
-              onChange={(e) => setSenha(e.target.value)}
-              placeholder="********"
-              className={`${field} mb-2.5`}
-            />
+            {/* O placeholder era "********", que no celular parece campo JA
+                preenchido: o iPhone preenche so o e-mail no autofill e a pessoa
+                aperta Entrar achando que a senha estava la. Agora o campo diz o
+                que fazer, e o botao Mostrar deixa conferir o que foi digitado. */}
+            <div className="relative mb-2.5">
+              <input
+                type={verSenha ? "text" : "password"}
+                name="current-password"
+                autoComplete="current-password"
+                value={senha}
+                onChange={(e) => {
+                  setSenha(e.target.value);
+                  setErro(null);
+                }}
+                placeholder="Digite sua senha"
+                className={`${field} pr-[92px]`}
+              />
+              <button
+                type="button"
+                onClick={() => setVerSenha((v) => !v)}
+                className="absolute right-1 top-1/2 h-10 -translate-y-1/2 rounded-[10px] px-3 text-[13px] font-bold text-brand"
+              >
+                {verSenha ? "Ocultar" : "Mostrar"}
+              </button>
+            </div>
             <div className="mb-[18px] text-right">
               <button
                 type="button"
@@ -176,15 +198,24 @@ export default function Entrar() {
               className={`${field} mb-3.5`}
             />
             <label className={labelCls}>Senha</label>
-            <input
-              type="password"
-              name="new-password"
-              autoComplete="new-password"
-              value={senha}
-              onChange={(e) => setSenha(e.target.value)}
-              placeholder="Crie uma senha"
-              className={`${field} mb-5`}
-            />
+            <div className="relative mb-5">
+              <input
+                type={verSenha ? "text" : "password"}
+                name="new-password"
+                autoComplete="new-password"
+                value={senha}
+                onChange={(e) => setSenha(e.target.value)}
+                placeholder={`Crie uma senha de ${MIN_SENHA} letras ou mais`}
+                className={`${field} pr-[92px]`}
+              />
+              <button
+                type="button"
+                onClick={() => setVerSenha((v) => !v)}
+                className="absolute right-1 top-1/2 h-10 -translate-y-1/2 rounded-[10px] px-3 text-[13px] font-bold text-brand"
+              >
+                {verSenha ? "Ocultar" : "Mostrar"}
+              </button>
+            </div>
             {erro && <p className="mb-3 text-[13px] font-bold text-neg">{erro}</p>}
             <button type="submit" disabled={loading} className={primary}>
               {loading ? "Criando..." : "Criar conta"}
