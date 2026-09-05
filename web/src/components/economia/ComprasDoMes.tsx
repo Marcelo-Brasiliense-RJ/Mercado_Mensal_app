@@ -96,8 +96,15 @@ export function ComprasDoMes() {
   return (
     <div className="rounded-[20px] border border-border bg-card p-[18px] shadow-[0_2px_10px_var(--shadow)] lg:p-[22px]">
       <div className="mb-1 flex items-center justify-between gap-3">
-        <span className="text-xs font-bold uppercase tracking-wide text-text-3">
+        <span className="min-w-0 text-xs font-bold uppercase tracking-wide text-text-3">
           Compras do mês
+          {compras.length > 0 && (
+            // Quantas e quanto, na frente: e a pergunta que se faz olhando aqui.
+            <span className="ml-2 font-extrabold normal-case tracking-normal text-text">
+              {compras.length} {compras.length === 1 ? "compra" : "compras"} ·{" "}
+              {brl(compras.reduce((a, c) => a + c.total, 0))}
+            </span>
+          )}
         </span>
         <button
           type="button"

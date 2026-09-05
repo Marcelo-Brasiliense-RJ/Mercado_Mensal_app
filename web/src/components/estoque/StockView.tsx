@@ -5,18 +5,11 @@ import type { StockItem } from "@/lib/types";
 import { stockRatio, brl } from "@/lib/format";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { AvatarInitial } from "@/components/ui/AvatarInitial";
-import {
-  SearchIcon,
-  ChevronRight,
-  CheckIcon,
-  ReceiptIcon,
-  TelegramIcon,
-  PlusIcon,
-} from "@/components/ui/icons";
+import { CheckIcon, ChevronRight, MicIcon, PlusIcon, ReceiptIcon, SearchIcon, TelegramIcon } from "@/components/ui/icons";
 import { ScreenHeader } from "@/components/layout/ScreenHeader";
 import { useStore, type RpcResult } from "@/lib/store";
 import { BOT_URL } from "@/lib/config";
-import { AddMenu } from "@/components/ui/AddMenu";
+import { VoiceModal } from "@/components/voz/VoiceModal";
 import { ItemDetailModal } from "./ItemDetailModal";
 import { BatchAddModal } from "./BatchAddModal";
 
@@ -30,7 +23,7 @@ export function StockView() {
   const [selMode, setSelMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
-  const [addMenuOpen, setAddMenuOpen] = useState(false);
+  const [voiceOpen, setVoiceOpen] = useState(false);
   const [stockAddOpen, setStockAddOpen] = useState(false);
 
   const filtered = stock.filter((i) =>
@@ -95,8 +88,16 @@ export function StockView() {
   const headerAction = (
     <div className="flex items-center gap-2">
       {search}
+      {/* Dois caminhos diretos, sem menu no meio: falar e digitar. */}
       <button
-        onClick={() => setAddMenuOpen(true)}
+        onClick={() => setVoiceOpen(true)}
+        className="hidden h-[44px] shrink-0 items-center gap-2 rounded-[12px] border border-border bg-card px-4 text-[14px] font-bold lg:flex"
+      >
+        <MicIcon size={18} />
+        Falar
+      </button>
+      <button
+        onClick={() => setStockAddOpen(true)}
         aria-label="Adicionar item"
         className="hidden h-[44px] shrink-0 items-center gap-2 rounded-[12px] bg-brand px-[18px] text-[14px] font-bold text-brand-ink lg:flex"
       >
@@ -254,24 +255,26 @@ export function StockView() {
 
       {/* FAB "+" (mobile): esconde no modo selecao pra nao brigar com a barra de lote */}
       {!selMode && (
-        <button
-          onClick={() => setAddMenuOpen(true)}
-          aria-label="Adicionar item"
-          className="fixed bottom-[92px] right-4 z-30 grid h-14 w-14 place-items-center rounded-[18px] bg-brand text-brand-ink shadow-[0_10px_24px_var(--shadow-lg)] lg:hidden"
-        >
-          <PlusIcon />
-        </button>
+        <div className="fixed bottom-[92px] right-4 z-30 flex flex-col gap-2.5 lg:hidden">
+          <button
+            onClick={() => setVoiceOpen(true)}
+            aria-label="Falar aqui no app"
+            className="grid h-12 w-12 place-items-center rounded-[16px] border border-border bg-card text-brand shadow-[0_8px_20px_var(--shadow-lg)]"
+          >
+            <MicIcon size={22} />
+          </button>
+          <button
+            onClick={() => setStockAddOpen(true)}
+            aria-label="Adicionar item"
+            className="grid h-14 w-14 place-items-center rounded-[18px] bg-brand text-brand-ink shadow-[0_10px_24px_var(--shadow-lg)]"
+          >
+            <PlusIcon />
+          </button>
+        </div>
       )}
 
-      <AddMenu
-        open={addMenuOpen}
-        onClose={() => setAddMenuOpen(false)}
-        onManual={() => setStockAddOpen(true)}
-        title="Adicionar ao estoque"
-        manualLabel="Digitar os itens"
-        manualDesc="Vários de uma vez, numa lista só."
-      />
       <BatchAddModal open={stockAddOpen} onClose={() => setStockAddOpen(false)} />
+      <VoiceModal open={voiceOpen} onClose={() => setVoiceOpen(false)} />
 
       <ItemDetailModal item={detail} onClose={() => setDetailId(null)} />
     </>

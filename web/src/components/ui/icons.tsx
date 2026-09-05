@@ -80,3 +80,16 @@ export const UsersIcon = ({ size, className }: P) => (
     <path d="M13.5 15c3.4 0 6 1.8 6 5" />
   </svg>
 );
+export const BarcodeIcon = ({ size, className }: P) => (
+  <svg {...base(size)} className={className}>
+    <path d="M3 6V5a1 1 0 0 1 1-1h2M18 4h2a1 1 0 0 1 1 1v1M21 18v1a1 1 0 0 1-1 1h-2M6 20H4a1 1 0 0 1-1-1v-1" />
+    <path d="M7 8v8M10.5 8v8M14 8v8M17 8v8" />
+  </svg>
+);
+export const MicIcon = ({ size, className }: P) => (
+  <svg {...base(size)} className={className}>
+    <rect x="9" y="2.5" width="6" height="11" rx="3" />
+    <path d="M5.5 11a6.5 6.5 0 0 0 13 0" />
+    <path d="M12 17.5V21M9 21h6" />
+  </svg>
+);
