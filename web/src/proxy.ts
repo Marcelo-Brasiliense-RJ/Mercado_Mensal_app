@@ -42,6 +42,17 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // App de uma pessoa so: abrir o endereco principal nao pode custar uma tela de
+  // apresentacao mais uma de login. Sem sessao vai direto para o carrinho do
+  // aparelho (que funciona sem conta); com sessao, para a dispensa da familia.
+  // A pagina de apresentacao continua no repositorio e volta trocando estas
+  // quatro linhas, se um dia o app for divulgado para outras pessoas.
+  if (path === "/") {
+    const url = request.nextUrl.clone();
+    url.pathname = user ? "/app/estoque" : "/mercado";
+    return NextResponse.redirect(url);
+  }
+
   if (user && path === "/entrar") {
     const url = request.nextUrl.clone();
     url.pathname = "/app/estoque";
