@@ -17,6 +17,7 @@ import { ScreenHeader } from "@/components/layout/ScreenHeader";
 import { useStore, type RpcResult } from "@/lib/store";
 import { BOT_URL } from "@/lib/config";
 import { AddMenu } from "@/components/ui/AddMenu";
+import { VoiceModal } from "@/components/voz/VoiceModal";
 import { ItemDetailModal } from "./ItemDetailModal";
 import { BatchAddModal } from "./BatchAddModal";
 
@@ -31,6 +32,7 @@ export function StockView() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
   const [addMenuOpen, setAddMenuOpen] = useState(false);
+  const [voiceOpen, setVoiceOpen] = useState(false);
   const [stockAddOpen, setStockAddOpen] = useState(false);
 
   const filtered = stock.filter((i) =>
@@ -267,11 +269,13 @@ export function StockView() {
         open={addMenuOpen}
         onClose={() => setAddMenuOpen(false)}
         onManual={() => setStockAddOpen(true)}
+        onVoice={() => setVoiceOpen(true)}
         title="Adicionar ao estoque"
         manualLabel="Digitar os itens"
         manualDesc="Vários de uma vez, numa lista só."
       />
       <BatchAddModal open={stockAddOpen} onClose={() => setStockAddOpen(false)} />
+      <VoiceModal open={voiceOpen} onClose={() => setVoiceOpen(false)} />
 
       <ItemDetailModal item={detail} onClose={() => setDetailId(null)} />
     </>

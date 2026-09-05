@@ -86,3 +86,10 @@ export const BarcodeIcon = ({ size, className }: P) => (
     <path d="M7 8v8M10.5 8v8M14 8v8M17 8v8" />
   </svg>
 );
+export const MicIcon = ({ size, className }: P) => (
+  <svg {...base(size)} className={className}>
+    <rect x="9" y="2.5" width="6" height="11" rx="3" />
+    <path d="M5.5 11a6.5 6.5 0 0 0 13 0" />
+    <path d="M12 17.5V21M9 21h6" />
+  </svg>
+);

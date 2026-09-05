@@ -11,12 +11,14 @@ import { AddItemModal } from "./AddItemModal";
 import { ListItemActions } from "./ListItemActions";
 import { CartPanel } from "./CartPanel";
 import { BarcodeModal } from "./BarcodeModal";
+import { VoiceModal } from "@/components/voz/VoiceModal";
 
 export function ListView() {
   const { shopping, buyItems, removeItems, showToast, reloadTrip } = useStore();
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [addManualOpen, setAddManualOpen] = useState(false);
   const [scanOpen, setScanOpen] = useState(false);
+  const [voiceOpen, setVoiceOpen] = useState(false);
   const [q, setQ] = useState("");
   const [action, setAction] = useState<ShopItem | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -197,12 +199,14 @@ export function ListView() {
         onClose={() => setAddMenuOpen(false)}
         onManual={() => setAddManualOpen(true)}
         onScan={() => setScanOpen(true)}
+        onVoice={() => setVoiceOpen(true)}
         title="Adicionar à lista"
         manualLabel="Adicionar manualmente"
         manualDesc="Digite o item que você quer comprar."
       />
       <AddItemModal open={addManualOpen} onClose={() => setAddManualOpen(false)} />
       <BarcodeModal open={scanOpen} onClose={() => setScanOpen(false)} />
+      <VoiceModal open={voiceOpen} onClose={() => setVoiceOpen(false)} />
       <ListItemActions
         key={action?.id}
         item={action}
