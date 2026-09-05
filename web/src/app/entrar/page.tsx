@@ -176,6 +176,14 @@ export default function Entrar() {
             <button type="submit" disabled={loading} className={primary}>
               {loading ? "Entrando..." : "Entrar"}
             </button>
+            {/* Saida de emergencia: dentro do mercado, ficar preso no login e o
+                pior que pode acontecer. Este modo nao usa conta nem servidor. */}
+            <a
+              href="/mercado"
+              className="mt-3 flex h-[52px] w-full items-center justify-center rounded-[15px] border-[1.5px] border-brand bg-card text-[15px] font-bold text-brand"
+            >
+              Usar sem conta agora
+            </a>
           </Panel>
           </form>
           <Foot>
