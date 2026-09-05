@@ -28,10 +28,15 @@ export function BarcodeScanner({
   useEffect(() => {
     cbRef.current = { onResult, onError };
   });
-  // Duas leituras iguais seguidas antes de aceitar. Dentro do mercado a mao treme e
-  // a luz e ruim; uma leitura solta erra digito e cria produto fantasma no catalogo.
-  const ultimoRef = useRef("");
+  // Aceita na PRIMEIRA leitura valida. A regra antes era exigir duas iguais
+  // seguidas, e no mercado de verdade isso virou "nao le nunca": no iPhone o
+  // decodificador entrega um quadro bom de vez em quando, e casar dois seguidos
+  // pedia uma mao parada que ninguem tem com o carrinho na frente. O digito
+  // verificador GS1 ja rejeita leitura quebrada, que era o medo original.
   const [lendo, setLendo] = useState(true);
+  // Ultimo codigo que chegou e foi RECUSADO, so para dar retorno na tela em vez
+  // de ficar mudo enquanto a pessoa insiste no mesmo produto.
+  const [recusado, setRecusado] = useState("");
 
   useEffect(() => {
     let stream: MediaStream | null = null;
@@ -41,9 +46,8 @@ export function BarcodeScanner({
 
     function aceitar(bruto: string) {
       const code = onlyDigits(bruto);
-      if (!isValidBarcode(code)) return;
-      if (ultimoRef.current !== code) {
-        ultimoRef.current = code;
+      if (!isValidBarcode(code)) {
+        if (code.length >= 6) setRecusado(code);
         return;
       }
       doneRef.current = true;
@@ -123,8 +127,12 @@ export function BarcodeScanner({
       {/* Mira deitada: codigo de barras e largo e baixo, e a faixa ensina onde mirar. */}
       <div className="pointer-events-none absolute inset-x-6 top-1/2 h-[86px] -translate-y-1/2 rounded-[10px] border-2 border-white/70" />
       <div className="pointer-events-none absolute inset-x-6 top-1/2 h-[2px] -translate-y-1/2 bg-brand/80" />
-      <div className="pointer-events-none absolute inset-x-0 bottom-2 text-center text-[12px] font-bold text-white/90">
-        {lendo ? "Aponte para o código de barras" : "Código lido"}
+      <div className="pointer-events-none absolute inset-x-0 bottom-2 px-3 text-center text-[12px] font-bold text-white/90">
+        {!lendo
+          ? "Código lido"
+          : recusado
+            ? `Quase: ${recusado}. Chegue mais perto.`
+            : "Encoste no código, bem de perto"}
       </div>
     </div>
   );

@@ -52,9 +52,18 @@ export default function ModoMercado() {
 
   // Carrega o que ficou da ultima vez. Fechar o navegador no meio da compra nao
   // pode custar o carrinho inteiro.
+  // setState fora do corpo sincrono do effect, mesmo padrao do ComprasDoMes:
+  // chamada direta dispara react-hooks/set-state-in-effect e render em cascata.
   useEffect(() => {
-    setItens(lerCarrinho());
-    setPronto(true);
+    let vivo = true;
+    Promise.resolve(lerCarrinho()).then((guardado) => {
+      if (!vivo) return;
+      setItens(guardado);
+      setPronto(true);
+    });
+    return () => {
+      vivo = false;
+    };
   }, []);
 
   useEffect(() => {
