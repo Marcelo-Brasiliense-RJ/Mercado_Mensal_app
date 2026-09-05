@@ -2,20 +2,20 @@
 
 import { useEffect, useState } from "react";
 import { brl } from "@/lib/format";
-import { CheckIcon, PlusIcon, SearchIcon } from "@/components/ui/icons";
+import { BarcodeIcon, CheckIcon, MicIcon, PlusIcon, SearchIcon } from "@/components/ui/icons";
 import { ScreenHeader } from "@/components/layout/ScreenHeader";
 import { useStore } from "@/lib/store";
-import { AddMenu } from "@/components/ui/AddMenu";
 import type { ShopItem } from "@/lib/types";
 import { AddItemModal } from "./AddItemModal";
 import { ListItemActions } from "./ListItemActions";
 import { CartPanel } from "./CartPanel";
 import { BarcodeModal } from "./BarcodeModal";
 import { VoiceModal } from "@/components/voz/VoiceModal";
+import { QuickBar } from "./QuickBar";
 
 export function ListView() {
-  const { shopping, buyItems, removeItems, showToast, reloadTrip } = useStore();
-  const [addMenuOpen, setAddMenuOpen] = useState(false);
+  const { shopping, trip, buyItems, removeItems, addTripItem, showToast, reloadTrip } =
+    useStore();
   const [addManualOpen, setAddManualOpen] = useState(false);
   const [scanOpen, setScanOpen] = useState(false);
   const [voiceOpen, setVoiceOpen] = useState(false);
@@ -55,6 +55,21 @@ export function ListView() {
     setBusy(null);
     showToast(r.ok ? "Comprado, estoque reposto" : r.erro);
   }
+  // Um toque: o item da lista vai para o carrinho com a quantidade e o preco que
+  // ja estavam ali. E o gesto mais repetido dentro do mercado, e ate agora exigia
+  // abrir o popup de acoes ou digitar o nome de novo no painel do carrinho.
+  async function peguei(i: ShopItem) {
+    setBusy(i.id);
+    const r = await addTripItem({
+      name: i.name,
+      price: i.estimated_price ?? null,
+      qty: i.desired_quantity,
+      unit: i.unit,
+    });
+    setBusy(null);
+    showToast(r.ok ? `${i.name} no carrinho` : r.erro);
+  }
+
   async function remover(id: string) {
     setBusy(id);
     const r = await removeItems([id]);
@@ -62,14 +77,28 @@ export function ListView() {
     if (!r.ok) showToast(r.erro);
   }
 
+  // Desktop: as tres formas de anotar sao botoes de verdade, nao um menu que
+  // abre outro menu. No celular quem faz esse papel e a QuickBar do rodape.
+  const secundario =
+    "flex h-[44px] items-center gap-2 rounded-[12px] border border-border bg-card px-4 text-[14px] font-bold";
   const addBtn = (
-    <button
-      onClick={() => setAddMenuOpen(true)}
-      className="flex h-[44px] items-center gap-2 rounded-[12px] bg-brand px-[18px] text-[14px] font-bold text-brand-ink"
-    >
-      <PlusIcon size={18} />
-      Adicionar item
-    </button>
+    <>
+      <button onClick={() => setVoiceOpen(true)} className={secundario}>
+        <MicIcon size={18} />
+        Falar
+      </button>
+      <button onClick={() => setScanOpen(true)} className={secundario}>
+        <BarcodeIcon size={18} />
+        Código
+      </button>
+      <button
+        onClick={() => setAddManualOpen(true)}
+        className="flex h-[44px] items-center gap-2 rounded-[12px] bg-brand px-[18px] text-[14px] font-bold text-brand-ink"
+      >
+        <PlusIcon size={18} />
+        Adicionar item
+      </button>
+    </>
   );
 
   return (
@@ -77,7 +106,12 @@ export function ListView() {
       <ScreenHeader title="Lista de compras" action={addBtn} />
 
       <div className="space-y-4 lg:space-y-6">
-        <div className="grid gap-4 sm:grid-cols-2">
+        {/* O carrinho vem antes dos cards: dentro do mercado e o numero que muda. */}
+        <CartPanel onScan={() => setScanOpen(true)} />
+
+        {/* No celular esses dois numeros ja vivem na QuickBar, fixa no rodape:
+            repetir aqui custava meia tela dentro do mercado. */}
+        <div className="hidden gap-4 sm:grid-cols-2 lg:grid">
           <div className="rounded-[20px] border border-border bg-card p-[18px] shadow-[0_2px_10px_var(--shadow)] lg:p-[22px]">
             <div className="mb-1.5 text-xs font-bold uppercase tracking-wide text-text-3">
               Total a pagar
@@ -97,8 +131,6 @@ export function ListView() {
             <div className="mt-1.5 text-[12px] text-text-3">itens para comprar</div>
           </div>
         </div>
-
-        <CartPanel onScan={() => setScanOpen(true)} />
 
         {shopping.filter((i) => i.status !== "removed").length > 0 && (
           <div className="relative">
@@ -157,16 +189,30 @@ export function ListView() {
                   </div>
                   <div className="text-[13px] text-text-3">
                     {i.desired_quantity} {i.unit} · {brl(price)}
+                    {price > 0 && ` = ${brl(i.desired_quantity * price)}`}
                   </div>
                 </button>
-                {jaTenho ? (
+                {jaTenho && (
                   <span className="shrink-0 rounded-full bg-pos-soft px-2.5 py-[3px] text-[12px] font-bold text-pos">
                     já tenho
                   </span>
+                )}
+                {/* Com compra aberta, o alvo grande da linha e "Peguei". Sem
+                    compra, continua sendo o valor, que e a informacao da lista. */}
+                {!bought && trip ? (
+                  <button
+                    onClick={() => peguei(i)}
+                    disabled={busy === i.id}
+                    className="h-11 shrink-0 rounded-[12px] bg-brand px-3.5 text-[14px] font-bold text-brand-ink disabled:opacity-50"
+                  >
+                    Peguei
+                  </button>
                 ) : (
-                  <span className="shrink-0 text-[16px] font-extrabold">
-                    {brl(i.desired_quantity * price)}
-                  </span>
+                  !jaTenho && (
+                    <span className="shrink-0 text-[16px] font-extrabold">
+                      {brl(i.desired_quantity * price)}
+                    </span>
+                  )
                 )}
                 <button
                   onClick={() => remover(i.id)}
@@ -184,25 +230,15 @@ export function ListView() {
           visible.length === 0 && (
             <p className="pt-6 text-center text-text-3">Nenhum item encontrado.</p>
           )}
+
+        {/* Respiro para a barra fixa do rodape nao cobrir o ultimo item. */}
+        <div className="h-[104px] lg:hidden" />
       </div>
 
-      <button
-        onClick={() => setAddMenuOpen(true)}
-        aria-label="Adicionar item"
-        className="fixed bottom-[92px] right-4 z-30 grid h-14 w-14 place-items-center rounded-[18px] bg-brand text-brand-ink shadow-[0_10px_24px_var(--shadow-lg)] lg:hidden"
-      >
-        <PlusIcon />
-      </button>
-
-      <AddMenu
-        open={addMenuOpen}
-        onClose={() => setAddMenuOpen(false)}
-        onManual={() => setAddManualOpen(true)}
-        onScan={() => setScanOpen(true)}
+      <QuickBar
         onVoice={() => setVoiceOpen(true)}
-        title="Adicionar à lista"
-        manualLabel="Adicionar manualmente"
-        manualDesc="Digite o item que você quer comprar."
+        onScan={() => setScanOpen(true)}
+        onManual={() => setAddManualOpen(true)}
       />
       <AddItemModal open={addManualOpen} onClose={() => setAddManualOpen(false)} />
       <BarcodeModal open={scanOpen} onClose={() => setScanOpen(false)} />
