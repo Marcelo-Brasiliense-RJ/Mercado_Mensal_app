@@ -10,11 +10,13 @@ import type { ShopItem } from "@/lib/types";
 import { AddItemModal } from "./AddItemModal";
 import { ListItemActions } from "./ListItemActions";
 import { CartPanel } from "./CartPanel";
+import { BarcodeModal } from "./BarcodeModal";
 
 export function ListView() {
   const { shopping, buyItems, removeItems, showToast, reloadTrip } = useStore();
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [addManualOpen, setAddManualOpen] = useState(false);
+  const [scanOpen, setScanOpen] = useState(false);
   const [q, setQ] = useState("");
   const [action, setAction] = useState<ShopItem | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -94,7 +96,7 @@ export function ListView() {
           </div>
         </div>
 
-        <CartPanel />
+        <CartPanel onScan={() => setScanOpen(true)} />
 
         {shopping.filter((i) => i.status !== "removed").length > 0 && (
           <div className="relative">
@@ -194,11 +196,13 @@ export function ListView() {
         open={addMenuOpen}
         onClose={() => setAddMenuOpen(false)}
         onManual={() => setAddManualOpen(true)}
+        onScan={() => setScanOpen(true)}
         title="Adicionar à lista"
         manualLabel="Adicionar manualmente"
         manualDesc="Digite o item que você quer comprar."
       />
       <AddItemModal open={addManualOpen} onClose={() => setAddManualOpen(false)} />
+      <BarcodeModal open={scanOpen} onClose={() => setScanOpen(false)} />
       <ListItemActions
         key={action?.id}
         item={action}

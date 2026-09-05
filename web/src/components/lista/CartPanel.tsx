@@ -5,13 +5,14 @@ import { brl } from "@/lib/format";
 import { useStore } from "@/lib/store";
 import { QtyStepper } from "@/components/ui/QtyStepper";
 import { CartItemModal } from "./CartItemModal";
+import { BarcodeIcon } from "@/components/ui/icons";
 import { unitFor, findByName } from "@/lib/defaults";
 import type { TripItem } from "@/lib/types";
 
 // Painel do modo "No mercado". Ate a 0026 a compra so podia ser aberta e
 // alimentada pelo Telegram, e o painel era inalcancavel sem o bot. Agora o ciclo
 // inteiro cabe aqui: abrir, pegar, tirar engano, desistir e finalizar.
-export function CartPanel() {
+export function CartPanel({ onScan }: { onScan?: () => void }) {
   const {
     trip,
     shopping,
@@ -87,14 +88,26 @@ export function CartPanel() {
               Abra a compra e vá anotando o que pegar, com o total subindo em tempo real.
             </div>
           </div>
-          <button
-            type="button"
-            onClick={abrir}
-            disabled={busy}
-            className="h-[50px] shrink-0 rounded-[14px] bg-brand px-5 text-[15px] font-bold text-brand-ink disabled:opacity-50"
-          >
-            Estou no mercado
-          </button>
+          <div className="flex shrink-0 gap-2">
+            {onScan && (
+              <button
+                type="button"
+                onClick={onScan}
+                aria-label="Ler código de barras"
+                className="grid h-[50px] w-[50px] shrink-0 place-items-center rounded-[14px] border border-border bg-card text-text-2"
+              >
+                <BarcodeIcon size={22} />
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={abrir}
+              disabled={busy}
+              className="h-[50px] shrink-0 rounded-[14px] bg-brand px-5 text-[15px] font-bold text-brand-ink disabled:opacity-50"
+            >
+              Estou no mercado
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -233,6 +246,18 @@ export function CartPanel() {
             aria-label="Preço"
             className="h-12 w-[92px] shrink-0 rounded-[13px] border border-border bg-card px-3 text-right text-[15px]"
           />
+          {/* Ler o codigo e o caminho rapido: nao precisa digitar o nome. Fica ao
+              lado do "Peguei" porque e a mesma acao, so que pela embalagem. */}
+          {onScan && (
+            <button
+              type="button"
+              onClick={onScan}
+              aria-label="Ler código de barras"
+              className="grid h-12 w-12 shrink-0 place-items-center rounded-[13px] border border-brand bg-card text-brand"
+            >
+              <BarcodeIcon size={22} />
+            </button>
+          )}
           <button
             type="submit"
             disabled={busy || !nome.trim()}
