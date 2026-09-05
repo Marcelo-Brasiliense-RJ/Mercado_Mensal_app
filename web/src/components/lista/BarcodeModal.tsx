@@ -218,7 +218,7 @@ export function BarcodeModal({ open, onClose }: { open: boolean; onClose: () => 
             <div className="font-mono text-[15px] font-bold">{prettyBarcode(codigo)}</div>
             <div className="mt-1 text-[12px] leading-snug text-text-2">
               {!guardaCodigo
-                ? "Diga o nome do produto e ele vai pro carrinho. (Este código ainda não fica guardado: falta aplicar a migration 0035 no banco.)"
+                ? "Diga o nome do produto e ele vai pro carrinho. Por enquanto este código não fica guardado, então na próxima vez pergunto de novo."
                 : conhecido
                   ? "Produto reconhecido. Corrigir o nome aqui religa o código a outro item."
                   : "Primeira vez com esse código. Diga o nome uma vez e ele fica gravado."}

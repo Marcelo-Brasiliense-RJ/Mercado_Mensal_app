@@ -149,8 +149,8 @@ export function ListView() {
 
         {shopping.filter((i) => i.status !== "removed").length === 0 && (
           <p className="pt-8 text-center text-[15px] leading-relaxed text-text-3">
-            Sua lista está vazia. Adicione itens aqui ou mande itens do Estoque
-            para repor.
+            Sua lista está vazia. Use os botões aqui embaixo: <b>Falar</b> o que
+            precisa, ler o <b>Código</b> da embalagem ou <b>Digitar</b> o item.
           </p>
         )}
 
