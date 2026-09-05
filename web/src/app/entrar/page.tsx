@@ -13,14 +13,29 @@ type Phase = "login" | "signup" | "forgot" | "checkEmail";
 
 const MIN_SENHA = 8;
 
-// Traduz as mensagens do Supabase Auth para PT-BR sem vazar detalhe demais.
+// Traduz as mensagens do Supabase Auth para PT-BR.
+//
+// O caso sem traducao devolvia "Nao foi possivel concluir. Tente novamente.", que
+// e a pior resposta possivel: o dono ficou preso no login, no mercado, sem saber
+// se era a senha, a conta, a internet ou a configuracao do app. Agora as causas
+// que travam de verdade tem nome, e o que sobra mostra o motivo original em vez
+// de escondelo. Mensagem do Supabase Auth nao carrega segredo.
 function mapErro(msg: string): string {
   const m = msg.toLowerCase();
   if (m.includes("invalid login")) return "E-mail ou senha incorretos.";
   if (m.includes("email not confirmed")) return "Confirme seu e-mail antes de entrar.";
-  if (m.includes("already registered")) return "Este e-mail ja tem conta. Faca login.";
-  if (m.includes("rate limit")) return "Muitas tentativas. Aguarde um instante.";
-  return "Nao foi possivel concluir. Tente novamente.";
+  if (m.includes("already registered")) return "Este e-mail já tem conta. Faça login.";
+  if (m.includes("rate limit") || m.includes("too many"))
+    return "Muitas tentativas. Espere um minuto e tente de novo.";
+  if (m.includes("failed to fetch") || m.includes("networkerror") || m.includes("load failed"))
+    return "Sem conexão com o servidor. Verifique a internet e tente de novo.";
+  if (m.includes("invalid api key") || m.includes("no api key"))
+    return "Chave do app inválida. É configuração da Vercel, não a sua senha.";
+  if (m.includes("email logins are disabled") || m.includes("signups not allowed"))
+    return "Login por e-mail está desligado no Supabase.";
+  if (m.includes("database error"))
+    return "O banco recusou a consulta. É configuração, não a sua senha.";
+  return `Não deu para entrar: ${msg}`;
 }
 
 function emailValido(e: string): boolean {
