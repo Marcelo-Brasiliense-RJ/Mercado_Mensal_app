@@ -32,6 +32,8 @@ export function BarcodeModal({ open, onClose }: { open: boolean; onClose: () => 
   const [fase, setFase] = useState<Fase>("ler");
   const [codigo, setCodigo] = useState("");
   const [conhecido, setConhecido] = useState(false);
+  // Banco sem a 0035: o leitor segue servindo, so nao guarda o codigo.
+  const [guardaCodigo, setGuardaCodigo] = useState(true);
   const [nome, setNome] = useState("");
   const [qtd, setQtd] = useState("1");
   const [unidade, setUnidade] = useState("un");
@@ -51,6 +53,7 @@ export function BarcodeModal({ open, onClose }: { open: boolean; onClose: () => 
       setCodigo(code);
       setFase("confirmar");
       setQtd("1");
+      setGuardaCodigo(info?.salvaVinculo !== false);
       if (info?.encontrado) {
         setConhecido(true);
         setNome(info.nome);
@@ -214,9 +217,11 @@ export function BarcodeModal({ open, onClose }: { open: boolean; onClose: () => 
             </div>
             <div className="font-mono text-[15px] font-bold">{prettyBarcode(codigo)}</div>
             <div className="mt-1 text-[12px] leading-snug text-text-2">
-              {conhecido
-                ? "Produto reconhecido. Corrigir o nome aqui religa o código a outro item."
-                : "Primeira vez com esse código. Diga o nome uma vez e ele fica gravado."}
+              {!guardaCodigo
+                ? "Diga o nome do produto e ele vai pro carrinho. (Este código ainda não fica guardado: falta aplicar a migration 0035 no banco.)"
+                : conhecido
+                  ? "Produto reconhecido. Corrigir o nome aqui religa o código a outro item."
+                  : "Primeira vez com esse código. Diga o nome uma vez e ele fica gravado."}
             </div>
           </div>
 

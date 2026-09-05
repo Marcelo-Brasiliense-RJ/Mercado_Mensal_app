@@ -10,10 +10,25 @@ import {
   ERRO_VOZ,
   escolherMime,
   extensaoDe,
+  interpretarLocal,
+  reconhecimentoDoNavegador,
   segundosFmt,
   type VozIntencao,
+  type VozItem,
   type VozResposta,
 } from "@/lib/voz";
+
+// SpeechRecognition nao esta na lib de tipos do TS. So o que usamos daqui.
+type Reconhecedor = {
+  lang: string;
+  interimResults: boolean;
+  continuous: boolean;
+  start: () => void;
+  stop: () => void;
+  onresult: ((e: { results: { 0: { 0: { transcript: string } } } }) => void) | null;
+  onerror: (() => void) | null;
+  onend: (() => void) | null;
+};
 
 // Falar dentro do app, sem passar pelo Telegram.
 //
@@ -43,6 +58,10 @@ export function VoiceModal({ open, onClose }: { open: boolean; onClose: () => vo
   const [itens, setItens] = useState<GridItem[]>([]);
   const [erro, setErro] = useState("");
 
+  // Plano B ligado: o servidor de transcricao nao esta configurado, entao quem
+  // ouve e o proprio navegador e quem entende a frase e o interpretador local.
+  const [modoLocal, setModoLocal] = useState(false);
+  const falaRef = useRef<Reconhecedor | null>(null);
   const recRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
@@ -51,6 +70,7 @@ export function VoiceModal({ open, onClose }: { open: boolean; onClose: () => vo
   // microfone aberto sem tela e a pior falha possivel de privacidade.
   useEffect(() => {
     if (open) return;
+    falaRef.current?.stop();
     if (recRef.current?.state === "recording") recRef.current.stop();
     streamRef.current?.getTracks().forEach((t) => t.stop());
   }, [open]);
@@ -77,6 +97,8 @@ export function VoiceModal({ open, onClose }: { open: boolean; onClose: () => vo
   }
 
   function fechar() {
+    falaRef.current?.stop();
+    falaRef.current = null;
     if (recRef.current?.state === "recording") recRef.current.stop();
     streamRef.current?.getTracks().forEach((t) => t.stop());
     onClose();
@@ -85,6 +107,7 @@ export function VoiceModal({ open, onClose }: { open: boolean; onClose: () => vo
 
   async function gravar() {
     setErro("");
+    if (modoLocal) return escutarNoAparelho();
     const mime = escolherMime((m) =>
       typeof MediaRecorder !== "undefined" ? MediaRecorder.isTypeSupported(m) : false,
     );
@@ -109,6 +132,10 @@ export function VoiceModal({ open, onClose }: { open: boolean; onClose: () => vo
   }
 
   function parar() {
+    if (falaRef.current) {
+      falaRef.current.stop();
+      return;
+    }
     if (recRef.current?.state === "recording") {
       recRef.current.stop();
       setFase("enviando");
@@ -123,25 +150,70 @@ export function VoiceModal({ open, onClose }: { open: boolean; onClose: () => vo
       const r = await fetch("/api/voz", { method: "POST", body: fd });
       const data = (await r.json().catch(() => null)) as VozResposta | null;
       if (!data?.ok) {
+        // Sem chave no servidor: em vez de travar, passa a ouvir pelo aparelho.
+        if (data?.erro === "voz_indisponivel" && reconhecimentoDoNavegador()) {
+          setModoLocal(true);
+          setErro("");
+          setFase("gravar");
+          escutarNoAparelho();
+          return;
+        }
         setErro(ERRO_VOZ[data?.erro ?? ""] ?? "Não deu para entender agora. Tente de novo.");
         setFase("gravar");
         return;
       }
-      setTexto(data.texto);
-      setDestino(data.intencao);
-      setItens(
-        data.itens.map((i) => ({
-          nome: i.nome,
-          qtd: i.qtd,
-          preco: i.preco ?? 0,
-          unidade: i.unidade,
-        })),
-      );
-      setFase("conferir");
+      mostrarResultado(data.texto, data.intencao, data.itens);
     } catch {
       setErro("Sem conexão. Tente de novo.");
       setFase("gravar");
     }
+  }
+
+  function mostrarResultado(frase: string, intencao: VozIntencao, lidos: VozItem[]) {
+    setTexto(frase);
+    setDestino(intencao);
+    setItens(
+      lidos.map((i) => ({
+        nome: i.nome,
+        qtd: i.qtd,
+        preco: i.preco ?? 0,
+        unidade: i.unidade,
+      })),
+    );
+    setFase("conferir");
+  }
+
+  // Ouvir pelo proprio aparelho. Nao sobe audio nenhum: o navegador devolve o
+  // texto e a interpretacao acontece aqui.
+  function escutarNoAparelho() {
+    const w = window as unknown as Record<string, unknown>;
+    const SR = (w.SpeechRecognition ?? w.webkitSpeechRecognition) as
+      | (new () => Reconhecedor)
+      | undefined;
+    if (!SR) {
+      setErro("Este aparelho não transcreve sozinho. Use Código de barras ou Digitar.");
+      setFase("gravar");
+      return;
+    }
+    const rec = new SR();
+    rec.lang = "pt-BR";
+    rec.interimResults = false;
+    rec.continuous = false;
+    rec.onresult = (e) => {
+      const frase = e.results[0][0].transcript ?? "";
+      const r = interpretarLocal(frase);
+      mostrarResultado(frase, r.intencao, r.itens);
+    };
+    rec.onerror = () => {
+      setErro("Não consegui ouvir. Tente de novo, mais perto do microfone.");
+      setFase("gravar");
+    };
+    rec.onend = () => setFase((f) => (f === "gravando" ? "gravar" : f));
+    falaRef.current = rec;
+    setSegundos(0);
+    setErro("");
+    setFase("gravando");
+    rec.start();
   }
 
   function patch(i: number, campo: "nome" | "qtd" | "preco", valor: string) {
@@ -221,6 +293,12 @@ export function VoiceModal({ open, onClose }: { open: boolean; onClose: () => vo
             Fale normal, como você contaria pra alguém: “comprei arroz vinte reais,
             dois pacotes, e café doze e noventa”. Você confere antes de salvar.
           </p>
+          {modoLocal && (
+            <p className="mb-4 rounded-[13px] border border-border bg-card-2 p-3 text-[12px] leading-snug text-text-2">
+              Ouvindo pelo próprio aparelho, sem servidor. Funciona bem com frases
+              curtas; confira os itens antes de salvar.
+            </p>
+          )}
 
           <div className="mb-4 flex flex-col items-center gap-3">
             <button

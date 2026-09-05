@@ -51,6 +51,10 @@ export type BarcodeInfo = {
   preco: number | null;
   estoque_atual: number;
   nivel_normal: number;
+  // false quando a 0035 ainda nao foi aplicada no banco: o leitor continua
+  // servindo (o item vai pro carrinho pelo caminho de sempre), so nao guarda o
+  // vinculo codigo -> produto. Recurso pela metade e melhor do que tela travada.
+  salvaVinculo: boolean;
 };
 
 // Uma compra ja registrada no mes, como a aba Economia lista para editar.
@@ -96,6 +100,16 @@ async function callRpc(
   } catch {
     return { ok: false, erro: "Sem conexão. Tente de novo." };
   }
+}
+
+// PostgREST devolve PGRST202 quando a funcao nao existe (migration nao aplicada).
+// Nesse caso o app nao mostra erro: usa o caminho antigo, que sempre funcionou.
+function rpcAusente(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false;
+  return (
+    error.code === "PGRST202" ||
+    /could not find the function|does not exist/i.test(error.message ?? "")
+  );
 }
 
 type Store = Data & {
@@ -325,10 +339,21 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   // Leitura, nao escrita: interessa o conteudo da resposta, entao nao passa pelo
   // callRpc (que so devolve ok/erro). Codigo desconhecido volta com encontrado=false.
   const findBarcode = useCallback(async (code: string) => {
+    const semVinculo: BarcodeInfo = {
+      codigo: code,
+      encontrado: false,
+      nome: "",
+      unidade: "un",
+      preco: null,
+      estoque_atual: 0,
+      nivel_normal: 0,
+      salvaVinculo: false,
+    };
     try {
-      const { data } = await createClient().rpc("mercado_barcode_find_web", {
+      const { data, error } = await createClient().rpc("mercado_barcode_find_web", {
         p_code: code,
       });
+      if (rpcAusente(error)) return semVinculo;
       const r = data as
         | {
             ok?: boolean;
@@ -350,6 +375,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
         preco: r.preco ?? null,
         estoque_atual: Number(r.estoque_atual ?? 0),
         nivel_normal: Number(r.nivel_normal ?? 0),
+        salvaVinculo: true,
       } satisfies BarcodeInfo;
     } catch {
       return null;
@@ -366,15 +392,35 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       qty: number;
       unit?: string;
     }) => {
-      const r = await callRpc("mercado_barcode_add_web", {
+      const { data, error } = await createClient().rpc("mercado_barcode_add_web", {
         p_code: item.code,
         p_name: item.name ?? null,
         p_price: item.price,
         p_qty: item.qty,
         p_unit: item.unit ?? null,
       });
-      if (r.ok) await reloadTrip();
-      return r;
+      // Banco sem a 0035: o item entra pelo caminho de sempre, so sem gravar o
+      // vinculo do codigo. Quem esta no mercado nao pode ficar preso a isso.
+      if (rpcAusente(error)) {
+        const r = await callRpc("mercado_trip_add_web", {
+          p_name: item.name ?? "",
+          p_price: item.price,
+          p_qty: item.qty,
+          p_unit: item.unit ?? "un",
+        });
+        if (r.ok) await reloadTrip();
+        return r;
+      }
+      if (error) return { ok: false as const, erro: "Não deu para salvar. Tente de novo." };
+      const res = data as { ok?: boolean; erro?: string } | null;
+      if (res && res.ok === false) {
+        return {
+          ok: false as const,
+          erro: ERROS[res.erro ?? ""] ?? "Não deu para salvar. Tente de novo.",
+        };
+      }
+      await reloadTrip();
+      return { ok: true as const };
     },
     [reloadTrip],
   );
