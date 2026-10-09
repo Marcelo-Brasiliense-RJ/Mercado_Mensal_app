@@ -5,11 +5,12 @@ import type { StockItem } from "@/lib/types";
 import { stockRatio, brl } from "@/lib/format";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { AvatarInitial } from "@/components/ui/AvatarInitial";
-import { CheckIcon, ChevronRight, MicIcon, PlusIcon, ReceiptIcon, SearchIcon, TelegramIcon } from "@/components/ui/icons";
+import { BarcodeIcon, CheckIcon, ChevronRight, MicIcon, PlusIcon, ReceiptIcon, SearchIcon, TelegramIcon } from "@/components/ui/icons";
 import { ScreenHeader } from "@/components/layout/ScreenHeader";
 import { useStore, type RpcResult } from "@/lib/store";
 import { BOT_URL } from "@/lib/config";
 import { VoiceModal } from "@/components/voz/VoiceModal";
+import { BarcodeModal } from "@/components/lista/BarcodeModal";
 import { ItemDetailModal } from "./ItemDetailModal";
 import { BatchAddModal } from "./BatchAddModal";
 
@@ -24,6 +25,9 @@ export function StockView() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
   const [voiceOpen, setVoiceOpen] = useState(false);
+  // O leitor tambem mora aqui: quem esta no mercado abre o Estoque para ver o que
+  // falta e, de codigo na mao, nao deveria ter que trocar de aba para registrar.
+  const [scanOpen, setScanOpen] = useState(false);
   const [stockAddOpen, setStockAddOpen] = useState(false);
 
   const filtered = stock.filter((i) =>
@@ -95,6 +99,13 @@ export function StockView() {
       >
         <MicIcon size={18} />
         Falar
+      </button>
+      <button
+        onClick={() => setScanOpen(true)}
+        className="hidden h-[44px] shrink-0 items-center gap-2 rounded-[12px] border border-border bg-card px-4 text-[14px] font-bold lg:flex"
+      >
+        <BarcodeIcon size={18} />
+        Código
       </button>
       <button
         onClick={() => setStockAddOpen(true)}
@@ -264,6 +275,13 @@ export function StockView() {
             <MicIcon size={22} />
           </button>
           <button
+            onClick={() => setScanOpen(true)}
+            aria-label="Ler código de barras"
+            className="grid h-12 w-12 place-items-center rounded-[16px] border border-border bg-card text-brand shadow-[0_8px_20px_var(--shadow-lg)]"
+          >
+            <BarcodeIcon size={22} />
+          </button>
+          <button
             onClick={() => setStockAddOpen(true)}
             aria-label="Adicionar item"
             className="grid h-14 w-14 place-items-center rounded-[18px] bg-brand text-brand-ink shadow-[0_10px_24px_var(--shadow-lg)]"
@@ -275,6 +293,7 @@ export function StockView() {
 
       <BatchAddModal open={stockAddOpen} onClose={() => setStockAddOpen(false)} />
       <VoiceModal open={voiceOpen} onClose={() => setVoiceOpen(false)} />
+      <BarcodeModal open={scanOpen} onClose={() => setScanOpen(false)} />
 
       <ItemDetailModal item={detail} onClose={() => setDetailId(null)} />
     </>
