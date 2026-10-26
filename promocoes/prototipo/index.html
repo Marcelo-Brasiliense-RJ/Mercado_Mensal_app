@@ -100,6 +100,9 @@ h2 { font-size:16px; margin:18px 0 4px; }
 .mini .off { background:var(--pos); color:#fff; border-radius:6px; padding:2px 6px; font-size:12px; font-weight:800; flex:none; }
 .mini .foto { width:100%; height:88px; object-fit:contain; background:#fff; border-radius:8px; }
 .sem-foto { display:flex; align-items:center; justify-content:center; font-size:34px; background:var(--card-2) !important; }
+.termo-c { font-size:11px; color:var(--brand); text-transform:uppercase; letter-spacing:.6px; font-weight:800; }
+.sem-oferta { color:var(--text-2); font-size:13px; padding:18px 0; }
+.mais-op { border:0; background:var(--brand-soft); color:var(--brand); font-weight:700; font-size:12px; border-radius:8px; padding:4px 8px; cursor:pointer; white-space:nowrap; }
 .mini .nome { font-weight:700; font-size:15px; line-height:1.25; display:-webkit-box;
   -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; min-height:2.5em; }
 .mini .tam { color:var(--text-2); font-size:13px; font-weight:400; }
@@ -177,7 +180,7 @@ mark { background:var(--warn-soft); color:inherit; border-radius:3px; padding:0 
   <!-- PARA VOCE: o resumo que cabe numa tela -->
   <section class="tela on" id="t-voce">
     <h2>🧾 Sua lista esta semana</h2>
-    <div class="sub">O mais barato de cada item, em qualquer mercado. Toque para ver as outras opções.</div>
+    <div class="sub">O mais barato de cada item, em qualquer mercado. Toque em “+ opções” para comparar.</div>
     <div id="voce-lista"></div>
     <h2>🏪 Onde comprar</h2>
     <div class="sub">Quanto a sua lista sai em cada mercado, só com o que está em oferta.</div>
@@ -344,16 +347,18 @@ const foto = (o, cls = "foto") => o.img
   ? `<img class="${cls}" src="${o.img}" alt="" loading="lazy" onerror="this.outerHTML='<div class=&quot;${cls} sem-foto&quot;>${ICONE[o.cat] || "🛒"}</div>'">`
   : icone(o).replace('class="foto', `class="${cls}`);
 
-function cardOferta(o) {
+// extra.termo: rotulo do item da lista acima do nome; extra.mais: botao no rodape no lugar de "Na lista".
+function cardOferta(o, extra = {}) {
   const na = casa(o);
   return `<div class="mini ${na ? "da-lista" : ""}">
     <div class="faixa" style="background:${COR[o.m]}"><span>${NOME[o.m]}</span>
       ${o.de > o.por ? `<span class="off">-${pct(o)}%</span>` : ""}</div>
     ${foto(o)}
+    ${extra.termo ? `<div class="termo-c">${extra.termo}</div>` : ""}
     <div class="nome">${marcar(o.produto + (o.marca ? " " + o.marca : ""))} <span class="tam">${o.tam}</span></div>
     <div class="pr"><b>${brl(o.por)}</b>${o.de > o.por ? `<s>${brl(o.de)}</s>` : ""}</div>
     ${o.cond ? `<div class="cond">${o.cond}</div>` : ""}
-    <div class="rodape">${prazo(o)}${na ? '<span class="nalista">✓ Na lista</span>' : ""}</div>
+    <div class="rodape">${prazo(o)}${extra.mais ?? (na ? '<span class="nalista">✓ Na lista</span>' : "")}</div>
   </div>`;
 }
 
@@ -373,7 +378,9 @@ function renderOfertas() {
   termo = norm(bruto);
   document.getElementById("caixa-busca").classList.toggle("cheia", !!bruto);
   const validas = OFERTAS.filter(ativa);
-  const porBusca = validas.filter(o => !termo || texto(o).includes(termo));
+  // Palavras em qualquer ordem: "arroz 5kg" acha "Arroz Rei do Sul 5kg".
+  const palavras = padrao(bruto).split(/\s+/).filter(Boolean);
+  const porBusca = validas.filter(o => palavras.every(w => padrao(texto(o) + " " + (o.tam || "")).includes(w)));
   let v = porBusca.filter(o => (filtroM === "todos" || o.m === filtroM) && (filtroC === "todas" || o.cat === filtroC));
   if (ordem === "desc") v.sort((a, b) => pct(b) - pct(a));
   if (ordem === "preco") v.sort((a, b) => a.por - b.por);
@@ -474,18 +481,16 @@ function renderVoce() {
   const validas = OFERTAS.filter(ativa);
   const porItem = lista.map(i => ({ i, os: validas.filter(o => bateTermo(o, i.termo)).sort((a, b) => a.por - b.por) }));
 
-  document.getElementById("voce-lista").innerHTML = porItem.map(({ i, os }, k) => {
-    if (!os.length) return `<div class="item-l"><div class="termo">${i.termo}</div><div class="sem">Sem oferta esta semana</div></div>`;
-    const [b, ...resto] = os;
-    return `<div class="item-l" data-abre="${k}">
-      <div class="lin">${foto(b, "mini-foto")}<div style="min-width:0;flex:1"><div class="termo">${i.termo}</div>
-        <div class="prod">${nomeO(b)}</div>
-        <div style="margin-top:4px">${pill(b.m)} <span class="meta" style="font-size:12px;color:var(--text-2)">${b.ate ? "até " + b.ate : "preço de hoje"}${b.cond ? " · " + b.cond : ""}</span></div></div>
-        <div class="val"><b>${brl(b.por)}</b>${resto.length ? `<span class="meta" style="font-size:12px;color:var(--text-2)">+${resto.length} ${resto.length > 1 ? "opções" : "opção"} ▾</span>` : ""}</div></div>
-      <div class="mais">${resto.slice(0, 5).map(o => `<div class="alt"><span>${pill(o.m)} ${nomeO(o)}</span><span>${brl(o.por)}</span></div>`).join("")}
-        ${resto.length > 5 ? `<div class="alt"><button class="btn btn-s" data-q="${i.termo}" style="padding:6px 10px">Ver todas as ${os.length}</button></div>` : ""}</div>
-    </div>`;
-  }).join("") || '<div class="vazio">Sua lista está vazia. Adicione itens em “Minha lista”.</div>';
+  // Mesmo card da aba Ofertas: o mais barato de cada item; o rodape leva para as outras opcoes.
+  const cards = porItem.map(({ i, os }) => {
+    if (!os.length) return `<div class="mini"><div class="termo-c">${i.termo}</div><div class="sem-oferta">Sem oferta esta semana</div></div>`;
+    const resto = os.length - 1;
+    return cardOferta(os[0], {
+      termo: i.termo,
+      mais: resto ? `<button class="mais-op" data-q="${i.termo}">+${resto} ${resto > 1 ? "opções" : "opção"} ›</button>` : "",
+    });
+  }).join("");
+  document.getElementById("voce-lista").innerHTML = cards ? `<div class="grade">${cards}</div>` : '<div class="vazio">Sua lista está vazia. Adicione itens em “Minha lista”.</div>';
 
   // Por mercado: o mais barato de cada item dentro daquele mercado.
   const ms = MERCADOS.filter(m => m.status === "ok").map(m => {
@@ -511,9 +516,7 @@ function renderVoce() {
     .sort((a, b) => pct(b) - pct(a))
     .filter(o => { const k = norm(o.produto).split(" ").slice(0, 3).join(" "); return !vistos.has(k) && vistos.add(k); })
     .slice(0, 10);
-  document.getElementById("voce-achados").innerHTML = `<div class="card">${achados.map(o => `<div class="achado">
-      ${foto(o, "mini-foto")}<div class="nm" style="flex:1">${nomeO(o)}<small>${pill(o.m)} ${o.cat}</small></div>
-      <div class="pr2"><b>${brl(o.por)}</b><br><span class="tag t-desc">-${pct(o)}%</span></div></div>`).join("")}</div>`;
+  document.getElementById("voce-achados").innerHTML = `<div class="grade">${achados.map(o => cardOferta(o)).join("")}</div>`;
 }
 
 function tudo() { renderVoce(); renderOfertas(); renderLista(); renderAlertas(); renderRevisar(); renderMercados(); }
