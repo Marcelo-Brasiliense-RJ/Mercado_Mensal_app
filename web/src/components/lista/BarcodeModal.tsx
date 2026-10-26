@@ -34,6 +34,9 @@ export function BarcodeModal({ open, onClose }: { open: boolean; onClose: () => 
   const [conhecido, setConhecido] = useState(false);
   // Banco sem a 0035: o leitor segue servindo, so nao guarda o codigo.
   const [guardaCodigo, setGuardaCodigo] = useState(true);
+  // Nome que veio da base publica de codigos de barras, so para a tela poder
+  // dizer de onde saiu (a pessoa confere e corrige).
+  const [sugerido, setSugerido] = useState("");
   const [nome, setNome] = useState("");
   const [qtd, setQtd] = useState("1");
   const [unidade, setUnidade] = useState("un");
@@ -60,15 +63,36 @@ export function BarcodeModal({ open, onClose }: { open: boolean; onClose: () => 
         setUnidade(info.unidade || unitFor(info.nome));
         setPreco(info.preco != null ? String(info.preco) : "");
       } else {
-        // Codigo novo (ou consulta que falhou): nome em branco, o resto se deduz
-        // sozinho quando a pessoa digitar.
+        // Codigo novo para esta casa: antes de pedir o nome, pergunta na base
+        // publica. Ler o codigo e ainda ter que digitar "refrigerante" quebra a
+        // promessa do leitor.
         setConhecido(false);
         setNome("");
         setUnidade("un");
         setPreco("");
+        setSugerido("");
+        try {
+          const r = await fetch(`/api/produto?codigo=${encodeURIComponent(code)}`);
+          const d = (await r.json()) as {
+            ok?: boolean;
+            encontrado?: boolean;
+            nome?: string;
+            unidade?: string | null;
+          };
+          if (d?.ok && d.encontrado && d.nome) {
+            setNome(d.nome);
+            setSugerido(d.nome);
+            setUnidade(d.unidade || unitFor(d.nome));
+            // Preco da ultima compra desse item, se a casa ja comprou.
+            const jaTem = findByName(d.nome, stock);
+            if (jaTem?.priceLast != null) setPreco(String(jaTem.priceLast));
+          }
+        } catch {
+          // Base fora do ar: segue como antes, com o campo vazio.
+        }
       }
     },
-    [findBarcode],
+    [findBarcode, stock],
   );
 
   // Nome digitado na primeira leitura: unidade pela palavra e preco da ultima
@@ -90,6 +114,7 @@ export function BarcodeModal({ open, onClose }: { open: boolean; onClose: () => 
     setUnidade("un");
     setConhecido(false);
     setDigitado("");
+    setSugerido("");
   }
 
   function fechar() {
@@ -217,11 +242,13 @@ export function BarcodeModal({ open, onClose }: { open: boolean; onClose: () => 
             </div>
             <div className="font-mono text-[15px] font-bold">{prettyBarcode(codigo)}</div>
             <div className="mt-1 text-[12px] leading-snug text-text-2">
-              {!guardaCodigo
-                ? "Diga o nome do produto e ele vai pro carrinho. Por enquanto este código não fica guardado, então na próxima vez pergunto de novo."
-                : conhecido
-                  ? "Produto reconhecido. Corrigir o nome aqui religa o código a outro item."
-                  : "Primeira vez com esse código. Diga o nome uma vez e ele fica gravado."}
+              {conhecido
+                ? "Produto reconhecido. Corrigir o nome aqui religa o código a outro item."
+                : sugerido
+                  ? `Achei “${sugerido}” na base de códigos de barras. Confira e corrija se quiser.`
+                  : !guardaCodigo
+                    ? "Diga o nome do produto e ele vai pro carrinho. Por enquanto este código não fica guardado."
+                    : "Primeira vez com esse código. Diga o nome uma vez e ele fica gravado."}
             </div>
           </div>
 
