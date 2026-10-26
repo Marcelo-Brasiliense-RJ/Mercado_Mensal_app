@@ -152,7 +152,11 @@ def extrair(enc: EncarteBaixado, pasta: Path, base: Path, historico: dict[str, f
 
     def uma(n_nome):
         n, nome = n_nome
-        itens = ler_pagina(ia, (pasta / nome).read_bytes(), e.mercado)
+        try:
+            itens = ler_pagina(ia, (pasta / nome).read_bytes(), e.mercado)
+        except Exception as erro:  # uma pagina com problema nao derruba o encarte; a proxima rodada tenta de novo
+            print(f"  {e.mercado} pagina {n}/{len(enc.paginas)}: falhou ({str(erro)[:120]})", flush=True)
+            return n, []
         print(f"  {e.mercado} pagina {n}/{len(enc.paginas)}: {len(itens)} itens", flush=True)
         return n, itens
 

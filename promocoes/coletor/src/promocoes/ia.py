@@ -115,7 +115,11 @@ class IA:
                 return self._gemini(img, pergunta, schema, modelo)
             except CotaEsgotada:
                 _esgotados.add(modelo)
-        raise RuntimeError("cota diaria de todos os modelos Gemini esgotada")
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code < 500:
+                    raise
+                # Fora do ar depois das tentativas: tenta o proximo modelo (sem marcar como esgotado).
+        raise RuntimeError("nenhum modelo Gemini disponivel (cota diaria esgotada ou fora do ar)")
 
     def _gemini(self, img: bytes, pergunta: str, schema: dict, modelo: str):
         def chamar():
