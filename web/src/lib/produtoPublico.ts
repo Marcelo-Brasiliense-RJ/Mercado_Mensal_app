@@ -8,7 +8,12 @@
 // ponytail: so Open Food Facts, que cobre comida e bebida. Limpeza e higiene
 // quase nao estao la; nesses o campo volta vazio e a pessoa digita, como antes.
 
-export type ProdutoPublico = { nome: string; unidade: string | null; marca: string };
+export type ProdutoPublico = {
+  nome: string; // como esta no rotulo, legivel: "Refrigerante Sukita Uva 2L"
+  generico: string; // sem marca e sem tamanho: "refrigerante"
+  unidade: string | null;
+  marca: string;
+};
 
 // "2l" -> L, "500ml" -> ml, "100 g" -> g, "1,5kg" -> kg
 export function unidadeDe(quantidade: string | undefined | null): string | null {
@@ -60,6 +65,27 @@ export function nomeGenerico(bruto: string, marcas = ""): string {
   return semMarca || nome;
 }
 
+// O rotulo vem gritado da base ("REFRIGERANTE SUKITA UVA 2L"). Na tela isso
+// parece erro, e caixa alta e mais dificil de ler de relance no corredor do
+// mercado. Vira "Refrigerante Sukita Uva 2L", mantendo 2L, 500ml e afins.
+export function nomeExibicao(bruto: string): string {
+  const base = (bruto ?? "").replace(/\s+/g, " ").trim();
+  if (!base) return "";
+  if (base !== base.toUpperCase()) return base; // ja veio com caixa normal
+
+  return base
+    .toLowerCase()
+    .split(" ")
+    .map((palavra) => {
+      // 2l, 500ml, 1,5kg: unidade em caixa certa, nao "2L" virando "2l"
+      const medida = palavra.match(/^([\d.,]+)\s*(kg|g|ml|l)$/);
+      if (medida) return medida[1] + (medida[2] === "l" ? "L" : medida[2]);
+      if (palavra.length <= 2) return palavra;
+      return palavra[0].toUpperCase() + palavra.slice(1);
+    })
+    .join(" ");
+}
+
 export function mapearOpenFoodFacts(json: unknown): ProdutoPublico | null {
   const p = (json as { status?: number; product?: Record<string, unknown> })?.product;
   if (!p) return null;
@@ -67,7 +93,8 @@ export function mapearOpenFoodFacts(json: unknown): ProdutoPublico | null {
   if (!bruto) return null;
   const marca = String(p.brands ?? "");
   return {
-    nome: nomeGenerico(bruto, marca),
+    nome: nomeExibicao(bruto),
+    generico: nomeGenerico(bruto, marca),
     unidade: unidadeDe(String(p.quantity ?? "")),
     marca: marca.split(",")[0]?.trim() ?? "",
   };

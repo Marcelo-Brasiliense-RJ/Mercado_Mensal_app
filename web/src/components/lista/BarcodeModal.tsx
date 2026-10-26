@@ -32,16 +32,15 @@ export function BarcodeModal({ open, onClose }: { open: boolean; onClose: () => 
   const [fase, setFase] = useState<Fase>("ler");
   const [codigo, setCodigo] = useState("");
   const [conhecido, setConhecido] = useState(false);
-  // Banco sem a 0035: o leitor segue servindo, so nao guarda o codigo.
-  const [guardaCodigo, setGuardaCodigo] = useState(true);
-  // Nome que veio da base publica de codigos de barras, so para a tela poder
-  // dizer de onde saiu (a pessoa confere e corrige).
-  const [sugerido, setSugerido] = useState("");
+  const [marca, setMarca] = useState("");
   const [nome, setNome] = useState("");
   const [qtd, setQtd] = useState("1");
   const [unidade, setUnidade] = useState("un");
   const [preco, setPreco] = useState("");
   const [digitado, setDigitado] = useState("");
+  // O nome vem pronto do codigo; editar e excecao, entao o campo so aparece
+  // quando a pessoa pede. Menos coisa na tela, menos duvida.
+  const [editandoNome, setEditandoNome] = useState(false);
   const [semCamera, setSemCamera] = useState(false);
   const [busy, setBusy] = useState(false);
   // O que ja entrou nesta sessao de leitura, so pra dar retorno visivel sem
@@ -56,7 +55,6 @@ export function BarcodeModal({ open, onClose }: { open: boolean; onClose: () => 
       setCodigo(code);
       setFase("confirmar");
       setQtd("1");
-      setGuardaCodigo(info?.salvaVinculo !== false);
       if (info?.encontrado) {
         setConhecido(true);
         setNome(info.nome);
@@ -70,7 +68,7 @@ export function BarcodeModal({ open, onClose }: { open: boolean; onClose: () => 
         setNome("");
         setUnidade("un");
         setPreco("");
-        setSugerido("");
+        setMarca("");
         try {
           const r = await fetch(`/api/produto?codigo=${encodeURIComponent(code)}`);
           const d = (await r.json()) as {
@@ -78,10 +76,11 @@ export function BarcodeModal({ open, onClose }: { open: boolean; onClose: () => 
             encontrado?: boolean;
             nome?: string;
             unidade?: string | null;
+            marca?: string;
           };
           if (d?.ok && d.encontrado && d.nome) {
             setNome(d.nome);
-            setSugerido(d.nome);
+            setMarca(d.marca ?? "");
             setUnidade(d.unidade || unitFor(d.nome));
             // Preco da ultima compra desse item, se a casa ja comprou.
             const jaTem = findByName(d.nome, stock);
@@ -114,7 +113,7 @@ export function BarcodeModal({ open, onClose }: { open: boolean; onClose: () => 
     setUnidade("un");
     setConhecido(false);
     setDigitado("");
-    setSugerido("");
+    setEditandoNome(false);
   }
 
   function fechar() {
@@ -150,10 +149,14 @@ export function BarcodeModal({ open, onClose }: { open: boolean; onClose: () => 
   }
 
   const total = trip?.total ?? 0;
+  // O que ESTE item vai somar, mostrado no proprio botao: confere o preco antes
+  // de confirmar, sem precisar fazer conta de cabeca no corredor.
+  const totalItem =
+    (Number(qtd.replace(",", ".")) || 0) * (Number(preco.replace(",", ".")) || 0);
 
   return (
     <Modal open={open} onClose={fechar} maxWidth={440}>
-      <div className="mb-[18px] flex items-start justify-between gap-3">
+      <div className="mb-[18px] flex items-start justify-between gap-3 pr-12">
         <div>
           <div className="flex items-center gap-2 text-[13px] font-bold text-brand">
             <BarcodeIcon size={18} />
@@ -236,47 +239,47 @@ export function BarcodeModal({ open, onClose }: { open: boolean; onClose: () => 
             pegar();
           }}
         >
-          <div className="mb-3.5 rounded-[13px] border border-border bg-card-2 p-3">
-            <div className="text-[12px] font-bold uppercase tracking-wide text-text-3">
-              Código
+          {/* O produto em destaque, nao num campo de formulario: a pessoa
+              precisa RECONHECER o que leu num relance, nao ler um rotulo de
+              campo. Trocar o nome e excecao, entao vira um link discreto. */}
+          <div className="mb-4 rounded-[16px] border-[1.5px] border-brand bg-brand/5 p-4">
+            <div className="text-[20px] font-extrabold leading-tight">
+              {nome || "Produto novo"}
             </div>
-            <div className="font-mono text-[15px] font-bold">{prettyBarcode(codigo)}</div>
-            <div className="mt-1 text-[12px] leading-snug text-text-2">
-              {conhecido
-                ? "Produto reconhecido. Corrigir o nome aqui religa o código a outro item."
-                : sugerido
-                  ? `Achei “${sugerido}” na base de códigos de barras. Confira e corrija se quiser.`
-                  : !guardaCodigo
-                    ? "Diga o nome do produto e ele vai pro carrinho. Por enquanto este código não fica guardado."
-                    : "Primeira vez com esse código. Diga o nome uma vez e ele fica gravado."}
+            <div className="mt-1 text-[12px] text-text-3">
+              {marca ? `${marca} · ` : ""}
+              {prettyBarcode(codigo)}
             </div>
+            {!editandoNome ? (
+              <button
+                type="button"
+                onClick={() => setEditandoNome(true)}
+                className="mt-2 text-[13px] font-bold text-brand"
+              >
+                {nome ? "Não é esse? Trocar o nome" : "Escrever o nome"}
+              </button>
+            ) : (
+              <input
+                value={nome}
+                onChange={(e) => onNome(e.target.value)}
+                placeholder="Ex.: Arroz"
+                className={`${field} mt-2.5`}
+                autoFocus
+              />
+            )}
           </div>
 
-          <label className={labelCls}>Produto</label>
-          <input
-            value={nome}
-            onChange={(e) => onNome(e.target.value)}
-            placeholder="Ex.: Arroz"
-            className={`${field} mb-3.5`}
-            autoFocus={!conhecido}
-          />
-
-          <div className="mb-3.5 flex gap-2">
-            <div className="min-w-0 flex-1">
-              <label className={labelCls}>Quantidade</label>
-              <QtyStepper
-                value={qtd}
-                onChange={setQtd}
-                unit={unidade}
-                autoFocus={conhecido}
-              />
-            </div>
-            <div className="w-[84px] shrink-0">
-              <label className={labelCls}>Unidade</label>
+          <div className="mb-4">
+            <label className={labelCls}>Quantidade</label>
+            <div className="flex gap-2">
+              <div className="min-w-0 flex-1">
+                <QtyStepper value={qtd} onChange={setQtd} unit={unidade} />
+              </div>
               <select
                 value={unidade}
                 onChange={(e) => setUnidade(e.target.value)}
-                className={`${field} px-2.5`}
+                aria-label="Unidade"
+                className="h-12 w-[78px] shrink-0 rounded-[13px] border border-border bg-card-2 px-2 text-[15px]"
               >
                 {UNITS.map((u) => (
                   <option key={u} value={u}>
@@ -287,14 +290,23 @@ export function BarcodeModal({ open, onClose }: { open: boolean; onClose: () => 
             </div>
           </div>
 
-          <label className={labelCls}>Preço (unidade)</label>
-          <input
-            value={preco}
-            onChange={(e) => setPreco(e.target.value)}
-            inputMode="decimal"
-            placeholder="R$ 0,00"
-            className={`${field} mb-1.5`}
-          />
+          <label className={labelCls}>Quanto custou? (por {unidade})</label>
+          <div className="relative mb-1.5">
+            <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[18px] font-bold text-text-3">
+              R$
+            </span>
+            <input
+              value={preco}
+              onChange={(e) => setPreco(e.target.value)}
+              inputMode="decimal"
+              placeholder="0,00"
+              aria-label="Preço"
+              // Nome e quantidade ja vem prontos: o teclado abre direto no unico
+              // campo que a pessoa precisa preencher.
+              autoFocus={Boolean(nome) && !editandoNome}
+              className="h-[58px] w-full rounded-[14px] border border-border bg-card-2 pl-[52px] pr-4 text-[22px] font-bold"
+            />
+          </div>
           <p className="mb-5 text-[12px] text-text-3">
             Em branco, usamos o preço da última compra desse item.
           </p>
@@ -303,16 +315,20 @@ export function BarcodeModal({ open, onClose }: { open: boolean; onClose: () => 
             <button
               type="button"
               onClick={voltarALer}
-              className="h-[50px] flex-1 rounded-[14px] border border-border bg-card text-[15px] font-bold"
+              className="h-[56px] flex-1 rounded-[14px] border border-border bg-card text-[15px] font-bold"
             >
               Ler outro
             </button>
             <button
               type="submit"
               disabled={busy || !nome.trim()}
-              className="h-[50px] flex-[1.6] rounded-[14px] bg-brand text-[15px] font-bold text-brand-ink disabled:opacity-50"
+              className="h-[56px] flex-[2] rounded-[14px] bg-brand text-[15px] font-bold text-brand-ink disabled:opacity-50"
             >
-              {busy ? "Colocando…" : "Colocar no carrinho"}
+              {busy
+                ? "Colocando…"
+                : totalItem > 0
+                  ? `Colocar · ${brl(totalItem)}`
+                  : "Colocar no carrinho"}
             </button>
           </div>
         </form>

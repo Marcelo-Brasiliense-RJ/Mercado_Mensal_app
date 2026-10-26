@@ -2,20 +2,58 @@
 
 import { useState } from "react";
 import type { StockItem } from "@/lib/types";
-import { stockRatio, brl } from "@/lib/format";
-import { ProgressBar } from "@/components/ui/ProgressBar";
-import { AvatarInitial } from "@/components/ui/AvatarInitial";
-import { CheckIcon, ChevronRight, MicIcon, PlusIcon, ReceiptIcon, SearchIcon, TelegramIcon } from "@/components/ui/icons";
+import { stockRatio } from "@/lib/format";
+import { stepFor } from "@/lib/defaults";
+import { CheckIcon, MicIcon, PlusIcon, SearchIcon } from "@/components/ui/icons";
 import { ScreenHeader } from "@/components/layout/ScreenHeader";
 import { useStore, type RpcResult } from "@/lib/store";
-import { BOT_URL } from "@/lib/config";
 import { VoiceModal } from "@/components/voz/VoiceModal";
 import { ItemDetailModal } from "./ItemDetailModal";
 import { BatchAddModal } from "./BatchAddModal";
 
+// Despensa em cards, dois por linha.
+//
+// O que havia antes era uma lista com barra de progresso, porcentagem, valor em
+// reais e seta em cada linha: um relatorio. Quem chega do mercado com sacola na
+// mao nao le relatorio, bate o olho. O que decide uma acao e o NOME, o QUANTO
+// resta e a COR; o resto abre no toque.
+//
+// Dois toques morreram tambem: "usei um" e "repor" saem do card, sem passar pelo
+// popup de detalhe.
+
+type Estado = "acabou" | "pouco" | "tem";
+
+function estadoDe(item: StockItem): Estado {
+  if (item.current <= 0) return "acabou";
+  // Sem nivel normal definido nao da para dizer que esta acabando: stockRatio
+  // devolve 1 nesse caso, e o card so mostra o que tem.
+  if (item.normal > 0 && stockRatio(item.current, item.normal) < 0.5) return "pouco";
+  return "tem";
+}
+
+const ORDEM: Record<Estado, number> = { acabou: 0, pouco: 1, tem: 2 };
+
+// 0.5 vira "0,5": ponto decimal em tela de app brasileiro parece erro de sistema.
+function fmtQtd(n: number): string {
+  return Number(n ?? 0).toLocaleString("pt-BR", { maximumFractionDigits: 2 });
+}
+
+const CORES: Record<Estado, { faixa: string; selo: string; texto: string }> = {
+  acabou: { faixa: "bg-neg", selo: "bg-neg-soft text-neg", texto: "Acabou" },
+  pouco: { faixa: "bg-warn", selo: "bg-warn-soft text-warn", texto: "Pouco" },
+  tem: { faixa: "bg-pos", selo: "bg-pos-soft text-pos", texto: "Tem" },
+};
+
 export function StockView() {
-  const { stock, zerarStock, deleteStock, stockToList, showToast, openReceipt } =
-    useStore();
+  const {
+    stock,
+    zerarStock,
+    baixaStock,
+    deleteStock,
+    stockToList,
+    addStockToList,
+    showToast,
+  } = useStore();
   const [q, setQ] = useState("");
   // Guarda o id, nao o objeto: depois de salvar o nivel normal o modal precisa
   // mostrar o valor novo, e um StockItem congelado no state mostraria o antigo.
@@ -23,15 +61,14 @@ export function StockView() {
   const [selMode, setSelMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
+  const [agindo, setAgindo] = useState<string | null>(null);
   const [voiceOpen, setVoiceOpen] = useState(false);
   const [stockAddOpen, setStockAddOpen] = useState(false);
 
-  const filtered = stock.filter((i) =>
-    i.name.toLowerCase().includes(q.toLowerCase()),
-  );
-  const repor = filtered.filter((i) => stockRatio(i.current, i.normal) < 0.5);
-  const ok = filtered.filter((i) => stockRatio(i.current, i.normal) >= 0.5);
-  const valorTotal = stock.reduce((a, i) => a + i.current * (i.priceLast ?? 0), 0);
+  const filtered = stock
+    .filter((i) => i.name.toLowerCase().includes(q.toLowerCase()))
+    .sort((a, b) => ORDEM[estadoDe(a)] - ORDEM[estadoDe(b)] || a.name.localeCompare(b.name));
+  const faltando = stock.filter((i) => estadoDe(i) !== "tem");
   const detail = stock.find((i) => i.id === detailId) ?? null;
 
   function toggleSel(id: string) {
@@ -46,12 +83,33 @@ export function StockView() {
     setSelMode(false);
     setSelected(new Set());
   }
-  function selecionarTudo() {
-    setSelected(new Set(filtered.map((i) => i.id)));
-  }
   function onItem(item: StockItem) {
     if (selMode) toggleSel(item.id);
     else setDetailId(item.id);
+  }
+
+  // Um toque, sem popup: tirar uma unidade do que tem em casa.
+  async function usei(item: StockItem) {
+    setAgindo(item.id);
+    const r = await baixaStock(item.id, stepFor(item.unit));
+    setAgindo(null);
+    if (!r.ok) showToast(r.erro);
+  }
+
+  // Um toque, sem popup: mandar para a lista de compras.
+  async function repor(item: StockItem) {
+    setAgindo(item.id);
+    const r = await addStockToList(item);
+    setAgindo(null);
+    showToast(r.ok ? `${item.name} na lista` : r.erro);
+  }
+
+  async function reporTudo() {
+    if (!faltando.length) return;
+    setBusy(true);
+    const r = await stockToList(faltando.map((i) => i.id));
+    setBusy(false);
+    showToast(r.ok ? `${faltando.length} itens na lista de compras` : r.erro);
   }
 
   async function runBatch(
@@ -80,7 +138,7 @@ export function StockView() {
         value={q}
         onChange={(e) => setQ(e.target.value)}
         placeholder="Buscar item..."
-        className="h-[44px] w-full rounded-[12px] border border-border bg-card pl-[42px] pr-4 text-[14px] lg:h-[44px]"
+        className="h-[44px] w-full rounded-[12px] border border-border bg-card pl-[42px] pr-4 text-[14px]"
       />
     </div>
   );
@@ -88,7 +146,6 @@ export function StockView() {
   const headerAction = (
     <div className="flex items-center gap-2">
       {search}
-      {/* Dois caminhos diretos, sem menu no meio: falar e digitar. */}
       <button
         onClick={() => setVoiceOpen(true)}
         className="hidden h-[44px] shrink-0 items-center gap-2 rounded-[12px] border border-border bg-card px-4 text-[14px] font-bold lg:flex"
@@ -109,114 +166,75 @@ export function StockView() {
 
   return (
     <>
-      <ScreenHeader
-        title="Estoque"
-        subtitle={`${stock.length} itens · ${brl(valorTotal)} em estoque`}
-        action={headerAction}
-      />
+      <ScreenHeader title="Estoque" subtitle="Despensa" action={headerAction} />
 
-      <div className="space-y-6 pb-24">
-        <div className="lg:hidden">{search}</div>
-
-        {stock.length > 0 && (
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-[13px] text-text-3">
-              {selMode
-                ? `${selected.size} selecionado(s)`
-                : "Toque em Selecionar para agir em lote"}
-            </span>
-            <div className="flex gap-2">
-              {selMode && (
-                <button
-                  onClick={selecionarTudo}
-                  className="h-9 rounded-[10px] border border-border bg-card px-3.5 text-[13px] font-bold text-text-2"
-                >
-                  Selecionar tudo
-                </button>
-              )}
-              <button
-                onClick={() => (selMode ? exitSel() : setSelMode(true))}
-                className="h-9 rounded-[10px] border border-border bg-card px-3.5 text-[13px] font-bold text-text-2"
-              >
-                {selMode ? "Cancelar" : "Selecionar"}
-              </button>
+      <div className="space-y-4 pb-[150px] lg:pb-10">
+        {/* Primeira coisa da tela: o que falta, com a acao junto. Antes o topo
+            trazia contagem de itens e valor em reais, que nao fazem ninguem agir. */}
+        {faltando.length > 0 && (
+          <div className="flex items-center gap-3 rounded-[18px] border-[1.5px] border-warn bg-warn-soft p-3.5">
+            <div className="min-w-0 flex-1">
+              <div className="text-[22px] font-extrabold leading-none text-warn">
+                {faltando.length} {faltando.length === 1 ? "item" : "itens"}
+              </div>
+              <div className="mt-1 text-[13px] font-bold text-text-2">
+                acabando ou já acabou
+              </div>
             </div>
+            <button
+              onClick={reporTudo}
+              disabled={busy}
+              className="h-[46px] shrink-0 rounded-[13px] bg-warn px-4 text-[14px] font-bold text-white disabled:opacity-50"
+            >
+              Mandar pra lista
+            </button>
           </div>
         )}
+
+        {/* Busca so aparece quando ha despensa o bastante para procurar. */}
+        {stock.length >= 8 && <div className="lg:hidden">{search}</div>}
 
         {stock.length === 0 && (
-          <div className="pt-8">
-            <div className="mb-1 text-center text-[18px] font-extrabold">
+          <div className="pt-10 text-center">
+            <div className="mb-1.5 text-[18px] font-extrabold">
               Sua despensa está vazia
             </div>
-            <p className="mx-auto mb-5 max-w-[420px] text-center text-[14px] leading-relaxed text-text-2">
-              Registre sua primeira compra e o estoque aparece aqui. Escolha como:
+            <p className="mx-auto max-w-[320px] text-[14px] leading-relaxed text-text-2">
+              Toque em <b>Falar</b> e diga o que tem em casa, ou em <b>Digitar</b>{" "}
+              para escrever.
             </p>
-            <div className="mx-auto flex max-w-[440px] flex-col gap-3">
-              <button
-                onClick={openReceipt}
-                className="flex items-center gap-3.5 rounded-[16px] border-[1.5px] border-brand bg-card p-4 text-left"
-              >
-                <span className="grid h-12 w-12 shrink-0 place-items-center rounded-[14px] bg-brand text-brand-ink">
-                  <ReceiptIcon size={24} />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block text-[15px] font-extrabold">Foto da nota fiscal</span>
-                  <span className="block text-[13px] leading-snug text-text-2">
-                    A gente lê os itens e preços automaticamente.
-                  </span>
-                </span>
-                <ChevronRight size={20} className="shrink-0 text-text-3" />
-              </button>
-              <a
-                href={BOT_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-3.5 rounded-[16px] border-[1.5px] border-[#2AABEE] bg-card p-4"
-              >
-                <span className="grid h-12 w-12 shrink-0 place-items-center rounded-[14px] bg-[#2AABEE] text-white">
-                  <TelegramIcon size={24} />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block text-[15px] font-extrabold">Áudio no Telegram</span>
-                  <span className="block text-[13px] leading-snug text-text-2">
-                    Fale o que comprou que o bot registra pra você.
-                  </span>
-                </span>
-                <ChevronRight size={20} className="shrink-0 text-[#2AABEE]" />
-              </a>
-            </div>
           </div>
         )}
 
-        {repor.length > 0 && (
-          <Section label="Repor" count={repor.length} warn>
-            {repor.map((i) => (
-              <Item
-                key={i.id}
-                item={i}
-                selMode={selMode}
-                selected={selected.has(i.id)}
-                onClick={() => onItem(i)}
-              />
-            ))}
-          </Section>
-        )}
-        {ok.length > 0 && (
-          <Section label="Tudo em casa" count={ok.length}>
-            {ok.map((i) => (
-              <Item
-                key={i.id}
-                item={i}
-                selMode={selMode}
-                selected={selected.has(i.id)}
-                onClick={() => onItem(i)}
-              />
-            ))}
-          </Section>
-        )}
+        {/* Dois cards por linha no celular: cabe o dobro de despensa num olhar. */}
+        <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4 lg:gap-3.5">
+          {filtered.map((i) => (
+            <Card
+              key={i.id}
+              item={i}
+              selMode={selMode}
+              selected={selected.has(i.id)}
+              ocupado={agindo === i.id}
+              onAbrir={() => onItem(i)}
+              onUsei={() => usei(i)}
+              onRepor={() => repor(i)}
+            />
+          ))}
+        </div>
+
         {stock.length > 0 && filtered.length === 0 && (
           <p className="pt-10 text-center text-text-3">Nenhum item encontrado.</p>
+        )}
+
+        {stock.length > 0 && (
+          <div className="flex justify-center pt-1">
+            <button
+              onClick={() => (selMode ? exitSel() : setSelMode(true))}
+              className="h-10 rounded-[10px] px-3.5 text-[13px] font-bold text-text-3"
+            >
+              {selMode ? "Cancelar seleção" : "Selecionar vários"}
+            </button>
+          </div>
         )}
       </div>
 
@@ -228,7 +246,7 @@ export function StockView() {
             disabled={busy}
             className="h-[50px] min-w-[100px] flex-1 rounded-[14px] bg-brand text-[14px] font-bold text-brand-ink shadow-[0_8px_24px_var(--shadow-lg)] disabled:opacity-50"
           >
-            Dar baixa ({selected.size})
+            Zerar ({selected.size})
           </button>
           <button
             onClick={() => runBatch(stockToList, (n) => `${n} item(ns) na lista de compras`)}
@@ -253,165 +271,113 @@ export function StockView() {
         </div>
       )}
 
-      {/* FAB "+" (mobile): esconde no modo selecao pra nao brigar com a barra de lote */}
+      {/* Mesma barra da Lista: as formas de anotar a um toque, sempre no polegar.
+          Os dois botoes flutuantes que havia aqui obrigavam a mirar em alvo de
+          48px no canto, e o "+" abria um menu antes de deixar digitar. */}
       {!selMode && (
-        <div className="fixed bottom-[92px] right-4 z-30 flex flex-col gap-2.5 lg:hidden">
-          <button
-            onClick={() => setVoiceOpen(true)}
-            aria-label="Falar aqui no app"
-            className="grid h-12 w-12 place-items-center rounded-[16px] border border-border bg-card text-brand shadow-[0_8px_20px_var(--shadow-lg)]"
-          >
-            <MicIcon size={22} />
-          </button>
-          <button
-            onClick={() => setStockAddOpen(true)}
-            aria-label="Adicionar item"
-            className="grid h-14 w-14 place-items-center rounded-[18px] bg-brand text-brand-ink shadow-[0_10px_24px_var(--shadow-lg)]"
-          >
-            <PlusIcon />
-          </button>
+        <div className="fixed inset-x-0 bottom-[calc(56px+env(safe-area-inset-bottom))] z-20 border-t border-border bg-card px-3 pb-2.5 pt-2 shadow-[0_-4px_16px_var(--shadow)] lg:hidden">
+          <div className="flex gap-2">
+            <button
+              onClick={() => setVoiceOpen(true)}
+              className="flex h-[54px] flex-1 flex-col items-center justify-center gap-0.5 rounded-[14px] bg-brand text-[12px] font-bold text-brand-ink"
+            >
+              <MicIcon size={22} />
+              Falar
+            </button>
+            <button
+              onClick={() => setStockAddOpen(true)}
+              className="flex h-[54px] flex-1 flex-col items-center justify-center gap-0.5 rounded-[14px] border border-border bg-card-2 text-[12px] font-bold"
+            >
+              <PlusIcon size={22} />
+              Digitar
+            </button>
+          </div>
         </div>
       )}
 
       <BatchAddModal open={stockAddOpen} onClose={() => setStockAddOpen(false)} />
       <VoiceModal open={voiceOpen} onClose={() => setVoiceOpen(false)} />
-
       <ItemDetailModal item={detail} onClose={() => setDetailId(null)} />
     </>
   );
 }
 
-function Section({
-  label,
-  count,
-  warn = false,
-  children,
-}: {
-  label: string;
-  count: number;
-  warn?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="space-y-3">
-      <div className="flex items-center gap-2 px-1">
-        <span
-          className={`text-[13px] font-extrabold uppercase tracking-wide ${
-            warn ? "text-warn" : "text-text-3"
-          }`}
-        >
-          {label}
-        </span>
-        <span
-          className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${
-            warn ? "bg-warn-soft text-warn" : "bg-card-2 text-text-3"
-          }`}
-        >
-          {count}
-        </span>
-      </div>
-      <div className="space-y-2.5 lg:grid lg:grid-cols-3 lg:gap-3.5 lg:space-y-0">
-        {children}
-      </div>
-    </section>
-  );
-}
-
-function Item({
+function Card({
   item,
   selMode,
   selected,
-  onClick,
+  ocupado,
+  onAbrir,
+  onUsei,
+  onRepor,
 }: {
   item: StockItem;
   selMode: boolean;
   selected: boolean;
-  onClick: () => void;
+  ocupado: boolean;
+  onAbrir: () => void;
+  onUsei: () => void;
+  onRepor: () => void;
 }) {
-  const ratio = stockRatio(item.current, item.normal);
-  // Sem par_level definido stockRatio devolve 1: a barra encheria e o card diria
-  // 100% para um item sobre o qual nao sabemos nada. Melhor nao dizer.
-  const semReferencia = item.normal <= 0;
-  const repor = !semReferencia && ratio < 0.5;
-  const valor = item.priceLast ? item.current * item.priceLast : null;
+  const estado = estadoDe(item);
+  const cor = CORES[estado];
+  const acabou = estado === "acabou";
+
   return (
-    <>
-      {/* Mobile */}
-      <button
-        onClick={onClick}
-        className={`flex w-full items-center gap-3 rounded-[16px] border bg-card p-3 text-left shadow-[0_1px_3px_var(--shadow)] lg:hidden ${
-          selected ? "border-brand ring-1 ring-brand" : "border-border"
-        } ${repor && !selected ? "border-l-[3px] border-l-warn" : ""}`}
-      >
-        {selMode && <SelDot on={selected} />}
-        <AvatarInitial name={item.name} size={44} />
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center justify-between gap-2">
-            <span className="truncate font-bold">{item.name}</span>
-            <span className="shrink-0 text-sm text-text-2">
-              {item.current} {item.unit}
-              {valor !== null ? ` · ${brl(valor)}` : ""}
-            </span>
-          </div>
-          {!semReferencia && (
-            <div className="mt-2 flex items-center gap-2">
-              <ProgressBar ratio={ratio} />
-              <span className="w-9 shrink-0 text-right text-[11px] text-text-3">
-                {Math.round(ratio * 100)}%
-              </span>
-            </div>
-          )}
-        </div>
-        {!selMode && !repor && (
-          <ChevronRight size={18} className="shrink-0 text-text-3" />
+    <div
+      className={`relative overflow-hidden rounded-[18px] border bg-card shadow-[0_1px_3px_var(--shadow)] ${
+        selected ? "border-brand ring-2 ring-brand" : "border-border"
+      }`}
+    >
+      {/* Faixa de cor no topo: diz o estado antes de qualquer leitura. */}
+      <div className={`h-1.5 w-full ${cor.faixa}`} />
+
+      <button onClick={onAbrir} className="block w-full p-3 text-left">
+        {selMode && (
+          <span className="absolute right-2.5 top-3.5">
+            <SelDot on={selected} />
+          </span>
         )}
+        <div className="mb-2 flex items-center gap-1.5">
+          <span className={`rounded-full px-2 py-[2px] text-[10px] font-extrabold uppercase ${cor.selo}`}>
+            {cor.texto}
+          </span>
+        </div>
+        {/* Nome em duas linhas no maximo: produto de mercado tem nome comprido e
+            cortar no meio da palavra deixa indecifravel. */}
+        <div className="line-clamp-2 text-[15px] font-extrabold leading-tight">
+          {item.name}
+        </div>
+        <div className="mt-1.5 text-[24px] font-extrabold leading-none">
+          {fmtQtd(item.current)}
+          <span className="ml-1 text-[13px] font-bold text-text-3">{item.unit}</span>
+        </div>
       </button>
 
-      {/* Desktop */}
-      <button
-        onClick={onClick}
-        className={`hidden text-left lg:block rounded-[18px] border bg-card p-4 shadow-[0_1px_3px_var(--shadow)] ${
-          selected ? "border-brand ring-1 ring-brand" : "border-border"
-        } ${repor && !selected ? "border-l-[3px] border-l-warn" : ""}`}
-      >
-        <div className="mb-3.5 flex items-center gap-3">
-          {selMode && <SelDot on={selected} />}
-          <AvatarInitial name={item.name} size={42} />
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-[15px] font-bold">{item.name}</div>
-            <div className="text-[13px] text-text-2">
-              {item.current} {item.unit}
-              {valor !== null ? ` · ${brl(valor)}` : ""}
-            </div>
-          </div>
-          {repor && (
-            <span className="rounded-full bg-warn-soft px-2.5 py-[3px] text-[11px] font-extrabold text-warn">
-              Repor
-            </span>
+      {!selMode && (
+        <div className="flex border-t border-border">
+          {/* Acabou nao tem o que dar baixa: o card inteiro vira "Repor". */}
+          {!acabou && (
+            <button
+              onClick={onUsei}
+              disabled={ocupado}
+              className="h-11 flex-1 border-r border-border text-[13px] font-bold text-text-2 disabled:opacity-40"
+            >
+              Usei
+            </button>
           )}
-          {!repor && !semReferencia && (
-            <span className="text-[12px] font-bold text-text-3">
-              {Math.round(ratio * 100)}%
-            </span>
-          )}
+          <button
+            onClick={onRepor}
+            disabled={ocupado}
+            className={`h-11 flex-1 text-[13px] font-bold text-brand disabled:opacity-40 ${
+              acabou ? "bg-brand/5" : ""
+            }`}
+          >
+            Repor
+          </button>
         </div>
-        {semReferencia ? (
-          <div className="text-[11px] text-text-3">
-            Sem referência de quanto ter em casa
-          </div>
-        ) : (
-          <>
-            <ProgressBar ratio={ratio} height={8} />
-            <div className="mt-[7px] flex justify-between text-[11px] text-text-3">
-              <span>Nível</span>
-              <span>
-                costuma ter {item.normal} {item.unit}
-              </span>
-            </div>
-          </>
-        )}
-      </button>
-    </>
+      )}
+    </div>
   );
 }
 
@@ -419,7 +385,7 @@ function SelDot({ on }: { on: boolean }) {
   return (
     <span
       className={`grid h-[22px] w-[22px] shrink-0 place-items-center rounded-full border-2 ${
-        on ? "border-brand bg-brand text-brand-ink" : "border-border text-transparent"
+        on ? "border-brand bg-brand text-brand-ink" : "border-border bg-card text-transparent"
       }`}
     >
       <CheckIcon size={12} />

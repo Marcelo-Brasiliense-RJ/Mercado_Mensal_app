@@ -84,8 +84,18 @@ export function Modal({
           // alcancavel, so que rolando dentro do popup.
           maxHeight: area ? Math.max(220, area.altura - 24) : undefined,
         }}
-        className="max-h-[90dvh] w-full overflow-y-auto overflow-x-hidden overscroll-contain rounded-[24px] border border-border bg-card p-5 shadow-[0_30px_70px_var(--shadow-lg)] sm:p-[26px]"
+        className="relative max-h-[90dvh] w-full overflow-y-auto overflow-x-hidden overscroll-contain rounded-[24px] border border-border bg-card p-5 shadow-[0_30px_70px_var(--shadow-lg)] sm:p-[26px]"
       >
+        {/* Fechar visivel. Tocar fora funciona, mas ninguem adivinha isso: sem o
+            X a pessoa fica presa no popup sem saber como sair. */}
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Fechar"
+          className="absolute right-3 top-3 z-10 grid h-11 w-11 place-items-center rounded-full bg-card-2 text-[20px] font-bold leading-none text-text-2 active:scale-95"
+        >
+          ×
+        </button>
         {children}
       </div>
     </div>
