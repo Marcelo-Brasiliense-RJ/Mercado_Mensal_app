@@ -397,7 +397,7 @@ function renderRevisar() {
   document.getElementById("lista-rev").innerHTML = p.map(o => `<div class="card">
       <div class="oferta"><div class="info"><div class="nome">${o.produto} ${o.marca} <span class="meta">${o.tam}</span></div>
       <div class="meta">${NOME[o.m]} · até ${o.ate}</div><div class="motivo">⚠️ ${o.motivo}</div></div>
-      <div class="preco"><b style="color:var(--warn)">${brl(o.por)}</b><s>${brl(o.de)}</s></div></div>
+      <div class="preco"><b style="color:var(--warn)">${brl(o.por)}</b>${o.de > o.por ? `<s>${brl(o.de)}</s>` : ""}</div></div>
       <div class="acoes"><button class="btn btn-pos" data-ap="${o.id}">Está certo</button>
       <button class="btn btn-neg" data-ds="${o.id}">Descartar</button></div></div>`).join("")
     || '<div class="vazio">Tudo revisado. 👍</div>';

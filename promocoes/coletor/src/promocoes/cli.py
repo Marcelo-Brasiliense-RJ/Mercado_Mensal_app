@@ -28,12 +28,29 @@ def coletar_direto(mercado: str, base: Path) -> str:
     return f"{mercado} | loja: {local} | {len(ofertas)} ofertas | {arq}"
 
 
-NOMES = {"superbom": "Superbom", "mundial": "Mundial"}
+NOMES = {"superbom": "Superbom", "mundial": "Mundial", "guanabara": "Guanabara", "supermarket": "Supermarket"}
 FONTES = {
     "superbom": "Site oficial · loja Curicica (preço em texto, sem IA)",
     "mundial": "Encarte em PDF do site · lido por IA (Gemini + Nemotron)",
+    "guanabara": "Encarte em imagens do site · lido por IA (Gemini + Nemotron)",
+    "supermarket": "Encarte em PDF do site · preço com CPF · lido por IA",
+}
+# Categorias do site do Superbom -> as mesmas usadas na leitura dos encartes.
+CATEGORIA_COMUM = {
+    "Matinais": "Mercearia", "Alimentos Básicos": "Mercearia", "Naturais e Saudáveis": "Mercearia",
+    "Temperos e Conservas": "Mercearia", "Biscoitos e Salgadinhos": "Doces e Biscoitos",
+    "Doces e Sobremesas": "Doces e Biscoitos", "Carnes, Aves e Peixes": "Carnes", "Bebidas Alcoólicas": "Bebidas",
+    "Leites e Iogurtes": "Frios e Laticínios", "Pet Shop e Jardinagem": "Pet", "Utilidades Para O Lar": "Utilidades",
 }
 DIAS = ["seg", "ter", "qua", "qui", "sex", "sáb", "dom"]
+
+
+def _marca(o: dict) -> str:
+    """Marca so quando ja nao esta no nome (a IA costuma repetir: 'Arroz Rei do Sul' + 'Rei do Sul')."""
+    marca = (o.get("marca") or "").strip()
+    if o["mercado"] == "superbom" or marca.lower() in ("", "marca não informada", "não informada"):
+        return ""
+    return "" if marca.lower() in o["produto"].lower() else marca
 
 
 def _ate(fim: str | None) -> str | None:
@@ -82,9 +99,9 @@ def exportar(base: Path, destino: Path) -> str:
             vistos.add(chave)
             ofertas.append({
                 "m": m,
-                "cat": (o["categoria"] or "Outros").split(" / ")[0],
+                "cat": CATEGORIA_COMUM.get(c := (o["categoria"] or "Outros").split(" / ")[0], c),
                 "produto": o["produto"],  # no Superbom o nome ja traz marca e tamanho
-                "marca": o.get("marca") if m != "superbom" else "",
+                "marca": _marca(o),
                 "tam": o.get("tamanho") or "",
                 "por": o["preco_por"],
                 "de": o["preco_de"] or o["preco_por"],

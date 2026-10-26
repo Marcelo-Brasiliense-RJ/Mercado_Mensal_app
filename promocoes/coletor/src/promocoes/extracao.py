@@ -93,6 +93,15 @@ def _igual(a, b) -> bool:
     return abs(float(a) - float(b)) < 0.005
 
 
+def _fmt(x: dict) -> str:
+    """Precos para o motivo: 'R$ 4,95 → R$ 3,95' ou so 'R$ 3,95'."""
+    def brl(v):
+        return f"R$ {float(v):.2f}".replace(".", ",")
+    x = _um_preco(x)
+    n, a = x.get("preco_normal"), x.get("preco_app")
+    return " → ".join(brl(v) for v in (n, a) if v is not None) or "sem preço"
+
+
 def _um_preco(x: dict) -> dict:
     """Encarte de preco unico: o conferente as vezes repete o valor nos dois campos."""
     if x.get("preco_normal") is not None and _igual(x.get("preco_normal"), x.get("preco_app")):
@@ -145,8 +154,7 @@ def ler_pagina(ia: IA, img: bytes, mercado: str) -> list[dict]:
                 it["motivo"] = "Corrigido: as duas IAs concordaram na segunda leitura."
             elif nova and _precos_iguais(nova, it):
                 it["status"] = "revisar"
-                it["motivo"] = (f"As IAs discordam: leitura {it['preco_normal']} / {it['preco_app']}, "
-                                f"conferente {val.get('preco_normal')} / {val.get('preco_app')}.")
+                it["motivo"] = f"As IAs discordam: leitura {_fmt(it)}, conferente {_fmt(val)}."
             else:
                 it["status"], it["motivo"] = "revisar", "Leituras diferentes nas três tentativas."
 
