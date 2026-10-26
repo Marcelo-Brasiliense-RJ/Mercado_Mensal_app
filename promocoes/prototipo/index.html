@@ -87,6 +87,12 @@ h2 { font-size:16px; margin:18px 0 4px; }
 .mini { background:var(--card); border-radius:14px; padding:12px; box-shadow:0 1px 3px var(--shadow);
   display:flex; flex-direction:column; gap:6px; min-width:0; border:1px solid var(--border); }
 .mini.da-lista { border:2px solid var(--brand); padding:11px; }
+.mini { overflow:hidden; }
+.mini .faixa { display:flex; justify-content:space-between; align-items:center; gap:6px;
+  margin:-12px -12px 4px; padding:8px 10px 8px 12px; color:#fff; font-weight:800; font-size:14px; letter-spacing:.2px; }
+.mini.da-lista .faixa { margin:-11px -11px 4px; }
+.mini .faixa span:first-child { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
+.mini .faixa .off { background:#fff; color:#0F6B3E; }
 .mini .topo { display:flex; justify-content:space-between; align-items:center; gap:6px; }
 .mini .merc { display:inline-flex; align-items:center; gap:5px; font-size:12px; font-weight:600; color:var(--text);
   min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -262,7 +268,7 @@ function casa(o) {
 }
 
 // Cor de cada mercado, para reconhecer de relance.
-const COR = { mundial:"#E0453A", guanabara:"#2F6FD0", supermarket:"#1E9E5A", superbom:"#E58A1F", economia:"#8A4FD0" };
+const COR = { mundial:"#C8352B", guanabara:"#2559B0", supermarket:"#157A45", superbom:"#B0600E", economia:"#7340B8" };
 const HOJE = new Date(2026, 9, 26);
 function prazo(o) {
   const [d, m] = o.ate.split(" ")[1].split("/").map(Number);
@@ -275,7 +281,7 @@ function prazo(o) {
 function cardOferta(o) {
   const na = casa(o);
   return `<div class="mini ${na ? "da-lista" : ""}">
-    <div class="topo"><span class="merc"><i style="background:${COR[o.m]}"></i>${NOME[o.m]}</span>
+    <div class="faixa" style="background:${COR[o.m]}"><span>${NOME[o.m]}</span>
       <span class="off">-${pct(o)}%</span></div>
     <div class="nome">${marcar(o.produto + (o.marca ? " " + o.marca : ""))} <span class="tam">${o.tam}</span></div>
     <div class="pr"><b>${brl(o.por)}</b><s>${brl(o.de)}</s></div>
