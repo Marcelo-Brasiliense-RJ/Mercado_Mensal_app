@@ -15,6 +15,7 @@ import { useHousehold } from "@/lib/household";
 const META: Record<string, { title: string; subtitle: string }> = {
   "/app/estoque": { title: "Estoque", subtitle: "Despensa" },
   "/app/lista": { title: "Lista", subtitle: "de compras" },
+  "/app/ofertas": { title: "Ofertas", subtitle: "da semana" },
   "/app/economia": { title: "Economia", subtitle: "do mês" },
   "/app/config": { title: "Família", subtitle: "e ajustes" },
 };

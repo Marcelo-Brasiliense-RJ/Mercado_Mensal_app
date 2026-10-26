@@ -20,3 +20,14 @@ Baixa o encarte vigente e gera uma imagem por página em `coletor/data/`.
     uv run promocoes coletar          # todos os mercados com coletor
     uv run promocoes exportar         # leva as ofertas reais para o protótipo
     uv run pytest -q
+
+## No app (aba Ofertas)
+
+1. Aplicar no SQL Editor do Supabase, em ordem: `0037_monitor_promocoes.sql` e `0038_ofertas.sql`.
+2. Variáveis do coletor: `SUPABASE_URL`, `SUPABASE_KEY` (service_role) e, para o comando `lista`, `PROMOCOES_CASA`.
+3. Rodada da semana:
+
+       uv run promocoes coletar && uv run promocoes extrair && uv run promocoes fotos
+       uv run promocoes publicar          # só ofertas aprovadas vão para o app
+
+Sem a 0038 aplicada, a aba mostra "As ofertas ainda não foram ligadas" e o resto do app segue igual.

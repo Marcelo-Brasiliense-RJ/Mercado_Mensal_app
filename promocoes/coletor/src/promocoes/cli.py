@@ -127,6 +127,26 @@ def exportar(base: Path, destino: Path) -> str:
     return f"{len(ofertas)} ofertas de {len(mercados)} mercado(s) -> {destino}"
 
 
+def para_publicar(base: Path, mercado: str) -> list[dict]:
+    """Coleta mais recente do mercado, so o que passou na validacao, com a miniatura embutida."""
+    arqs = sorted((base / "ofertas" / mercado).glob("*.json"))
+    if not arqs:
+        return []
+    saida, vistos = [], set()
+    for o in json.loads(arqs[-1].read_text()):
+        chave = (o["produto"].lower(), o["preco_por"])
+        if o.get("status", "ok") != "ok" or chave in vistos:
+            continue
+        vistos.add(chave)
+        saida.append({
+            "produto": o["produto"], "marca": _marca(o), "tamanho": o.get("tamanho") or "",
+            "categoria": CATEGORIA_COMUM.get(c := (o.get("categoria") or "Outros").split(" / ")[0], c),
+            "preco_por": o["preco_por"], "preco_de": o.get("preco_de"), "condicao": o.get("condicao"),
+            "inicio": o.get("inicio"), "fim": o.get("fim"), "foto": fotos.data_uri(base, o.get("foto")),
+        })
+    return saida
+
+
 def main() -> None:
     todos = [*PARSERS, *DIRETOS]
     p = argparse.ArgumentParser(prog="promocoes")
@@ -136,6 +156,8 @@ def main() -> None:
     x = sub.add_parser("extrair", help="le com IA os encartes baixados")
     x.add_argument("mercados", nargs="*", default=list(PARSERS))
     sub.add_parser("lista", help="puxa do app o que falta comprar (lista + Repor)")
+    pb = sub.add_parser("publicar", help="manda as ofertas aprovadas para a aba Ofertas do app")
+    pb.add_argument("mercados", nargs="*", default=todos)
     f = sub.add_parser("fotos", help="miniaturas das ofertas (recorte do encarte ou foto do site)")
     f.add_argument("mercados", nargs="*", default=todos)
     e = sub.add_parser("exportar", help="gera os dados reais para o prototipo")
@@ -157,6 +179,10 @@ def main() -> None:
     erro = False
     for m in a.mercados:
         try:
+            if a.cmd == "publicar":
+                r = lista_app.publicar(m, para_publicar(base, m))
+                print(f"{m} | {r.get('gravadas', 0)} ofertas no app" if r.get("ok") else f"{m}: {r}")
+                continue
             if a.cmd == "fotos":
                 n = fotos.baixar_do_site(base, m) if m in DIRETOS else fotos.recortar_encarte(base, m)
                 print(f"{m} | {n} fotos")
