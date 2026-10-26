@@ -37,7 +37,8 @@ def _espacar() -> None:
         _ultima = time.monotonic()
 
 
-def _post(url: str, **kw) -> dict:
+def _post(url: str, chave: str, **kw) -> dict:
+    """POST com retry. `chave` e o campo que a resposta boa precisa ter."""
     for n in range(TENTATIVAS):
         _espacar()
         try:
@@ -52,7 +53,13 @@ def _post(url: str, **kw) -> dict:
             time.sleep(min(espera, 120))
             continue
         r.raise_for_status()
-        return r.json()
+        d = r.json()
+        # O free as vezes responde 200 com {"error": ...} no corpo (fila cheia, provedor fora).
+        if d.get(chave):
+            return d
+        if n == TENTATIVAS - 1:
+            raise RuntimeError(f"resposta sem '{chave}': {str(d.get('error') or d)[:200]}")
+        time.sleep(2 ** (n + 3))
     raise RuntimeError("sem resposta")
 
 
@@ -86,6 +93,7 @@ class IA:
         def chamar():
             d = _post(
                 f"https://generativelanguage.googleapis.com/v1beta/models/{modelo}:generateContent",
+                "candidates",
                 headers={"x-goog-api-key": os.environ["GEMINI_API_KEY"]},
                 json={
                     "contents": [{"parts": [
@@ -103,6 +111,7 @@ class IA:
         def chamar():
             d = _post(
                 "https://openrouter.ai/api/v1/chat/completions",
+                "choices",
                 headers={"Authorization": f"Bearer {os.environ['OPENROUTER_API_KEY']}"},
                 json={
                     "model": modelo,

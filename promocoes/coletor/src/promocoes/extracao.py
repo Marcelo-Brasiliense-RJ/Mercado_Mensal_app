@@ -107,7 +107,12 @@ def ler_pagina(ia: IA, img: bytes, mercado: str) -> list[dict]:
 
     lista = [{"i": i, "produto": f"{e['produto']} {e.get('marca', '')}".strip(),
               "preco_normal": e["preco_normal"], "preco_app": e["preco_app"]} for i, e in enumerate(itens)]
-    v = ia.openrouter(img, PERGUNTA_VALIDA.format(lista=json.dumps(lista, ensure_ascii=False)))
+    try:
+        v = ia.openrouter(img, PERGUNTA_VALIDA.format(lista=json.dumps(lista, ensure_ascii=False)))
+    except Exception as erro:  # sem conferente a pagina nao para: tudo vai para revisao (e nada fica em cache)
+        for it in itens:
+            it["status"], it["motivo"] = "revisar", f"Conferente indisponível ({str(erro)[:80]})."
+        return itens
     veredito = {int(x["i"]): x for x in v.get("itens", []) if str(x.get("i", "")).isdigit()}
 
     divergentes = [i for i, x in veredito.items() if i < len(itens) and x.get("status") in ("corrigido", "inexistente")]

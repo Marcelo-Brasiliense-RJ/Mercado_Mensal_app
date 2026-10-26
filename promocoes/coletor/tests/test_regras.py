@@ -63,3 +63,13 @@ def test_divergencia_que_persiste_vai_para_revisar():
                  [{"produto": "Arroz", "preco_normal": 4.95, "preco_app": 9.95}])
     [r] = ler_pagina(ia, b"", "mundial")
     assert r["status"] == "revisar" and "discordam" in r["motivo"]
+
+
+def test_sem_conferente_a_pagina_vai_toda_para_revisar():
+    class SemConferente(IAFalsa):
+        def openrouter(self, img, pergunta):
+            raise RuntimeError("resposta sem 'choices'")
+
+    ia = SemConferente([item("Arroz", 4.95, 3.95)], None, None)
+    [r] = ler_pagina(ia, b"", "mundial")
+    assert r["status"] == "revisar" and "Conferente" in r["motivo"]
