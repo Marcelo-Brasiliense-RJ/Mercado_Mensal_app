@@ -84,16 +84,50 @@ h2 { font-size:16px; margin:18px 0 4px; }
 .motivo { color:var(--warn); font-size:12px; margin-top:4px; }
 .acoes { display:flex; gap:8px; margin-top:8px; }
 .grade { display:grid; grid-template-columns:repeat(auto-fill,minmax(155px,1fr)); gap:8px; }
-.mini { background:var(--card); border-radius:12px; padding:10px; box-shadow:0 1px 3px var(--shadow);
-  display:flex; flex-direction:column; gap:4px; min-width:0; }
-.mini.da-lista { outline:2px solid var(--brand); }
-.mini .nome { font-weight:600; font-size:14px; line-height:1.25; }
-.mini .meta { color:var(--text-2); font-size:12px; }
-.mini .pr { margin-top:auto; padding-top:4px; display:flex; align-items:baseline; gap:6px; flex-wrap:wrap; }
-.mini .pr b { font-size:17px; color:var(--pos); }
+.mini { background:var(--card); border-radius:14px; padding:12px; box-shadow:0 1px 3px var(--shadow);
+  display:flex; flex-direction:column; gap:6px; min-width:0; border:1px solid var(--border); }
+.mini.da-lista { border:2px solid var(--brand); padding:11px; }
+.mini .topo { display:flex; justify-content:space-between; align-items:center; gap:6px; }
+.mini .merc { display:inline-flex; align-items:center; gap:5px; font-size:12px; font-weight:600; color:var(--text);
+  min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.mini .merc i { width:8px; height:8px; border-radius:50%; flex:none; }
+.mini .off { background:var(--pos); color:#fff; border-radius:6px; padding:2px 6px; font-size:12px; font-weight:800; flex:none; }
+.mini .nome { font-weight:700; font-size:15px; line-height:1.25; display:-webkit-box;
+  -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; min-height:2.5em; }
+.mini .tam { color:var(--text-2); font-size:13px; font-weight:400; }
+.mini .pr { margin-top:auto; display:flex; align-items:baseline; gap:6px; flex-wrap:wrap; }
+.mini .pr b { font-size:20px; color:var(--pos); letter-spacing:-0.3px; }
 .mini .pr s { color:var(--text-2); font-size:12px; }
+.mini .rodape { display:flex; justify-content:space-between; align-items:center; gap:6px;
+  border-top:1px solid var(--border); padding-top:6px; font-size:12px; color:var(--text-2); }
+.mini .rodape span { white-space:nowrap; }
+.mini .rodape .urg { color:var(--warn); font-weight:700; }
+.mini .nalista { color:var(--brand); font-weight:700; }
 .cat-tit { display:flex; justify-content:space-between; align-items:baseline; font-size:15px; margin:16px 0 6px; }
 .cat-tit span { color:var(--text-2); font-size:12px; font-weight:400; }
+.filtros { position:sticky; top:0; z-index:4; background:var(--bg); padding:8px 0 4px; margin:0 -16px; padding-left:16px; padding-right:16px; }
+.busca { position:relative; }
+.busca .lupa { position:absolute; left:14px; top:50%; transform:translateY(-50%); color:var(--text-2); pointer-events:none; }
+.busca input { padding:13px 44px 13px 42px !important; font-size:16px !important; border-radius:14px !important;
+  border:1.5px solid var(--border) !important; }
+.busca input:focus { outline:none; border-color:var(--brand) !important; box-shadow:0 0 0 3px var(--brand-soft); }
+.busca input::placeholder { color:var(--text-2); }
+.busca input::-webkit-search-cancel-button { display:none; }
+.busca .limpar { position:absolute; right:8px; top:50%; transform:translateY(-50%); border:0; background:var(--card-2);
+  color:var(--text); width:28px; height:28px; border-radius:50%; cursor:pointer; font-size:13px; display:none; }
+.busca.cheia .limpar { display:block; }
+.sugest { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; font-size:12px; color:var(--text-2); align-items:center; }
+.sugest button { border:0; background:none; color:var(--brand); font-weight:600; cursor:pointer; padding:2px 4px; font-size:12px; }
+.rotulo { font-size:11px; text-transform:uppercase; letter-spacing:.6px; color:var(--text-2); font-weight:700; margin:8px 0 2px; }
+.chip .dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; vertical-align:1px; }
+.chip .n { opacity:.65; margin-left:4px; font-size:12px; }
+.chip.on .n { opacity:.85; }
+.chip:disabled { opacity:.4; cursor:default; }
+.resbar { display:flex; justify-content:space-between; align-items:center; gap:8px; margin:6px 0 0; font-size:13px; color:var(--text-2); }
+.resbar b { color:var(--text); }
+.resbar select { background:var(--card); color:var(--text); border:1px solid var(--border); border-radius:10px;
+  padding:7px 10px; font-size:13px; font-weight:600; }
+mark { background:var(--warn-soft); color:inherit; border-radius:3px; padding:0 1px; }
 .tela { display:none; } .tela.on { display:block; }
 </style>
 </head>
@@ -112,9 +146,21 @@ h2 { font-size:16px; margin:18px 0 4px; }
       <div class="kpi"><b id="k-lista">0</b><span>da sua lista</span></div>
       <div class="kpi"><b id="k-merc">0/5</b><span>mercados lidos</span></div>
     </div>
-    <input type="search" id="busca" placeholder="Buscar produto (ex.: picanha, café)">
-    <div class="chips" id="chips-merc"></div>
-    <div class="chips" id="chips-ord"></div>
+    <div class="filtros">
+      <div class="busca" id="caixa-busca">
+        <span class="lupa">🔍</span>
+        <input type="search" id="busca" placeholder="Buscar produto, marca ou mercado" autocomplete="off">
+        <button class="limpar" id="limpar-busca" aria-label="Limpar busca">✕</button>
+      </div>
+      <div class="sugest" id="sugest"></div>
+      <div class="rotulo">Mercado</div>
+      <div class="chips" id="chips-merc"></div>
+      <div class="rotulo">Categoria</div>
+      <div class="chips" id="chips-cat"></div>
+      <div class="resbar"><span id="res-txt"></span>
+        <select id="ordem" aria-label="Ordenar"><option value="desc">Maior desconto</option>
+          <option value="preco">Menor preço</option><option value="prazo">Acaba antes</option></select></div>
+    </div>
     <div id="lista-ofertas"></div>
   </section>
 
@@ -194,7 +240,6 @@ const OFERTAS = [
     motivo:"Preço “por” maior que o “de”. As IAs leram valores diferentes." },
 ];
 
-const ORDENS = [["desc","Maior desconto"],["preco","Menor preço"],["merc","Por mercado"]];
 const brl = v => v.toLocaleString("pt-BR", { style:"currency", currency:"BRL" });
 const pct = o => Math.round((1 - o.por / o.de) * 100);
 const norm = s => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
@@ -207,7 +252,7 @@ let lista = ler("promo_lista", [
 ]);
 let decisoes = ler("promo_decisoes", {});   // id -> "aprovado" | "descartado"
 let enviados = ler("promo_enviados", []);   // ids ja avisados
-let filtroM = "todos", ordem = "desc";
+let filtroM = "todos", filtroC = "todas", ordem = "desc";
 
 const ativa = o => o.st === "ok" || decisoes[o.id] === "aprovado";
 const pendente = o => o.st === "revisar" && !decisoes[o.id];
@@ -216,44 +261,78 @@ function casa(o) {
   return lista.find(i => alvo.includes(norm(i.termo)) && (i.alvo == null || o.por <= i.alvo));
 }
 
+// Cor de cada mercado, para reconhecer de relance.
+const COR = { mundial:"#E0453A", guanabara:"#2F6FD0", supermarket:"#1E9E5A", superbom:"#E58A1F", economia:"#8A4FD0" };
+const HOJE = new Date(2026, 9, 26);
+function prazo(o) {
+  const [d, m] = o.ate.split(" ")[1].split("/").map(Number);
+  const dias = Math.round((new Date(2026, m - 1, d) - HOJE) / 864e5);
+  if (dias <= 0) return '<span class="urg">⏰ Hoje</span>';
+  if (dias <= 2) return `<span class="urg">⏰ ${dias} ${dias > 1 ? "dias" : "dia"}</span>`;
+  return `<span>Até ${o.ate}</span>`;
+}
+
 function cardOferta(o) {
   const na = casa(o);
   return `<div class="mini ${na ? "da-lista" : ""}">
-    <div>${na ? '<span class="tag t-lista">Na lista</span>' : ""}<span class="tag t-desc">-${pct(o)}%</span></div>
-    <div class="nome">${o.produto}${o.marca ? " " + o.marca : ""}</div>
-    <div class="meta">${o.tam} · ${NOME[o.m]}</div>
-    <div class="meta">até ${o.ate}</div>
+    <div class="topo"><span class="merc"><i style="background:${COR[o.m]}"></i>${NOME[o.m]}</span>
+      <span class="off">-${pct(o)}%</span></div>
+    <div class="nome">${marcar(o.produto + (o.marca ? " " + o.marca : ""))} <span class="tam">${o.tam}</span></div>
     <div class="pr"><b>${brl(o.por)}</b><s>${brl(o.de)}</s></div>
+    <div class="rodape">${prazo(o)}${na ? '<span class="nalista">✓ Na lista</span>' : ""}</div>
   </div>`;
 }
 
 const CATS = ["Carnes", "Mercearia", "Laticínios", "Limpeza", "Higiene"];
 
+const diasAte = o => { const [d, m] = o.ate.split(" ")[1].split("/").map(Number); return new Date(2026, m - 1, d) - HOJE; };
+const texto = o => norm(`${o.produto} ${o.marca} ${o.cat} ${NOME[o.m]}`);
+let termo = "";
+function marcar(t) {
+  if (!termo) return t;
+  const i = norm(t).indexOf(termo);   // norm preserva o tamanho em texto ja composto
+  return i < 0 ? t : t.slice(0, i) + "<mark>" + t.slice(i, i + termo.length) + "</mark>" + t.slice(i + termo.length);
+}
+
 function renderOfertas() {
-  const q = norm(document.getElementById("busca").value.trim());
-  let v = OFERTAS.filter(ativa)
-    .filter(o => filtroM === "todos" || o.m === filtroM)
-    .filter(o => !q || norm(`${o.produto} ${o.marca}`).includes(q));
+  const bruto = document.getElementById("busca").value.trim();
+  termo = norm(bruto);
+  document.getElementById("caixa-busca").classList.toggle("cheia", !!bruto);
+  const validas = OFERTAS.filter(ativa);
+  const porBusca = validas.filter(o => !termo || texto(o).includes(termo));
+  let v = porBusca.filter(o => (filtroM === "todos" || o.m === filtroM) && (filtroC === "todas" || o.cat === filtroC));
   if (ordem === "desc") v.sort((a, b) => pct(b) - pct(a));
   if (ordem === "preco") v.sort((a, b) => a.por - b.por);
-  if (ordem === "merc") v.sort((a, b) => a.m.localeCompare(b.m));
+  if (ordem === "prazo") v.sort((a, b) => diasAte(a) - diasAte(b));
   v.sort((a, b) => !!casa(b) - !!casa(a));   // da lista primeiro
+
   document.getElementById("lista-ofertas").innerHTML = CATS.map(c => {
     const os = v.filter(o => o.cat === c);
     return os.length ? `<div class="cat-tit"><b>${c}</b><span>${os.length} ${os.length > 1 ? "ofertas" : "oferta"}</span></div>
       <div class="grade">${os.map(cardOferta).join("")}</div>` : "";
-  }).join("") || '<div class="vazio">Nenhuma oferta com esse filtro.</div>';
+  }).join("") || `<div class="vazio">Nada encontrado${bruto ? ` para “${bruto}”` : ""}.<br>
+      <button class="btn btn-s" style="margin-top:10px" id="zerar">Limpar filtros</button></div>`;
 
-  const validas = OFERTAS.filter(ativa);
+  const filtrando = bruto || filtroM !== "todos" || filtroC !== "todas";
+  document.getElementById("res-txt").innerHTML = `<b>${v.length}</b> ${v.length === 1 ? "oferta" : "ofertas"}` +
+    (filtrando ? ` · <button class="sugest-x" id="zerar2" style="border:0;background:none;color:var(--brand);font-weight:600;cursor:pointer;padding:0">limpar</button>` : "");
+
+  // Atalhos: itens da lista de compras, para buscar em um toque.
+  document.getElementById("sugest").innerHTML = bruto ? "" :
+    "Buscar da sua lista:" + lista.map(i => `<button data-q="${i.termo}">${i.termo}</button>`).join("");
+
+  const conta = (campo, val) => porBusca.filter(o => (val === undefined || o[campo] === val)).length;
+  const cm = [["todos", "Todos", null, porBusca.length], ...MERCADOS.map(m => [m.id, m.nome, COR[m.id], conta("m", m.id)])];
+  document.getElementById("chips-merc").innerHTML = cm.map(([id, n, cor, q]) =>
+    `<button class="chip ${filtroM === id ? "on" : ""}" data-m="${id}" ${q || id === filtroM ? "" : "disabled"}>` +
+    `${cor ? `<span class="dot" style="background:${cor}"></span>` : ""}${n}<span class="n">${q}</span></button>`).join("");
+  const cc = [["todas", "Todas", porBusca.length], ...CATS.map(c => [c, c, conta("cat", c)])];
+  document.getElementById("chips-cat").innerHTML = cc.map(([id, n, q]) =>
+    `<button class="chip ${filtroC === id ? "on" : ""}" data-c="${id}" ${q || id === filtroC ? "" : "disabled"}>${n}<span class="n">${q}</span></button>`).join("");
+
   document.getElementById("k-ofertas").textContent = validas.length;
   document.getElementById("k-lista").textContent = validas.filter(casa).length;
   document.getElementById("k-merc").textContent = MERCADOS.filter(m => m.status === "ok").length + "/5";
-
-  const cm = [["todos","Todos"], ...MERCADOS.map(m => [m.id, m.nome])];
-  document.getElementById("chips-merc").innerHTML = cm.map(([id, n]) =>
-    `<button class="chip ${filtroM === id ? "on" : ""}" data-m="${id}">${n}</button>`).join("");
-  document.getElementById("chips-ord").innerHTML = ORDENS.map(([id, n]) =>
-    `<button class="chip ${ordem === id ? "on" : ""}" data-o="${id}">${n}</button>`).join("");
 }
 
 function renderLista() {
@@ -318,7 +397,10 @@ document.addEventListener("click", e => {
     window.scrollTo(0, 0);
   }
   if (t.dataset.m) { filtroM = t.dataset.m; renderOfertas(); }
-  if (t.dataset.o) { ordem = t.dataset.o; renderOfertas(); }
+  if (t.dataset.c) { filtroC = t.dataset.c; renderOfertas(); }
+  if (t.dataset.q) { document.getElementById("busca").value = t.dataset.q; renderOfertas(); }
+  if (t.id === "limpar-busca") { document.getElementById("busca").value = ""; renderOfertas(); document.getElementById("busca").focus(); }
+  if (t.id === "zerar" || t.id === "zerar2") { document.getElementById("busca").value = ""; filtroM = "todos"; filtroC = "todas"; renderOfertas(); }
   if (t.dataset.del) { lista.splice(+t.dataset.del, 1); salvar("promo_lista", lista); tudo(); }
   if (t.dataset.ap) { decisoes[t.dataset.ap] = "aprovado"; salvar("promo_decisoes", decisoes); tudo(); }
   if (t.dataset.ds) { decisoes[t.dataset.ds] = "descartado"; salvar("promo_decisoes", decisoes); tudo(); }
@@ -332,6 +414,7 @@ document.addEventListener("click", e => {
   if (t.id === "limpar-env") { enviados = []; salvar("promo_enviados", enviados); tudo(); }
 });
 document.getElementById("busca").addEventListener("input", renderOfertas);
+document.getElementById("ordem").addEventListener("change", e => { ordem = e.target.value; renderOfertas(); });
 tudo();
 </script>
 </body>
