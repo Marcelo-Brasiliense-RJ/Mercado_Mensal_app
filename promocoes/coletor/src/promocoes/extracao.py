@@ -8,11 +8,14 @@
 """
 
 import json
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from .ia import IA
 from .modelos import EncarteBaixado, Oferta
 from .regras import aplicar_regras
+
+PARALELO = 4
 
 CATEGORIAS = [
     "Mercearia", "Bebidas", "Carnes", "Frios e Laticínios", "Hortifruti", "Padaria",
@@ -141,9 +144,18 @@ def extrair(enc: EncarteBaixado, pasta: Path, base: Path, historico: dict[str, f
     ia = IA(base)
     e = enc.encarte
     ofertas = []
-    for n, nome in enumerate(enc.paginas, start=1):
-        img = (pasta / nome).read_bytes()
-        for it in ler_pagina(ia, img, e.mercado):
+
+    def uma(n_nome):
+        n, nome = n_nome
+        itens = ler_pagina(ia, (pasta / nome).read_bytes(), e.mercado)
+        print(f"  {e.mercado} pagina {n}/{len(enc.paginas)}: {len(itens)} itens", flush=True)
+        return n, itens
+
+    # O conferente gratuito leva ~2 min por pagina; 4 em paralelo ficam bem abaixo de 20 req/min.
+    with ThreadPoolExecutor(PARALELO) as ex:
+        lidas = sorted(ex.map(uma, enumerate(enc.paginas, start=1)))
+    for n, itens in lidas:
+        for it in itens:
             normal, app = it.get("preco_normal"), it.get("preco_app")
             por = app or normal
             if not por:
@@ -165,5 +177,4 @@ def extrair(enc: EncarteBaixado, pasta: Path, base: Path, historico: dict[str, f
                 ref=f"{e.id}-p{n}",
             )
             ofertas.append(aplicar_regras(o, historico))
-        print(f"  pagina {n}/{len(enc.paginas)}: {sum(1 for o in ofertas if o.pagina == n)} itens", flush=True)
     return ofertas

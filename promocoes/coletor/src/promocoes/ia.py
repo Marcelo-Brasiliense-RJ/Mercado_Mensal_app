@@ -8,6 +8,7 @@ import base64
 import hashlib
 import json
 import os
+import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -22,14 +23,18 @@ TENTATIVAS = 4
 INTERVALO_MIN_S = 4.0  # free do OpenRouter: 20 req/min; folga para os dois provedores
 
 _ultima = 0.0
+_trava = threading.Lock()
+_trava_log = threading.Lock()
 
 
 def _espacar() -> None:
+    # Paginas rodam em paralelo; o espacamento entre requisicoes continua global.
     global _ultima
-    falta = INTERVALO_MIN_S - (time.monotonic() - _ultima)
-    if falta > 0:
-        time.sleep(falta)
-    _ultima = time.monotonic()
+    with _trava:
+        falta = INTERVALO_MIN_S - (time.monotonic() - _ultima)
+        if falta > 0:
+            time.sleep(falta)
+        _ultima = time.monotonic()
 
 
 def _post(url: str, **kw) -> dict:
@@ -69,7 +74,7 @@ class IA:
             return json.loads(arq.read_text())
         resp, modelo, uso = chamar()
         arq.write_text(json.dumps(resp, ensure_ascii=False))
-        with self.log.open("a") as f:
+        with _trava_log, self.log.open("a") as f:
             f.write(json.dumps({"em": datetime.now(timezone.utc).isoformat(), "modelo": modelo, "uso": uso, "chave": chave}) + "\n")
         return resp
 
