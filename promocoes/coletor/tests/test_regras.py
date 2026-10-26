@@ -81,3 +81,25 @@ def test_conferente_repetindo_preco_unico_nao_vira_divergencia():
                  [{"produto": "Corona", "preco_normal": None, "preco_app": 5.99}])
     [r] = ler_pagina(ia, b"", "guanabara")
     assert r["status"] == "ok"
+
+
+def test_lista_do_app_le_a_rpc(monkeypatch, tmp_path):
+    import httpx
+    from promocoes import lista_app
+
+    pedido = {}
+
+    def falso(url, headers, json, timeout):
+        pedido.update(url=url, corpo=json, chave=headers["apikey"])
+        return httpx.Response(200, json=[{"nome": "arroz", "origem": "repor", "ultimo_preco": 18.5}],
+                              request=httpx.Request("POST", url))
+
+    monkeypatch.setattr(httpx, "post", falso)
+    monkeypatch.setenv("SUPABASE_URL", "https://x.supabase.co/")
+    monkeypatch.setenv("SUPABASE_KEY", "k")
+    monkeypatch.setenv("PROMOCOES_CASA", "casa-1")
+    itens = lista_app.buscar()
+    assert pedido["url"] == "https://x.supabase.co/rest/v1/rpc/mercado_promo_lista_h"
+    assert pedido["corpo"] == {"h": "casa-1"} and itens[0]["nome"] == "arroz"
+    lista_app.salvar(tmp_path, itens)
+    assert lista_app.carregar(tmp_path) == (itens, "app")

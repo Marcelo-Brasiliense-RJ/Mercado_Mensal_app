@@ -103,6 +103,10 @@ h2 { font-size:16px; margin:18px 0 4px; }
 .termo-c { font-size:11px; color:var(--brand); text-transform:uppercase; letter-spacing:.6px; font-weight:800; }
 .sem-oferta { color:var(--text-2); font-size:13px; padding:18px 0; }
 .mais-op { border:0; background:var(--brand-soft); color:var(--brand); font-weight:700; font-size:12px; border-radius:8px; padding:4px 8px; cursor:pointer; white-space:nowrap; }
+.mini .unid { font-size:11px; color:var(--text-2); margin-top:-4px; }
+.mini .ultimo { font-size:11px; color:var(--text-2); }
+.mini .ultimo b { color:var(--pos); }
+.tag-app { display:inline-block; font-size:10px; font-weight:800; border-radius:5px; padding:1px 6px; background:var(--brand-soft); color:var(--brand); margin-left:6px; vertical-align:1px; }
 .mini .nome { font-weight:700; font-size:15px; line-height:1.25; display:-webkit-box;
   -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; min-height:2.5em; }
 .mini .tam { color:var(--text-2); font-size:13px; font-weight:400; }
@@ -220,6 +224,7 @@ mark { background:var(--warn-soft); color:inherit; border-radius:3px; padding:0 
   <!-- MINHA LISTA -->
   <section class="tela" id="t-lista">
     <h2>Minha lista de compras</h2>
+    <div class="sub" id="origem-lista"></div>
     <div class="sub">Aviso quando algum item aparecer em oferta. Preço-alvo é opcional.</div>
     <div class="card">
       <div class="linha">
@@ -307,6 +312,8 @@ let lista = ler("promo_lista", [
   { termo:"café 500g", alvo:null }, { termo:"açúcar refinado", alvo:null }, { termo:"óleo de soja", alvo:null },
   { termo:"papel higiênico", alvo:null }, { termo:"azeite", alvo:null },
 ]);
+let LISTA_APP = false;  // true quando a lista veio do app (Repor + pendentes)
+const salvarLista = () => salvar(LISTA_APP ? "promo_lista_extra" : "promo_lista", lista.filter(i => !i.app));
 let decisoes = ler("promo_decisoes", {});   // id -> "aprovado" | "descartado"
 let enviados = ler("promo_enviados", []);   // ids ja avisados
 let filtroM = "todos", filtroC = "todas", ordem = "desc";
@@ -322,6 +329,24 @@ function bateTermo(o, termo) {
   const nome = padrao(`${o.produto} ${o.marca || ""} ${o.tam || ""}`);
   const [primeira, ...resto] = padrao(termo).split(/\s+/).filter(Boolean);
   return !!primeira && nome.startsWith(primeira) && resto.every(p => nome.includes(p));
+}
+// Tamanho da embalagem lido do nome: "5kg", "500g", "1l", "900ml". Serve para comparar
+// embalagens diferentes pelo preco por kg ou por litro.
+function medida(o) {
+  const m = padrao(`${o.produto} ${o.tam || ""}`).match(/(\d+(?:[.,]\d+)?)(kg|g|ml|l)\b/);
+  if (!m) return null;
+  const q = parseFloat(m[1].replace(",", "."));
+  if (!q) return null;
+  return m[2] === "g" ? { q: q / 1000, u: "kg" } : m[2] === "ml" ? { q: q / 1000, u: "L" } : { q, u: m[2] === "l" ? "L" : "kg" };
+}
+function porUnidade(o) { const t = medida(o); return t ? { v: o.por / t.q, u: t.u } : null; }
+// Mais barato primeiro: por kg/L quando da para medir; sem medida vai para o fim.
+function maisBarato(a, b) {
+  const x = porUnidade(a), y = porUnidade(b);
+  if (x && y && x.u === y.u) return x.v - y.v;
+  if (x && !y) return -1;
+  if (!x && y) return 1;
+  return a.por - b.por;
 }
 function casa(o) {
   return lista.find(i => bateTermo(o, i.termo) && (i.alvo == null || o.por <= i.alvo));
@@ -357,6 +382,8 @@ function cardOferta(o, extra = {}) {
     ${extra.termo ? `<div class="termo-c">${extra.termo}</div>` : ""}
     <div class="nome">${marcar(o.produto + (o.marca ? " " + o.marca : ""))} <span class="tam">${o.tam}</span></div>
     <div class="pr"><b>${brl(o.por)}</b>${o.de > o.por ? `<s>${brl(o.de)}</s>` : ""}</div>
+    ${(u => u ? `<div class="unid">${brl(u.v)}/${u.u}</div>` : "")(porUnidade(o))}
+    ${extra.ultimo ? `<div class="ultimo">Última compra: ${brl(extra.ultimo)}</div>` : ""}
     ${o.cond ? `<div class="cond">${o.cond}</div>` : ""}
     <div class="rodape">${prazo(o)}${extra.mais ?? (na ? '<span class="nalista">✓ Na lista</span>' : "")}</div>
   </div>`;
@@ -422,16 +449,18 @@ function renderOfertas() {
 }
 
 function renderLista() {
+  document.getElementById("origem-lista").textContent = LISTA_APP
+    ? "Vem do app Mercado Mensal: o que está em Repor e a lista de compras. Você pode adicionar itens extras aqui."
+    : "Lista local deste aparelho. Ligando o app, ela passa a vir de lá.";
   document.getElementById("itens-lista").innerHTML = lista.map((i, idx) => {
-    const achou = OFERTAS.filter(ativa).filter(o => bateTermo(o, i.termo))
-      .sort((a, b) => a.por - b.por)[0];
+    const achou = OFERTAS.filter(ativa).filter(o => bateTermo(o, i.termo)).sort(maisBarato)[0];
     const bate = achou && (i.alvo == null || achou.por <= i.alvo);
     const status = !achou ? '<span class="meta">Sem oferta esta semana</span>'
       : bate ? `<span class="tag t-ok">Em oferta</span><span class="meta">${brl(achou.por)} no ${NOME[achou.m]}</span>`
       : `<span class="tag t-rev">Acima do alvo</span><span class="meta">melhor: ${brl(achou.por)} no ${NOME[achou.m]}</span>`;
     return `<div class="card mk"><div><b>${i.termo}</b>
       <small>${i.alvo != null ? "até " + brl(i.alvo) : "qualquer preço"}</small><div style="margin-top:4px">${status}</div></div>
-      <button class="x" data-del="${idx}" aria-label="Remover">✕</button></div>`;
+      ${i.app ? `<span class="tag-app">${i.app === "repor" ? "Repor no app" : "Lista do app"}</span>` : `<button class="x" data-del="${idx}" aria-label="Remover">✕</button>`}</div>`;
   }).join("") || '<div class="vazio">Lista vazia.</div>';
 }
 
@@ -479,14 +508,15 @@ const nomeO = o => `${o.produto}${o.marca ? " " + o.marca : ""}${o.tam ? " " + o
 
 function renderVoce() {
   const validas = OFERTAS.filter(ativa);
-  const porItem = lista.map(i => ({ i, os: validas.filter(o => bateTermo(o, i.termo)).sort((a, b) => a.por - b.por) }));
+  const porItem = lista.map(i => ({ i, os: validas.filter(o => bateTermo(o, i.termo)).sort(maisBarato) }));
 
   // Mesmo card da aba Ofertas: o mais barato de cada item; o rodape leva para as outras opcoes.
   const cards = porItem.map(({ i, os }) => {
-    if (!os.length) return `<div class="mini"><div class="termo-c">${i.termo}</div><div class="sem-oferta">Sem oferta esta semana</div></div>`;
+    if (!os.length) return `<div class="mini"><div class="termo-c">${i.termo}${i.app ? ` <span class="tag-app">${i.app === "repor" ? "Repor" : "Lista"}</span>` : ""}</div><div class="sem-oferta">Sem oferta esta semana</div></div>`;
     const resto = os.length - 1;
     return cardOferta(os[0], {
-      termo: i.termo,
+      termo: i.termo + (i.app ? ` <span class="tag-app">${i.app === "repor" ? "Repor" : "Lista"}</span>` : ""),
+      ultimo: i.ultimo,
       mais: resto ? `<button class="mais-op" data-q="${i.termo}">+${resto} ${resto > 1 ? "opções" : "opção"} ›</button>` : "",
     });
   }).join("");
@@ -547,13 +577,14 @@ document.addEventListener("click", e => {
   if (t.dataset.q) { document.getElementById("busca").value = t.dataset.q; renderOfertas(); }
   if (t.id === "limpar-busca") { document.getElementById("busca").value = ""; renderOfertas(); document.getElementById("busca").focus(); }
   if (t.id === "zerar" || t.id === "zerar2") { document.getElementById("busca").value = ""; filtroM = "todos"; filtroC = "todas"; renderOfertas(); }
-  if (t.dataset.del) { lista.splice(+t.dataset.del, 1); salvar("promo_lista", lista); tudo(); }
+  if (t.dataset.del && lista[+t.dataset.del]?.app) return;
+  if (t.dataset.del) { lista.splice(+t.dataset.del, 1); salvarLista(); tudo(); }
   if (t.dataset.ap) { decisoes[t.dataset.ap] = "aprovado"; salvar("promo_decisoes", decisoes); tudo(); }
   if (t.dataset.ds) { decisoes[t.dataset.ds] = "descartado"; salvar("promo_decisoes", decisoes); tudo(); }
   if (t.id === "add-termo") {
     const termo = document.getElementById("novo-termo").value.trim(); if (!termo) return;
     const a = parseFloat(document.getElementById("novo-alvo").value);
-    lista.push({ termo, alvo: isNaN(a) ? null : a }); salvar("promo_lista", lista);
+    lista.push({ termo, alvo: isNaN(a) ? null : a }); salvarLista();
     document.getElementById("novo-termo").value = ""; document.getElementById("novo-alvo").value = ""; tudo();
   }
   if (t.id === "enviar") { enviados.push(...paraAvisar().map(o => o.id)); salvar("promo_enviados", enviados); tudo(); }
@@ -568,8 +599,16 @@ if (REAL) {
   OFERTAS.forEach(o => n[o.cat] = (n[o.cat] || 0) + 1);
   CATS = Object.keys(n).sort((a, b) => n[b] - n[a]);
   MERCADOS.forEach(m => Object.assign(m, REAL.mercados[m.id] || { status: "pend", coleta: "ainda não coletado", validade: "—", paginas: 0 }));
+  if (REAL.lista?.length) {
+    LISTA_APP = true;
+    lista = [
+      ...REAL.lista.map(x => ({ termo: x.nome, alvo: null, app: x.origem, ultimo: x.ultimo_preco, marca: x.ultima_marca })),
+      ...ler("promo_lista_extra", []),
+    ];
+  }
   document.getElementById("aviso").textContent =
-    `Dados reais coletados em ${REAL.gerado_em}: ${Object.values(REAL.mercados).map(m => m.nome).join(", ")}. Os outros mercados ainda não entraram.`;
+    `Ofertas reais de ${REAL.gerado_em}: ${Object.values(REAL.mercados).map(m => m.nome).join(", ")}.` +
+    (REAL.lista_origem === "exemplo" ? " A lista é um exemplo montado do seu estoque, até ligar o app de verdade." : "");
 }
 tudo();
 </script>

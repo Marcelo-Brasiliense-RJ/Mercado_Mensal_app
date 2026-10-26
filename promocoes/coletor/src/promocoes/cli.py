@@ -7,7 +7,7 @@ from pathlib import Path
 
 import httpx
 
-from . import fotos, superbom
+from . import fotos, lista_app, superbom
 from .coletor import HEADERS, RIO, coletar, resumo
 from .extracao import extrair
 from .fontes import PARSERS
@@ -120,7 +120,8 @@ def exportar(base: Path, destino: Path) -> str:
             "paginas": max((o.get("pagina") or 0 for o in itens), default=0),
         }
     hoje = date.today().strftime("%d/%m/%Y")
-    dados = {"gerado_em": hoje, "mercados": mercados, "ofertas": ofertas}
+    lista, origem = lista_app.carregar(base)
+    dados = {"gerado_em": hoje, "mercados": mercados, "ofertas": ofertas, "lista": lista, "lista_origem": origem}
     destino.parent.mkdir(parents=True, exist_ok=True)
     destino.write_text("window.DADOS_REAIS = " + json.dumps(dados, ensure_ascii=False) + ";\n")
     return f"{len(ofertas)} ofertas de {len(mercados)} mercado(s) -> {destino}"
@@ -134,6 +135,7 @@ def main() -> None:
     c.add_argument("mercados", nargs="*", default=todos, help=f"padrao: {' '.join(todos)}")
     x = sub.add_parser("extrair", help="le com IA os encartes baixados")
     x.add_argument("mercados", nargs="*", default=list(PARSERS))
+    sub.add_parser("lista", help="puxa do app o que falta comprar (lista + Repor)")
     f = sub.add_parser("fotos", help="miniaturas das ofertas (recorte do encarte ou foto do site)")
     f.add_argument("mercados", nargs="*", default=todos)
     e = sub.add_parser("exportar", help="gera os dados reais para o prototipo")
@@ -141,6 +143,14 @@ def main() -> None:
     a = p.parse_args()
 
     base = Path(os.environ.get("PROMOCOES_DATA_DIR", "data"))
+    if a.cmd == "lista":
+        try:
+            itens = lista_app.buscar()
+        except Exception as e:
+            print(f"lista: falhou ({e})", file=sys.stderr)
+            sys.exit(1)
+        print(f"lista | {len(itens)} itens do app | {lista_app.salvar(base, itens)}")
+        return
     if a.cmd == "exportar":
         print(exportar(base, Path(a.destino)))
         return
