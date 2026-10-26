@@ -8,7 +8,9 @@
 
 import base64
 import json
+import re
 import time
+import unicodedata
 from io import BytesIO
 from pathlib import Path
 
@@ -28,13 +30,52 @@ SCHEMA_CAIXAS = {
     "type": "ARRAY",
     "items": {"type": "OBJECT", "properties": {
         "i": {"type": "INTEGER"},
+        "nome": {"type": "STRING"},
         "box_2d": {"type": "ARRAY", "items": {"type": "INTEGER"}},
-    }, "required": ["i", "box_2d"]},
+    }, "required": ["i", "nome", "box_2d"]},
 }
 
-PERGUNTA_CAIXAS = """Encarte de supermercado. Para cada produto da lista, devolva a caixa da FOTO da embalagem
-(sem o selo de preço) em box_2d = [ymin, xmin, ymax, xmax], de 0 a 1000. Responda só JSON.
+# "nome" e o que esta escrito junto da foto. Serve para conferir: a ordem da resposta
+# escorrega quando o modelo pula um produto, e entao todas as fotos seguintes trocam.
+PERGUNTA_CAIXAS = """Encarte de supermercado. Para cada produto da lista, ache a FOTO da embalagem na imagem
+(sem o selo de preço) e devolva: i (o número do item na lista), nome (o nome do produto como está escrito
+junto da foto) e box_2d = [ymin, xmin, ymax, xmax], de 0 a 1000. Não invente: produto que você não achar,
+deixe de fora. Responda só JSON.
 LISTA: {lista}"""
+
+GENERICAS = {"sabores", "varios", "tipos", "cada", "com", "sem", "para", "pacote", "unidades", "tradicional"}
+
+
+def _palavras(t: str) -> set[str]:
+    t = unicodedata.normalize("NFD", t.lower()).encode("ascii", "ignore").decode()
+    return {p for p in re.findall(r"[a-z0-9]+", t) if len(p) >= 3 and p not in GENERICAS}
+
+
+def parecido(a: str, b: str) -> float:
+    """Fracao das palavras do nome menor que aparecem no outro (0 a 1)."""
+    x, y = _palavras(a), _palavras(b)
+    return len(x & y) / min(len(x), len(y)) if x and y else 0.0
+
+
+def casar_caixas(caixas: list[dict], nomes: list[str], minimo: float = 0.5) -> dict[int, list[int]]:
+    """item -> caixa, conferindo pelo nome lido. Na duvida, sem foto: melhor icone que foto errada."""
+    escolha: dict[int, tuple[float, list[int]]] = {}
+    for c in caixas:
+        b = c.get("box_2d") or []
+        if len(b) != 4:
+            continue
+        lido = c.get("nome") or ""
+        j = c.get("i")
+        if isinstance(j, int) and 0 <= j < len(nomes) and parecido(lido, nomes[j]) >= minimo:
+            nota = parecido(lido, nomes[j])
+        else:  # indice escorregou: procura o item pelo nome
+            notas = [(parecido(lido, n), k) for k, n in enumerate(nomes)]
+            nota, j = max(notas, default=(0.0, -1))
+            if nota < minimo:
+                continue
+        if j not in escolha or nota > escolha[j][0]:
+            escolha[j] = (nota, b)
+    return {j: b for j, (_, b) in escolha.items()}
 
 
 def _miniatura(img: Image.Image, destino: Path) -> None:
@@ -76,10 +117,9 @@ def recortar_encarte(base: Path, mercado: str) -> int:
             continue
         img = Image.open(pagina)
         w, h = img.size
-        for c in caixas:
-            j, b = c.get("i"), c.get("box_2d") or []
-            if not isinstance(j, int) or not 0 <= j < len(idx) or len(b) != 4:
-                continue
+        for k in idx:
+            ofertas[k].pop("foto", None)
+        for j, b in casar_caixas(caixas, [x["produto"] for x in lista]).items():
             y0, x0, y1, x1 = (max(0, min(1000, v)) for v in b)
             if y1 - y0 < 15 or x1 - x0 < 15:
                 continue

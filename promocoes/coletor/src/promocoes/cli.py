@@ -1,7 +1,9 @@
 import argparse
 import json
 import os
+import re
 import sys
+import unicodedata
 from datetime import date, datetime, timezone
 from pathlib import Path
 
@@ -43,6 +45,31 @@ CATEGORIA_COMUM = {
     "Leites e Iogurtes": "Frios e Laticínios", "Pet Shop e Jardinagem": "Pet", "Utilidades Para O Lar": "Utilidades",
 }
 DIAS = ["seg", "ter", "qua", "qui", "sex", "sáb", "dom"]
+
+
+def _tokens(t: str) -> set[str]:
+    t = unicodedata.normalize("NFD", t.lower()).encode("ascii", "ignore").decode()
+    t = re.sub(r"(\d)[\s,.]*(litros?|lt)\b", r"\1l", t)
+    t = re.sub(r"(\d)\s+(kg|g|ml|l|un)\b", r"\1\2", t)
+    return set(re.findall(r"[a-z0-9]+", t))
+
+
+def sem_repetidas(itens: list[dict], mercado: str = "") -> list[dict]:
+    """Mesma oferta duas vezes no encarte (a capa do Guanabara repete as paginas de dentro):
+    mesmo preco e todas as palavras de um nome dentro do outro. Sabor diferente fica
+    ("Tradicional" x "Extra Forte"). O Superbom vem do site, um produto por codigo: nao mexe."""
+    if mercado in DIRETOS:
+        return itens
+    por_preco: dict[float, list[set[str]]] = {}
+    saida = []
+    for o in itens:
+        t = _tokens(f"{o['produto']} {o.get('marca') or ''} {o.get('tamanho') or ''}")
+        iguais = por_preco.setdefault(round(o["preco_por"], 2), [])
+        if any(t <= u or u <= t for u in iguais):
+            continue
+        iguais.append(t)
+        saida.append(o)
+    return saida
 
 
 def _marca(o: dict) -> str:
@@ -90,13 +117,8 @@ def exportar(base: Path, destino: Path) -> str:
         if not arqs:
             continue
         m, ultimo = pasta.name, arqs[-1]
-        itens = json.loads(ultimo.read_text())
-        vistos = set()
+        itens = sem_repetidas(json.loads(ultimo.read_text()), m)
         for o in itens:
-            chave = (o["produto"].lower(), o["preco_por"])  # variacoes do mesmo item vem repetidas
-            if chave in vistos:
-                continue
-            vistos.add(chave)
             ofertas.append({
                 "m": m,
                 "cat": CATEGORIA_COMUM.get(c := (o["categoria"] or "Outros").split(" / ")[0], c),
@@ -115,7 +137,7 @@ def exportar(base: Path, destino: Path) -> str:
         dia = ultimo.stem.split("-")
         mercados[m] = {
             "nome": NOMES.get(m, m), "fonte": FONTES.get(m, ""), "status": "ok",
-            "coleta": f"{dia[2]}/{dia[1]}", "ofertas": len(vistos),
+            "coleta": f"{dia[2]}/{dia[1]}", "ofertas": len(itens),
             "validade": f"até {_ate(itens[0].get('fim'))}" if itens and itens[0].get("fim") else "preço do dia",
             "paginas": max((o.get("pagina") or 0 for o in itens), default=0),
         }
@@ -132,12 +154,8 @@ def para_publicar(base: Path, mercado: str) -> list[dict]:
     arqs = sorted((base / "ofertas" / mercado).glob("*.json"))
     if not arqs:
         return []
-    saida, vistos = [], set()
-    for o in json.loads(arqs[-1].read_text()):
-        chave = (o["produto"].lower(), o["preco_por"])
-        if o.get("status", "ok") != "ok" or chave in vistos:
-            continue
-        vistos.add(chave)
+    saida = []
+    for o in sem_repetidas([o for o in json.loads(arqs[-1].read_text()) if o.get("status", "ok") == "ok"], mercado):
         saida.append({
             "produto": o["produto"], "marca": _marca(o), "tamanho": o.get("tamanho") or "",
             "categoria": CATEGORIA_COMUM.get(c := (o.get("categoria") or "Outros").split(" / ")[0], c),

@@ -103,3 +103,30 @@ def test_lista_do_app_le_a_rpc(monkeypatch, tmp_path):
     assert pedido["corpo"] == {"h": "casa-1"} and itens[0]["nome"] == "arroz"
     lista_app.salvar(tmp_path, itens)
     assert lista_app.carregar(tmp_path) == (itens, "app")
+
+
+def test_foto_confere_pelo_nome_quando_a_ordem_escorrega():
+    from promocoes.fotos import casar_caixas
+
+    nomes = ["Granola Barano", "Sal Marinho Natural Life", "Arroz Branco Dona Elza"]
+    caixas = [  # o modelo pulou a granola: o indice 0 veio com a foto do sal
+        {"i": 0, "nome": "Sal Marinho Natural Life", "box_2d": [1, 1, 2, 2]},
+        {"i": 1, "nome": "Arroz Dona Elza", "box_2d": [3, 3, 4, 4]},
+        {"i": 2, "nome": "Chá Preto Maracujá", "box_2d": [5, 5, 6, 6]},
+    ]
+    assert casar_caixas(caixas, nomes) == {1: [1, 1, 2, 2], 2: [3, 3, 4, 4]}
+
+
+def test_oferta_repetida_na_capa_sai_uma_vez():
+    from promocoes.cli import sem_repetidas
+
+    itens = [
+        {"produto": "Leite UHT Integral Italac", "marca": "Italac", "tamanho": "1L", "preco_por": 4.47},
+        {"produto": "Leite Longa Vida UHT Integral Italac", "tamanho": "1 Litro", "preco_por": 4.47},
+        {"produto": "Leite UHT Desnatado Italac", "tamanho": "1L", "preco_por": 3.99},  # outro preco: fica
+        {"produto": "Cafe Patusco 500g Tradicional", "preco_por": 17.98},
+        {"produto": "Cafe Patusco 500g Extra Forte", "preco_por": 17.98},  # sabor diferente: fica
+    ]
+    assert [o["produto"] for o in sem_repetidas(itens)] == [
+        "Leite UHT Integral Italac", "Leite UHT Desnatado Italac",
+        "Cafe Patusco 500g Tradicional", "Cafe Patusco 500g Extra Forte"]
