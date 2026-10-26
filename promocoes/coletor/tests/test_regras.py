@@ -73,3 +73,11 @@ def test_sem_conferente_a_pagina_vai_toda_para_revisar():
     ia = SemConferente([item("Arroz", 4.95, 3.95)], None, None)
     [r] = ler_pagina(ia, b"", "mundial")
     assert r["status"] == "revisar" and "Conferente" in r["motivo"]
+
+
+def test_conferente_repetindo_preco_unico_nao_vira_divergencia():
+    ia = IAFalsa([item("Corona", None, 5.99)],
+                 {"itens": [{"i": 0, "status": "corrigido", "preco_normal": 5.99, "preco_app": 5.99}], "faltando": []},
+                 [{"produto": "Corona", "preco_normal": None, "preco_app": 5.99}])
+    [r] = ler_pagina(ia, b"", "guanabara")
+    assert r["status"] == "ok"

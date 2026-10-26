@@ -93,7 +93,15 @@ def _igual(a, b) -> bool:
     return abs(float(a) - float(b)) < 0.005
 
 
+def _um_preco(x: dict) -> dict:
+    """Encarte de preco unico: o conferente as vezes repete o valor nos dois campos."""
+    if x.get("preco_normal") is not None and _igual(x.get("preco_normal"), x.get("preco_app")):
+        return {**x, "preco_normal": None}
+    return x
+
+
 def _precos_iguais(x: dict, y: dict) -> bool:
+    x, y = _um_preco(x), _um_preco(y)
     return _igual(x.get("preco_normal"), y.get("preco_normal")) and _igual(x.get("preco_app"), y.get("preco_app"))
 
 
@@ -113,9 +121,13 @@ def ler_pagina(ia: IA, img: bytes, mercado: str) -> list[dict]:
         for it in itens:
             it["status"], it["motivo"] = "revisar", f"Conferente indisponível ({str(erro)[:80]})."
         return itens
-    veredito = {int(x["i"]): x for x in v.get("itens", []) if str(x.get("i", "")).isdigit()}
+    veredito = {int(x["i"]): _um_preco(x) for x in v.get("itens", []) if str(x.get("i", "")).isdigit()}
 
-    divergentes = [i for i, x in veredito.items() if i < len(itens) and x.get("status") in ("corrigido", "inexistente")]
+    divergentes = [
+        i for i, x in veredito.items()
+        if i < len(itens) and x.get("status") in ("corrigido", "inexistente")
+        and not (x["status"] == "corrigido" and _precos_iguais(x, itens[i]))  # "corrigiu" para o mesmo valor
+    ]
     for i, it in enumerate(itens):
         if i not in veredito:
             it["status"], it["motivo"] = "revisar", "O validador não respondeu sobre este item."
@@ -139,6 +151,7 @@ def ler_pagina(ia: IA, img: bytes, mercado: str) -> list[dict]:
                 it["status"], it["motivo"] = "revisar", "Leituras diferentes nas três tentativas."
 
     for f in v.get("faltando") or []:
+        f = _um_preco(f)
         if f.get("produto"):
             itens.append({**f, "categoria": "Outros", "marca": "", "tamanho": "", "confianca": 0,
                           "status": "revisar", "motivo": "Só o conferente viu este produto."})
