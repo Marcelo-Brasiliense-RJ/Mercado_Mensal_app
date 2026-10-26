@@ -10,7 +10,8 @@ class Encarte(BaseModel):
     id: str
     titulo: str
     url: str
-    formato: str  # "pdf" ou "imagem"
+    formato: str  # "pdf", "imagem" ou "imagens" (uma por pagina, em urls)
+    urls: list[str] = []
     inicio: datetime | None = None
     fim: datetime | None = None
 
@@ -27,6 +28,14 @@ class Oferta(BaseModel):
     url: str | None = None
     imagem: str | None = None
     ref: str | None = None  # id do produto no site do mercado
+    # Campos de encarte (lido por IA); vazios nos sites com preco em texto.
+    tamanho: str = ""
+    condicao: str | None = None
+    inicio: datetime | None = None
+    fim: datetime | None = None
+    pagina: int | None = None
+    status: str = "ok"  # ok | revisar
+    motivo: str | None = None
 
 
 class EncarteBaixado(BaseModel):

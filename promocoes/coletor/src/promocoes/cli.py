@@ -2,14 +2,17 @@ import argparse
 import json
 import os
 import sys
-from datetime import date
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 import httpx
 
 from . import superbom
-from .coletor import HEADERS, coletar, resumo
+from .coletor import HEADERS, RIO, coletar, resumo
+from .extracao import extrair
 from .fontes import PARSERS
+from .modelos import EncarteBaixado
+from .regras import historico
 
 # Mercados com ofertas em texto no site: coleta direta, sem encarte nem IA.
 DIRETOS = {"superbom": superbom.coletar}
@@ -25,8 +28,41 @@ def coletar_direto(mercado: str, base: Path) -> str:
     return f"{mercado} | loja: {local} | {len(ofertas)} ofertas | {arq}"
 
 
-NOMES = {"superbom": "Superbom"}
-FONTES = {"superbom": "Site oficial · loja Curicica (preço em texto, sem IA)"}
+NOMES = {"superbom": "Superbom", "mundial": "Mundial"}
+FONTES = {
+    "superbom": "Site oficial · loja Curicica (preço em texto, sem IA)",
+    "mundial": "Encarte em PDF do site · lido por IA (Gemini + Nemotron)",
+}
+DIAS = ["seg", "ter", "qua", "qui", "sex", "sáb", "dom"]
+
+
+def _ate(fim: str | None) -> str | None:
+    if not fim:
+        return None
+    d = datetime.fromisoformat(fim).astimezone(RIO)
+    return f"{DIAS[d.weekday()]} {d:%d/%m}"
+
+
+def extrair_encartes(mercado: str, base: Path) -> str:
+    """Le com IA os encartes vigentes ja baixados e grava as ofertas do dia."""
+    agora = datetime.now(timezone.utc)
+    hoje = date.today().isoformat()
+    hist = historico(base, mercado, hoje)
+    ofertas = []
+    for man in sorted((base / "encartes" / mercado).glob("*/manifest.json")):
+        enc = EncarteBaixado.model_validate_json(man.read_text())
+        if enc.encarte.fim and enc.encarte.fim < agora:
+            continue
+        print(f"{mercado} #{enc.encarte.id}: lendo {len(enc.paginas)} paginas", flush=True)
+        ofertas += extrair(enc, man.parent, base, hist)
+    if not ofertas:
+        return f"{mercado}: nenhum encarte vigente baixado"
+    pasta = base / "ofertas" / mercado
+    pasta.mkdir(parents=True, exist_ok=True)
+    arq = pasta / f"{hoje}.json"
+    arq.write_text(json.dumps([o.model_dump(mode="json") for o in ofertas], ensure_ascii=False, indent=1))
+    rev = sum(1 for o in ofertas if o.status == "revisar")
+    return f"{mercado} | {len(ofertas)} ofertas ({rev} para revisar) | {arq}"
 
 
 def exportar(base: Path, destino: Path) -> str:
@@ -48,16 +84,23 @@ def exportar(base: Path, destino: Path) -> str:
                 "m": m,
                 "cat": (o["categoria"] or "Outros").split(" / ")[0],
                 "produto": o["produto"],  # no Superbom o nome ja traz marca e tamanho
-                "marca": "",
+                "marca": o.get("marca") if m != "superbom" else "",
+                "tam": o.get("tamanho") or "",
                 "por": o["preco_por"],
                 "de": o["preco_de"] or o["preco_por"],
-                "ate": None,
+                "ate": _ate(o.get("fim")),
                 "img": o.get("imagem"),
+                "cond": o.get("condicao"),
+                "pag": o.get("pagina"),
+                "st": o.get("status") or "ok",
+                "motivo": o.get("motivo"),
             })
         dia = ultimo.stem.split("-")
         mercados[m] = {
             "nome": NOMES.get(m, m), "fonte": FONTES.get(m, ""), "status": "ok",
-            "coleta": f"{dia[2]}/{dia[1]}", "validade": "preço do dia", "paginas": 0, "ofertas": len(vistos),
+            "coleta": f"{dia[2]}/{dia[1]}", "ofertas": len(vistos),
+            "validade": f"até {_ate(itens[0].get('fim'))}" if itens and itens[0].get("fim") else "preço do dia",
+            "paginas": max((o.get("pagina") or 0 for o in itens), default=0),
         }
     hoje = date.today().strftime("%d/%m/%Y")
     dados = {"gerado_em": hoje, "mercados": mercados, "ofertas": ofertas}
@@ -72,6 +115,8 @@ def main() -> None:
     sub = p.add_subparsers(dest="cmd", required=True)
     c = sub.add_parser("coletar", help="baixa os encartes/ofertas vigentes")
     c.add_argument("mercados", nargs="*", default=todos, help=f"padrao: {' '.join(todos)}")
+    x = sub.add_parser("extrair", help="le com IA os encartes baixados")
+    x.add_argument("mercados", nargs="*", default=list(PARSERS))
     e = sub.add_parser("exportar", help="gera os dados reais para o prototipo")
     e.add_argument("--destino", default="../prototipo/dados/ofertas.js")
     a = p.parse_args()
@@ -83,6 +128,9 @@ def main() -> None:
     erro = False
     for m in a.mercados:
         try:
+            if a.cmd == "extrair":
+                print(extrair_encartes(m, base))
+                continue
             print(coletar_direto(m, base) if m in DIRETOS else resumo(coletar(m, base)))
         except Exception as e:  # um mercado fora do ar nao derruba os outros
             erro = True

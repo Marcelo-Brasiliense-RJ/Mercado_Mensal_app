@@ -105,6 +105,7 @@ h2 { font-size:16px; margin:18px 0 4px; }
 .mini .pr { margin-top:auto; display:flex; align-items:baseline; gap:6px; flex-wrap:wrap; }
 .mini .pr b { font-size:20px; color:var(--pos); letter-spacing:-0.3px; }
 .mini .pr s { color:var(--text-2); font-size:12px; }
+.mini .cond { font-size:11px; color:var(--warn); font-weight:600; margin-top:-2px; }
 .mini .rodape { display:flex; justify-content:space-between; align-items:center; gap:6px;
   border-top:1px solid var(--border); padding-top:6px; font-size:12px; color:var(--text-2); }
 .mini .rodape span { white-space:nowrap; }
@@ -291,10 +292,11 @@ function cardOferta(o) {
   const na = casa(o);
   return `<div class="mini ${na ? "da-lista" : ""}">
     <div class="faixa" style="background:${COR[o.m]}"><span>${NOME[o.m]}</span>
-      <span class="off">-${pct(o)}%</span></div>
+      ${o.de > o.por ? `<span class="off">-${pct(o)}%</span>` : ""}</div>
     ${o.img ? `<img class="foto" src="${o.img}" alt="" loading="lazy">` : ""}
     <div class="nome">${marcar(o.produto + (o.marca ? " " + o.marca : ""))} <span class="tam">${o.tam}</span></div>
-    <div class="pr"><b>${brl(o.por)}</b><s>${brl(o.de)}</s></div>
+    <div class="pr"><b>${brl(o.por)}</b>${o.de > o.por ? `<s>${brl(o.de)}</s>` : ""}</div>
+    ${o.cond ? `<div class="cond">${o.cond}</div>` : ""}
     <div class="rodape">${prazo(o)}${na ? '<span class="nalista">✓ Na lista</span>' : ""}</div>
   </div>`;
 }

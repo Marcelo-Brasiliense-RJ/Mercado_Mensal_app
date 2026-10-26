@@ -16,7 +16,7 @@ from zoneinfo import ZoneInfo
 import httpx
 import pypdfium2 as pdfium
 
-from .fontes import PARSERS, URLS
+from .fontes import PARSERS, PAUSA, URLS
 from .modelos import Encarte, EncarteBaixado
 
 # Uso pessoal e baixa frequencia: identifica o robo e espaca as requisicoes.
@@ -45,9 +45,41 @@ def _paginas_pdf(pdf: Path, destino: Path) -> list[str]:
     return nomes
 
 
-def baixar(enc: Encarte, base: Path, cliente: httpx.Client) -> EncarteBaixado:
+def _download(cliente: httpx.Client, url: str, destino: Path) -> None:
+    tmp = destino.with_suffix(".part")
+    with cliente.stream("GET", url) as r:
+        r.raise_for_status()
+        with tmp.open("wb") as f:
+            for bloco in r.iter_bytes():
+                f.write(bloco)
+    tmp.replace(destino)
+
+
+def _baixar_imagens(enc: Encarte, pasta: Path, cliente: httpx.Client, pausa: float) -> EncarteBaixado:
+    manifesto = pasta / "manifest.json"
+    if manifesto.exists():  # id ja e o hash das URLs: mesmas paginas, nada a baixar
+        antigo = EncarteBaixado.model_validate_json(manifesto.read_text())
+        if all((pasta / p).exists() for p in antigo.paginas):
+            return antigo.model_copy(update={"novo": False})
+    paginas, h = [], hashlib.sha256()
+    for i, u in enumerate(enc.urls, start=1):
+        if i > 1:
+            time.sleep(pausa)
+        nome = f"p{i:02d}.jpg"
+        _download(cliente, u, pasta / nome)
+        h.update((pasta / nome).read_bytes())
+        paginas.append(nome)
+    feito = EncarteBaixado(encarte=enc, sha256=h.hexdigest(), arquivo=paginas[0], paginas=paginas,
+                           baixado_em=datetime.now(timezone.utc), novo=True)
+    manifesto.write_text(feito.model_dump_json(indent=2))
+    return feito
+
+
+def baixar(enc: Encarte, base: Path, cliente: httpx.Client, pausa: float = PAUSA_S) -> EncarteBaixado:
     pasta = base / "encartes" / enc.mercado / enc.id
     pasta.mkdir(parents=True, exist_ok=True)
+    if enc.formato == "imagens":
+        return _baixar_imagens(enc, pasta, cliente, pausa)
     manifesto = pasta / "manifest.json"
     ext = "pdf" if enc.formato == "pdf" else Path(enc.url).suffix.lstrip(".") or "jpg"
     arquivo = pasta / f"encarte.{ext}"
@@ -58,13 +90,7 @@ def baixar(enc: Encarte, base: Path, cliente: httpx.Client) -> EncarteBaixado:
         if antigo.sha256 == _sha256(arquivo):
             return antigo.model_copy(update={"novo": False})
 
-    tmp = arquivo.with_suffix(".part")
-    with cliente.stream("GET", enc.url) as r:
-        r.raise_for_status()
-        with tmp.open("wb") as f:
-            for bloco in r.iter_bytes():
-                f.write(bloco)
-    tmp.replace(arquivo)
+    _download(cliente, enc.url, arquivo)
 
     paginas = _paginas_pdf(arquivo, pasta) if enc.formato == "pdf" else [arquivo.name]
     feito = EncarteBaixado(
@@ -87,9 +113,10 @@ def coletar(mercado: str, base: Path) -> list[EncarteBaixado]:
         r.raise_for_status()
         encartes = PARSERS[mercado](r.text)
         feitos = []
+        pausa = PAUSA.get(mercado, PAUSA_S)
         for enc in encartes:
-            time.sleep(PAUSA_S)
-            feitos.append(baixar(enc, base, cliente))
+            time.sleep(pausa)
+            feitos.append(baixar(enc, base, cliente, pausa))
         return feitos
 
 
