@@ -109,8 +109,10 @@ h2 { font-size:16px; margin:18px 0 4px; }
 .mini .rodape span { white-space:nowrap; }
 .mini .rodape .urg { color:var(--warn); font-weight:700; }
 .mini .nalista { color:var(--brand); font-weight:700; }
-.cat-tit { display:flex; justify-content:space-between; align-items:baseline; font-size:15px; margin:16px 0 6px; }
-.cat-tit span { color:var(--text-2); font-size:12px; font-weight:400; }
+.cat-tit { width:100%; border:0; background:none; color:var(--text); cursor:pointer; padding:4px 0; text-align:left; font-family:inherit;
+  display:flex; justify-content:space-between; align-items:baseline; font-size:15px; margin:16px 0 6px; }
+.cat-tit .seta { display:inline-block; width:14px; color:var(--text-2); }
+.cat-tit > span { color:var(--text-2); font-size:12px; font-weight:400; }
 .filtros { position:sticky; top:0; z-index:4; background:var(--bg); padding:8px 0 4px; margin:0 -16px; padding-left:16px; padding-right:16px; }
 .busca { position:relative; }
 .busca .lupa { position:absolute; left:14px; top:50%; transform:translateY(-50%); color:var(--text-2); pointer-events:none; }
@@ -164,6 +166,7 @@ mark { background:var(--warn-soft); color:inherit; border-radius:3px; padding:0 
       <div class="rotulo">Categoria</div>
       <div class="chips" id="chips-cat"></div>
       <div class="resbar"><span id="res-txt"></span>
+        <button class="chip" id="todas-cats" style="margin-left:auto"></button>
         <select id="ordem" aria-label="Ordenar"><option value="desc">Maior desconto</option>
           <option value="preco">Menor preço</option><option value="prazo">Acaba antes</option></select></div>
     </div>
@@ -259,6 +262,7 @@ let lista = ler("promo_lista", [
 let decisoes = ler("promo_decisoes", {});   // id -> "aprovado" | "descartado"
 let enviados = ler("promo_enviados", []);   // ids ja avisados
 let filtroM = "todos", filtroC = "todas", ordem = "desc";
+let fechadas = ler("promo_cats_fechadas", []);
 
 const ativa = o => o.st === "ok" || decisoes[o.id] === "aprovado";
 const pendente = o => o.st === "revisar" && !decisoes[o.id];
@@ -314,8 +318,12 @@ function renderOfertas() {
 
   document.getElementById("lista-ofertas").innerHTML = CATS.map(c => {
     const os = v.filter(o => o.cat === c);
-    return os.length ? `<div class="cat-tit"><b>${c}</b><span>${os.length} ${os.length > 1 ? "ofertas" : "oferta"}</span></div>
-      <div class="grade">${os.map(cardOferta).join("")}</div>` : "";
+    if (!os.length) return "";
+    const fechada = fechadas.includes(c) && !termo;   // buscando, mostra tudo
+    return `<button class="cat-tit" data-cat="${c}" aria-expanded="${!fechada}">
+        <b><span class="seta">${fechada ? "▸" : "▾"}</span> ${c}</b>
+        <span>${os.length} ${os.length > 1 ? "ofertas" : "oferta"}${fechada ? " · mostrar" : ""}</span></button>
+      ${fechada ? "" : `<div class="grade">${os.map(cardOferta).join("")}</div>`}`;
   }).join("") || `<div class="vazio">Nada encontrado${bruto ? ` para “${bruto}”` : ""}.<br>
       <button class="btn btn-s" style="margin-top:10px" id="zerar">Limpar filtros</button></div>`;
 
@@ -336,6 +344,7 @@ function renderOfertas() {
   document.getElementById("chips-cat").innerHTML = cc.map(([id, n, q]) =>
     `<button class="chip ${filtroC === id ? "on" : ""}" data-c="${id}" ${q || id === filtroC ? "" : "disabled"}>${n}<span class="n">${q}</span></button>`).join("");
 
+  document.getElementById("todas-cats").textContent = fechadas.length ? "▾ Abrir todas" : "▸ Recolher todas";
   document.getElementById("k-ofertas").textContent = validas.length;
   document.getElementById("k-lista").textContent = validas.filter(casa).length;
   document.getElementById("k-merc").textContent = MERCADOS.filter(m => m.status === "ok").length + "/5";
@@ -403,6 +412,14 @@ document.addEventListener("click", e => {
     window.scrollTo(0, 0);
   }
   if (t.dataset.m) { filtroM = t.dataset.m; renderOfertas(); }
+  if (t.dataset.cat) {
+    const c = t.dataset.cat;
+    fechadas = fechadas.includes(c) ? fechadas.filter(x => x !== c) : [...fechadas, c];
+    salvar("promo_cats_fechadas", fechadas); renderOfertas();
+  }
+  if (t.id === "todas-cats") {
+    fechadas = fechadas.length ? [] : [...CATS]; salvar("promo_cats_fechadas", fechadas); renderOfertas();
+  }
   if (t.dataset.c) { filtroC = t.dataset.c; renderOfertas(); }
   if (t.dataset.q) { document.getElementById("busca").value = t.dataset.q; renderOfertas(); }
   if (t.id === "limpar-busca") { document.getElementById("busca").value = ""; renderOfertas(); document.getElementById("busca").focus(); }
