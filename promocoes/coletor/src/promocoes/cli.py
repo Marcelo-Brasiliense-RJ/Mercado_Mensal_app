@@ -206,7 +206,8 @@ def main() -> None:
                 print(f"{m} | {n} fotos")
                 continue
             if a.cmd == "extrair":
-                print(extrair_encartes(m, base))
+                if m not in DIRETOS:  # site com preco em texto ja sai pronto do coletar
+                    print(extrair_encartes(m, base))
                 continue
             print(coletar_direto(m, base) if m in DIRETOS else resumo(coletar(m, base)))
         except Exception as e:  # um mercado fora do ar nao derruba os outros

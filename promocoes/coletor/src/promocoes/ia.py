@@ -8,6 +8,7 @@ import base64
 import hashlib
 import json
 import os
+import re
 import threading
 import time
 from datetime import datetime, timezone
@@ -31,7 +32,14 @@ INTERVALO_MIN_S = 4.0  # free do OpenRouter: 20 req/min; folga para os dois prov
 _ultima = 0.0
 _trava = threading.Lock()
 _trava_log = threading.Lock()
-_esgotados: set[str] = set()
+_esgotados: set[tuple[str, str]] = set()  # (chave, modelo) com a cota do dia gasta
+
+
+def chaves_gemini() -> list[str]:
+    """GEMINI_API_KEY, GEMINI_API_KEY_2, _3...: cada chave tem a sua cota diaria por modelo."""
+    nomes = sorted((k for k in os.environ if re.fullmatch(r"GEMINI_API_KEY(_\d+)?", k)),
+                   key=lambda k: int(k.rsplit("_", 1)[1]) if k[-1].isdigit() else 1)
+    return [os.environ[k] for k in nomes if os.environ[k]]
 
 
 def _espacar() -> None:
@@ -109,25 +117,30 @@ class IA:
             arq = self.cache / f"{self._chave(img, modelo, pergunta)}.json"
             if arq.exists():
                 return json.loads(arq.read_text())
+        # O melhor modelo primeiro, em todas as chaves; so depois desce para o proximo modelo.
         for modelo in modelos:
-            if modelo in _esgotados:
-                continue
-            try:
-                return self._gemini(img, pergunta, schema, modelo)
-            except CotaEsgotada:
-                _esgotados.add(modelo)
-            except httpx.HTTPStatusError as e:
-                if e.response.status_code < 500:
-                    raise
-                # Fora do ar depois das tentativas: tenta o proximo modelo (sem marcar como esgotado).
+            for chave in chaves_gemini():
+                if (chave, modelo) in _esgotados:
+                    continue
+                try:
+                    return self._gemini(img, pergunta, schema, modelo, chave)
+                except CotaEsgotada:
+                    _esgotados.add((chave, modelo))
+                except httpx.HTTPStatusError as e:
+                    if e.response.status_code in (403, 404):  # modelo nao liberado nesta chave
+                        _esgotados.add((chave, modelo))
+                        continue
+                    if e.response.status_code < 500:
+                        raise
+                    break  # fora do ar depois das tentativas: outra chave nao ajuda, vai ao proximo modelo
         raise RuntimeError("nenhum modelo Gemini disponivel (cota diaria esgotada ou fora do ar)")
 
-    def _gemini(self, img: bytes, pergunta: str, schema: dict, modelo: str):
+    def _gemini(self, img: bytes, pergunta: str, schema: dict, modelo: str, chave: str):
         def chamar():
             d = _post(
                 f"https://generativelanguage.googleapis.com/v1beta/models/{modelo}:generateContent",
                 "candidates",
-                headers={"x-goog-api-key": os.environ["GEMINI_API_KEY"]},
+                headers={"x-goog-api-key": chave},
                 json={
                     "contents": [{"parts": [
                         {"text": pergunta},
