@@ -98,6 +98,7 @@ h2 { font-size:16px; margin:18px 0 4px; }
   min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .mini .merc i { width:8px; height:8px; border-radius:50%; flex:none; }
 .mini .off { background:var(--pos); color:#fff; border-radius:6px; padding:2px 6px; font-size:12px; font-weight:800; flex:none; }
+.mini .foto { width:100%; height:88px; object-fit:contain; background:#fff; border-radius:8px; }
 .mini .nome { font-weight:700; font-size:15px; line-height:1.25; display:-webkit-box;
   -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; min-height:2.5em; }
 .mini .tam { color:var(--text-2); font-size:13px; font-weight:400; }
@@ -145,7 +146,7 @@ mark { background:var(--warn-soft); color:inherit; border-radius:3px; padding:0 
     <h1>🛒 Monitor de Promoções</h1>
     <div class="sub">Curicica / Jacarepaguá · semana de 26/10 a 01/11</div>
   </header>
-  <div class="aviso">Protótipo para validação. Todos os produtos e preços abaixo são dados de exemplo, não ofertas reais.</div>
+  <div class="aviso" id="aviso">Protótipo para validação. Todos os produtos e preços abaixo são dados de exemplo, não ofertas reais.</div>
 
   <!-- OFERTAS -->
   <section class="tela on" id="t-ofertas">
@@ -221,6 +222,8 @@ mark { background:var(--warn-soft); color:inherit; border-radius:3px; padding:0 
   <button data-t="mercados"><span class="ic">🏪</span>Mercados</button>
 </div></nav>
 
+<!-- Gerado por `promocoes exportar`; sem ele a pagina usa os dados de exemplo. -->
+<script src="dados/ofertas.js"></script>
 <script>
 // Dados de exemplo, so para validar o desenho. Nada aqui veio dos encartes.
 const MERCADOS = [
@@ -232,7 +235,7 @@ const MERCADOS = [
 ];
 const NOME = Object.fromEntries(MERCADOS.map(m => [m.id, m.nome]));
 
-const OFERTAS = [
+let OFERTAS = [
   { id:1, cat:"Carnes", m:"mundial", produto:"Picanha bovina", marca:"Friboi", tam:"kg", por:49.90, de:69.90, ate:"qua 28/10", st:"ok" },
   { id:2, cat:"Mercearia", m:"mundial", produto:"Café torrado e moído", marca:"Pilão", tam:"500 g", por:17.98, de:24.90, ate:"qua 28/10", st:"ok" },
   { id:3, cat:"Laticínios", m:"mundial", produto:"Leite UHT integral", marca:"Italac", tam:"1 L", por:4.79, de:5.99, ate:"qua 28/10", st:"ok" },
@@ -267,14 +270,16 @@ let fechadas = ler("promo_cats_fechadas", []);
 const ativa = o => o.st === "ok" || decisoes[o.id] === "aprovado";
 const pendente = o => o.st === "revisar" && !decisoes[o.id];
 function casa(o) {
-  const alvo = norm(`${o.produto} ${o.marca}`);
-  return lista.find(i => alvo.includes(norm(i.termo)) && (i.alvo == null || o.por <= i.alvo));
+  // O produto precisa comecar pelo termo: "leite" casa "Leite em Po", nao "Sabonete Leite de Cabra".
+  const alvo = norm(o.produto);
+  return lista.find(i => alvo.startsWith(norm(i.termo)) && (i.alvo == null || o.por <= i.alvo));
 }
 
 // Cor de cada mercado, para reconhecer de relance.
 const COR = { mundial:"#C8352B", guanabara:"#2559B0", supermarket:"#157A45", superbom:"#B0600E", economia:"#7340B8" };
 const HOJE = new Date(2026, 9, 26);
 function prazo(o) {
+  if (!o.ate) return "<span>Preço de hoje</span>";
   const [d, m] = o.ate.split(" ")[1].split("/").map(Number);
   const dias = Math.round((new Date(2026, m - 1, d) - HOJE) / 864e5);
   if (dias <= 0) return '<span class="urg">⏰ Hoje</span>';
@@ -287,15 +292,16 @@ function cardOferta(o) {
   return `<div class="mini ${na ? "da-lista" : ""}">
     <div class="faixa" style="background:${COR[o.m]}"><span>${NOME[o.m]}</span>
       <span class="off">-${pct(o)}%</span></div>
+    ${o.img ? `<img class="foto" src="${o.img}" alt="" loading="lazy">` : ""}
     <div class="nome">${marcar(o.produto + (o.marca ? " " + o.marca : ""))} <span class="tam">${o.tam}</span></div>
     <div class="pr"><b>${brl(o.por)}</b><s>${brl(o.de)}</s></div>
     <div class="rodape">${prazo(o)}${na ? '<span class="nalista">✓ Na lista</span>' : ""}</div>
   </div>`;
 }
 
-const CATS = ["Carnes", "Mercearia", "Laticínios", "Limpeza", "Higiene"];
+let CATS = ["Carnes", "Mercearia", "Laticínios", "Limpeza", "Higiene"];
 
-const diasAte = o => { const [d, m] = o.ate.split(" ")[1].split("/").map(Number); return new Date(2026, m - 1, d) - HOJE; };
+const diasAte = o => { if (!o.ate) return Infinity; const [d, m] = o.ate.split(" ")[1].split("/").map(Number); return new Date(2026, m - 1, d) - HOJE; };
 const texto = o => norm(`${o.produto} ${o.marca} ${o.cat} ${NOME[o.m]}`);
 let termo = "";
 function marcar(t) {
@@ -352,7 +358,7 @@ function renderOfertas() {
 
 function renderLista() {
   document.getElementById("itens-lista").innerHTML = lista.map((i, idx) => {
-    const achou = OFERTAS.filter(ativa).filter(o => norm(`${o.produto} ${o.marca}`).includes(norm(i.termo)))
+    const achou = OFERTAS.filter(ativa).filter(o => norm(o.produto).startsWith(norm(i.termo)))
       .sort((a, b) => a.por - b.por)[0];
     const bate = achou && (i.alvo == null || achou.por <= i.alvo);
     const status = !achou ? '<span class="meta">Sem oferta esta semana</span>'
@@ -372,7 +378,7 @@ function renderAlertas() {
   itens.forEach(o => (porM[o.m] ??= []).push(o));
   document.getElementById("previa").textContent = itens.length
     ? Object.entries(porM).map(([m, os]) => `*${NOME[m]}*\n` + os.map(o =>
-        `🛒 ${o.produto}${o.marca ? " " + o.marca : ""} ${o.tam} ${brl(o.por)} (até ${o.ate})`).join("\n")).join("\n\n")
+        `🛒 ${o.produto}${o.marca ? " " + o.marca : ""}${o.tam ? " " + o.tam : ""} ${brl(o.por)}${o.ate ? ` (até ${o.ate})` : ""}`).join("\n")).join("\n\n")
     : "Nada novo para avisar.";
   document.getElementById("enviar").disabled = !itens.length;
   document.getElementById("enviados").innerHTML = enviados.length
@@ -396,10 +402,10 @@ function renderRevisar() {
 }
 
 function renderMercados() {
-  const tag = { ok:'<span class="tag t-ok">Coletado</span>', manual:'<span class="tag t-rev">Manual</span>', falha:'<span class="tag t-off">Sem encarte</span>' };
+  const tag = { ok:'<span class="tag t-ok">Coletado</span>', manual:'<span class="tag t-rev">Manual</span>', falha:'<span class="tag t-off">Sem encarte</span>', pend:'<span class="tag t-rev">Pendente</span>' };
   document.getElementById("lista-merc").innerHTML = MERCADOS.map(m => `<div class="card mk">
     <div><b>${m.nome}</b><small>${m.fonte}</small>
-    <small>Última coleta: ${m.coleta} · ${m.paginas} pág. · ${m.validade}</small></div>${tag[m.status]}</div>`).join("");
+    <small>Última coleta: ${m.coleta}${m.paginas ? ` · ${m.paginas} pág.` : ""}${m.ofertas ? ` · ${m.ofertas} ofertas` : ""} · ${m.validade}</small></div>${tag[m.status]}</div>`).join("");
 }
 
 function tudo() { renderOfertas(); renderLista(); renderAlertas(); renderRevisar(); renderMercados(); }
@@ -438,6 +444,16 @@ document.addEventListener("click", e => {
 });
 document.getElementById("busca").addEventListener("input", renderOfertas);
 document.getElementById("ordem").addEventListener("change", e => { ordem = e.target.value; renderOfertas(); });
+const REAL = window.DADOS_REAIS;
+if (REAL) {
+  OFERTAS = REAL.ofertas.map((o, i) => ({ id: i + 1, st: "ok", tam: "", ...o }));
+  const n = {};
+  OFERTAS.forEach(o => n[o.cat] = (n[o.cat] || 0) + 1);
+  CATS = Object.keys(n).sort((a, b) => n[b] - n[a]);
+  MERCADOS.forEach(m => Object.assign(m, REAL.mercados[m.id] || { status: "pend", coleta: "ainda não coletado", validade: "—", paginas: 0 }));
+  document.getElementById("aviso").textContent =
+    `Dados reais coletados em ${REAL.gerado_em}: ${Object.values(REAL.mercados).map(m => m.nome).join(", ")}. Os outros mercados ainda não entraram.`;
+}
 tudo();
 </script>
 </body>

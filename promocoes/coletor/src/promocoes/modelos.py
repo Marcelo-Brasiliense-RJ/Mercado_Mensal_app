@@ -15,6 +15,20 @@ class Encarte(BaseModel):
     fim: datetime | None = None
 
 
+class Oferta(BaseModel):
+    """Uma oferta ja estruturada (site com preco em texto, sem precisar de IA)."""
+
+    mercado: str
+    produto: str
+    marca: str = ""
+    categoria: str = ""
+    preco_por: float
+    preco_de: float | None = None
+    url: str | None = None
+    imagem: str | None = None
+    ref: str | None = None  # id do produto no site do mercado
+
+
 class EncarteBaixado(BaseModel):
     """O que ficou salvo em disco depois da coleta."""
 
