@@ -102,13 +102,14 @@ class IA:
     def _chave(img: bytes, modelo: str, pergunta: str) -> str:
         return hashlib.sha256(img + modelo.encode() + pergunta.encode()).hexdigest()[:32]
 
-    def gemini(self, img: bytes, pergunta: str, schema: dict):
+    def gemini(self, img: bytes, pergunta: str, schema: dict, modelos: list[str] | None = None):
+        modelos = modelos or GEMINI
         # Leitura ja feita por qualquer modelo da lista vale: nao gasta cota de novo.
-        for modelo in GEMINI:
+        for modelo in modelos:
             arq = self.cache / f"{self._chave(img, modelo, pergunta)}.json"
             if arq.exists():
                 return json.loads(arq.read_text())
-        for modelo in GEMINI:
+        for modelo in modelos:
             if modelo in _esgotados:
                 continue
             try:

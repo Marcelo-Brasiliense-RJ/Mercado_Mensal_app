@@ -7,7 +7,7 @@ from pathlib import Path
 
 import httpx
 
-from . import superbom
+from . import fotos, superbom
 from .coletor import HEADERS, RIO, coletar, resumo
 from .extracao import extrair
 from .fontes import PARSERS
@@ -106,7 +106,7 @@ def exportar(base: Path, destino: Path) -> str:
                 "por": o["preco_por"],
                 "de": o["preco_de"] or o["preco_por"],
                 "ate": _ate(o.get("fim")),
-                "img": o.get("imagem"),
+                "img": fotos.data_uri(base, o.get("foto")) or o.get("imagem"),
                 "cond": o.get("condicao"),
                 "pag": o.get("pagina"),
                 "st": o.get("status") or "ok",
@@ -134,6 +134,8 @@ def main() -> None:
     c.add_argument("mercados", nargs="*", default=todos, help=f"padrao: {' '.join(todos)}")
     x = sub.add_parser("extrair", help="le com IA os encartes baixados")
     x.add_argument("mercados", nargs="*", default=list(PARSERS))
+    f = sub.add_parser("fotos", help="miniaturas das ofertas (recorte do encarte ou foto do site)")
+    f.add_argument("mercados", nargs="*", default=todos)
     e = sub.add_parser("exportar", help="gera os dados reais para o prototipo")
     e.add_argument("--destino", default="../prototipo/dados/ofertas.js")
     a = p.parse_args()
@@ -145,6 +147,10 @@ def main() -> None:
     erro = False
     for m in a.mercados:
         try:
+            if a.cmd == "fotos":
+                n = fotos.baixar_do_site(base, m) if m in DIRETOS else fotos.recortar_encarte(base, m)
+                print(f"{m} | {n} fotos")
+                continue
             if a.cmd == "extrair":
                 print(extrair_encartes(m, base))
                 continue

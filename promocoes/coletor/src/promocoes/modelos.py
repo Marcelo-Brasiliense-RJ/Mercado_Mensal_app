@@ -34,6 +34,7 @@ class Oferta(BaseModel):
     inicio: datetime | None = None
     fim: datetime | None = None
     pagina: int | None = None
+    foto: str | None = None  # miniatura local (data/fotos/...), embutida no prototipo
     status: str = "ok"  # ok | revisar
     motivo: str | None = None
 

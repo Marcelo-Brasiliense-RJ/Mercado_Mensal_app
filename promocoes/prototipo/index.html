@@ -99,6 +99,7 @@ h2 { font-size:16px; margin:18px 0 4px; }
 .mini .merc i { width:8px; height:8px; border-radius:50%; flex:none; }
 .mini .off { background:var(--pos); color:#fff; border-radius:6px; padding:2px 6px; font-size:12px; font-weight:800; flex:none; }
 .mini .foto { width:100%; height:88px; object-fit:contain; background:#fff; border-radius:8px; }
+.sem-foto { display:flex; align-items:center; justify-content:center; font-size:34px; background:var(--card-2) !important; }
 .mini .nome { font-weight:700; font-size:15px; line-height:1.25; display:-webkit-box;
   -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; min-height:2.5em; }
 .mini .tam { color:var(--text-2); font-size:13px; font-weight:400; }
@@ -139,6 +140,7 @@ h2 { font-size:16px; margin:18px 0 4px; }
   padding:7px 10px; font-size:13px; font-weight:600; }
 mark { background:var(--warn-soft); color:inherit; border-radius:3px; padding:0 1px; }
 .item-l { background:var(--card); border-radius:12px; padding:10px 12px; margin:6px 0; box-shadow:0 1px 3px var(--shadow); cursor:pointer; }
+.mini-foto { width:52px; height:52px; object-fit:contain; background:#fff; border-radius:8px; flex:none; font-size:24px !important; }
 .item-l .lin { display:flex; justify-content:space-between; align-items:center; gap:10px; }
 .item-l .termo { font-size:12px; color:var(--text-2); text-transform:uppercase; letter-spacing:.5px; font-weight:700; }
 .item-l .prod { font-weight:600; font-size:14px; line-height:1.25; margin-top:2px; }
@@ -334,12 +336,20 @@ function prazo(o) {
   return `<span>Até ${o.ate}</span>`;
 }
 
+const ICONE = { "Mercearia":"🥫", "Bebidas":"🥤", "Carnes":"🥩", "Frios e Laticínios":"🧀", "Hortifruti":"🥦", "Padaria":"🍞",
+  "Congelados":"🧊", "Doces e Biscoitos":"🍪", "Limpeza":"🧽", "Perfumaria e Higiene":"🧴", "Bebê":"🍼", "Pet":"🐾", "Utilidades":"🧺" };
+const icone = o => `<div class="foto sem-foto">${ICONE[o.cat] || "🛒"}</div>`;
+// Foto que nao carrega (painel sem internet, link quebrado) vira o icone da categoria.
+const foto = (o, cls = "foto") => o.img
+  ? `<img class="${cls}" src="${o.img}" alt="" loading="lazy" onerror="this.outerHTML='<div class=&quot;${cls} sem-foto&quot;>${ICONE[o.cat] || "🛒"}</div>'">`
+  : icone(o).replace('class="foto', `class="${cls}`);
+
 function cardOferta(o) {
   const na = casa(o);
   return `<div class="mini ${na ? "da-lista" : ""}">
     <div class="faixa" style="background:${COR[o.m]}"><span>${NOME[o.m]}</span>
       ${o.de > o.por ? `<span class="off">-${pct(o)}%</span>` : ""}</div>
-    ${o.img ? `<img class="foto" src="${o.img}" alt="" loading="lazy">` : ""}
+    ${foto(o)}
     <div class="nome">${marcar(o.produto + (o.marca ? " " + o.marca : ""))} <span class="tam">${o.tam}</span></div>
     <div class="pr"><b>${brl(o.por)}</b>${o.de > o.por ? `<s>${brl(o.de)}</s>` : ""}</div>
     ${o.cond ? `<div class="cond">${o.cond}</div>` : ""}
@@ -468,7 +478,7 @@ function renderVoce() {
     if (!os.length) return `<div class="item-l"><div class="termo">${i.termo}</div><div class="sem">Sem oferta esta semana</div></div>`;
     const [b, ...resto] = os;
     return `<div class="item-l" data-abre="${k}">
-      <div class="lin"><div style="min-width:0"><div class="termo">${i.termo}</div>
+      <div class="lin">${foto(b, "mini-foto")}<div style="min-width:0;flex:1"><div class="termo">${i.termo}</div>
         <div class="prod">${nomeO(b)}</div>
         <div style="margin-top:4px">${pill(b.m)} <span class="meta" style="font-size:12px;color:var(--text-2)">${b.ate ? "até " + b.ate : "preço de hoje"}${b.cond ? " · " + b.cond : ""}</span></div></div>
         <div class="val"><b>${brl(b.por)}</b>${resto.length ? `<span class="meta" style="font-size:12px;color:var(--text-2)">+${resto.length} ${resto.length > 1 ? "opções" : "opção"} ▾</span>` : ""}</div></div>
@@ -502,7 +512,7 @@ function renderVoce() {
     .filter(o => { const k = norm(o.produto).split(" ").slice(0, 3).join(" "); return !vistos.has(k) && vistos.add(k); })
     .slice(0, 10);
   document.getElementById("voce-achados").innerHTML = `<div class="card">${achados.map(o => `<div class="achado">
-      <div class="nm">${nomeO(o)}<small>${pill(o.m)} ${o.cat}</small></div>
+      ${foto(o, "mini-foto")}<div class="nm" style="flex:1">${nomeO(o)}<small>${pill(o.m)} ${o.cat}</small></div>
       <div class="pr2"><b>${brl(o.por)}</b><br><span class="tag t-desc">-${pct(o)}%</span></div></div>`).join("")}</div>`;
 }
 
