@@ -15,7 +15,13 @@ from pathlib import Path
 
 import httpx
 
-GEMINI = os.environ.get("PROMOCOES_MODELO_EXTRATOR", "gemini-2.5-flash")
+# O free do Gemini da ~20 leituras por dia POR MODELO. Quando a cota de um acaba,
+# passa para o proximo da lista (todos com visao; a ordem e do mais forte para o mais leve).
+GEMINI = os.environ.get(
+    "PROMOCOES_MODELOS_EXTRATOR",
+    "gemini-2.5-flash,gemini-3.5-flash,gemini-3.6-flash,gemini-3-flash-preview,"
+    "gemini-3.5-flash-lite,gemini-3.1-flash-lite,gemini-flash-lite-latest",
+).split(",")
 # Outra familia (NVIDIA), para nao repetir o mesmo vies da camada 1.
 VALIDADOR = os.environ.get("PROMOCOES_MODELO_VALIDADOR", "nvidia/nemotron-3.5-super-vl:free")
 
@@ -25,6 +31,7 @@ INTERVALO_MIN_S = 4.0  # free do OpenRouter: 20 req/min; folga para os dois prov
 _ultima = 0.0
 _trava = threading.Lock()
 _trava_log = threading.Lock()
+_esgotados: set[str] = set()
 
 
 def _espacar() -> None:
@@ -35,6 +42,10 @@ def _espacar() -> None:
         if falta > 0:
             time.sleep(falta)
         _ultima = time.monotonic()
+
+
+class CotaEsgotada(Exception):
+    """Cota diaria do modelo acabou: tentar de novo hoje nao adianta."""
 
 
 def _post(url: str, chave: str, **kw) -> dict:
@@ -48,6 +59,8 @@ def _post(url: str, chave: str, **kw) -> dict:
                 raise
             time.sleep(2 ** (n + 2))
             continue
+        if r.status_code == 429 and "PerDay" in r.text:
+            raise CotaEsgotada(url)
         if r.status_code in (429, 500, 502, 503, 504) and n < TENTATIVAS - 1:
             espera = float(r.headers.get("retry-after") or 2 ** (n + 3))
             time.sleep(min(espera, 120))
@@ -89,7 +102,22 @@ class IA:
     def _chave(img: bytes, modelo: str, pergunta: str) -> str:
         return hashlib.sha256(img + modelo.encode() + pergunta.encode()).hexdigest()[:32]
 
-    def gemini(self, img: bytes, pergunta: str, schema: dict, modelo: str = GEMINI):
+    def gemini(self, img: bytes, pergunta: str, schema: dict):
+        # Leitura ja feita por qualquer modelo da lista vale: nao gasta cota de novo.
+        for modelo in GEMINI:
+            arq = self.cache / f"{self._chave(img, modelo, pergunta)}.json"
+            if arq.exists():
+                return json.loads(arq.read_text())
+        for modelo in GEMINI:
+            if modelo in _esgotados:
+                continue
+            try:
+                return self._gemini(img, pergunta, schema, modelo)
+            except CotaEsgotada:
+                _esgotados.add(modelo)
+        raise RuntimeError("cota diaria de todos os modelos Gemini esgotada")
+
+    def _gemini(self, img: bytes, pergunta: str, schema: dict, modelo: str):
         def chamar():
             d = _post(
                 f"https://generativelanguage.googleapis.com/v1beta/models/{modelo}:generateContent",
