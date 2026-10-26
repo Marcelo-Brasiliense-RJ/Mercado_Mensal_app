@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { mapearOpenFoodFacts, nomeGenerico, unidadeDe } from "./produtoPublico";
+import {
+  mapearOpenFoodFacts,
+  nomeExibicao,
+  nomeGenerico,
+  unidadeDe,
+} from "./produtoPublico";
 
 describe("nome pelo codigo de barras", () => {
   it("tira marca e tamanho, sobra o nome generico", () => {
@@ -14,6 +19,14 @@ describe("nome pelo codigo de barras", () => {
   it("nunca devolve vazio quando havia nome", () => {
     // marca igual ao produto inteiro: cair no nome sem tamanho e melhor que nada
     expect(nomeGenerico("Leite 1L", "Leite")).toBe("leite");
+  });
+
+  it("tira o grito do rotulo sem perder o tamanho", () => {
+    expect(nomeExibicao("REFRIGERANTE SUKITA UVA 2L")).toBe("Refrigerante Sukita Uva 2L");
+    expect(nomeExibicao("ARROZ TIO JOAO 5KG")).toBe("Arroz Tio Joao 5kg");
+    // nome que ja veio normal nao e mexido
+    expect(nomeExibicao("Nescafé Café Soluvel Matinal")).toBe("Nescafé Café Soluvel Matinal");
+    expect(nomeExibicao("")).toBe("");
   });
 
   it("le a unidade do tamanho da embalagem", () => {
@@ -31,7 +44,12 @@ describe("nome pelo codigo de barras", () => {
         status: 1,
         product: { product_name: "REFRIGERANTE SUKITA UVA 2L", brands: "SUKITA UVA", quantity: "2l" },
       }),
-    ).toEqual({ nome: "refrigerante", unidade: "L", marca: "SUKITA UVA" });
+    ).toEqual({
+      nome: "Refrigerante Sukita Uva 2L",
+      generico: "refrigerante",
+      unidade: "L",
+      marca: "SUKITA UVA",
+    });
     expect(mapearOpenFoodFacts({ status: 0 })).toBe(null);
     expect(mapearOpenFoodFacts({ status: 1, product: { product_name: "" } })).toBe(null);
   });

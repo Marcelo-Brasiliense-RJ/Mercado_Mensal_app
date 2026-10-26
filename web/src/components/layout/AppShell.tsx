@@ -7,7 +7,7 @@ import { TabBar } from "./TabBar";
 import { TopBar } from "./TopBar";
 import { ThemeToggle } from "@/theme/ThemeToggle";
 import { ReceiptModal } from "@/components/receipt/ReceiptModal";
-import { ReceiptIcon, RefreshIcon } from "@/components/ui/icons";
+import { RefreshIcon } from "@/components/ui/icons";
 import { AvatarInitial } from "@/components/ui/AvatarInitial";
 import { useStore } from "@/lib/store";
 import { useHousehold } from "@/lib/household";
@@ -43,6 +43,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </div>
 
       <div className="flex h-dvh min-w-0 flex-col lg:flex-1">
+        {/* A camera de nota fiscal saiu daqui: o dono nao usa mais e ela ocupava
+            o topo de todas as telas. O fluxo continua existindo, pelo menu
+            lateral do desktop (Sidebar -> Registrar compra). */}
         <TopBar
           className="lg:hidden"
           title={meta.title}
@@ -68,13 +71,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 className="grid h-10 w-10 place-items-center rounded-xl text-text-2 hover:bg-card-2 disabled:opacity-60"
               >
                 <RefreshIcon size={19} className={dataLoading ? "animate-spin" : ""} />
-              </button>
-              <button
-                onClick={openReceipt}
-                aria-label="Registrar compra"
-                className="grid h-10 w-10 place-items-center rounded-xl text-text-2 hover:bg-card-2"
-              >
-                <ReceiptIcon size={20} />
               </button>
               <ThemeToggle />
             </div>
