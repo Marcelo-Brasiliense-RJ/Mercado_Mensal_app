@@ -83,6 +83,17 @@ h2 { font-size:16px; margin:18px 0 4px; }
 .mk small { color:var(--text-2); display:block; }
 .motivo { color:var(--warn); font-size:12px; margin-top:4px; }
 .acoes { display:flex; gap:8px; margin-top:8px; }
+.grade { display:grid; grid-template-columns:repeat(auto-fill,minmax(155px,1fr)); gap:8px; }
+.mini { background:var(--card); border-radius:12px; padding:10px; box-shadow:0 1px 3px var(--shadow);
+  display:flex; flex-direction:column; gap:4px; min-width:0; }
+.mini.da-lista { outline:2px solid var(--brand); }
+.mini .nome { font-weight:600; font-size:14px; line-height:1.25; }
+.mini .meta { color:var(--text-2); font-size:12px; }
+.mini .pr { margin-top:auto; padding-top:4px; display:flex; align-items:baseline; gap:6px; flex-wrap:wrap; }
+.mini .pr b { font-size:17px; color:var(--pos); }
+.mini .pr s { color:var(--text-2); font-size:12px; }
+.cat-tit { display:flex; justify-content:space-between; align-items:baseline; font-size:15px; margin:16px 0 6px; }
+.cat-tit span { color:var(--text-2); font-size:12px; font-weight:400; }
 .tela { display:none; } .tela.on { display:block; }
 </style>
 </head>
@@ -167,19 +178,19 @@ const MERCADOS = [
 const NOME = Object.fromEntries(MERCADOS.map(m => [m.id, m.nome]));
 
 const OFERTAS = [
-  { id:1, m:"mundial", produto:"Picanha bovina", marca:"Friboi", tam:"kg", por:49.90, de:69.90, ate:"qua 28/10", st:"ok" },
-  { id:2, m:"mundial", produto:"Café torrado e moído", marca:"Pilão", tam:"500 g", por:17.98, de:24.90, ate:"qua 28/10", st:"ok" },
-  { id:3, m:"mundial", produto:"Leite UHT integral", marca:"Italac", tam:"1 L", por:4.79, de:5.99, ate:"qua 28/10", st:"ok" },
-  { id:4, m:"guanabara", produto:"Arroz branco tipo 1", marca:"Tio João", tam:"5 kg", por:24.90, de:31.90, ate:"dom 01/11", st:"ok" },
-  { id:5, m:"guanabara", produto:"Café torrado e moído", marca:"Melitta", tam:"500 g", por:16.49, de:22.99, ate:"dom 01/11", st:"ok" },
-  { id:6, m:"guanabara", produto:"Óleo de soja", marca:"Soya", tam:"900 ml", por:6.49, de:7.99, ate:"dom 01/11", st:"ok" },
-  { id:7, m:"guanabara", produto:"Feijão preto", marca:"Kicaldo", tam:"1 kg", por:6.99, de:9.49, ate:"dom 01/11", st:"ok" },
-  { id:8, m:"supermarket", produto:"Leite UHT integral", marca:"Parmalat", tam:"1 L", por:4.99, de:6.49, ate:"dom 01/11", st:"ok" },
-  { id:9, m:"supermarket", produto:"Sabão em pó", marca:"Omo", tam:"1,6 kg", por:29.90, de:42.90, ate:"dom 01/11", st:"ok" },
-  { id:10, m:"supermarket", produto:"Papel higiênico folha dupla", marca:"Neve", tam:"12 un", por:19.90, de:27.90, ate:"dom 01/11", st:"ok" },
-  { id:11, m:"mundial", produto:"Contrafilé", marca:"", tam:"kg", por:3.99, de:52.90, ate:"qua 28/10", st:"revisar",
+  { id:1, cat:"Carnes", m:"mundial", produto:"Picanha bovina", marca:"Friboi", tam:"kg", por:49.90, de:69.90, ate:"qua 28/10", st:"ok" },
+  { id:2, cat:"Mercearia", m:"mundial", produto:"Café torrado e moído", marca:"Pilão", tam:"500 g", por:17.98, de:24.90, ate:"qua 28/10", st:"ok" },
+  { id:3, cat:"Laticínios", m:"mundial", produto:"Leite UHT integral", marca:"Italac", tam:"1 L", por:4.79, de:5.99, ate:"qua 28/10", st:"ok" },
+  { id:4, cat:"Mercearia", m:"guanabara", produto:"Arroz branco tipo 1", marca:"Tio João", tam:"5 kg", por:24.90, de:31.90, ate:"dom 01/11", st:"ok" },
+  { id:5, cat:"Mercearia", m:"guanabara", produto:"Café torrado e moído", marca:"Melitta", tam:"500 g", por:16.49, de:22.99, ate:"dom 01/11", st:"ok" },
+  { id:6, cat:"Mercearia", m:"guanabara", produto:"Óleo de soja", marca:"Soya", tam:"900 ml", por:6.49, de:7.99, ate:"dom 01/11", st:"ok" },
+  { id:7, cat:"Mercearia", m:"guanabara", produto:"Feijão preto", marca:"Kicaldo", tam:"1 kg", por:6.99, de:9.49, ate:"dom 01/11", st:"ok" },
+  { id:8, cat:"Laticínios", m:"supermarket", produto:"Leite UHT integral", marca:"Parmalat", tam:"1 L", por:4.99, de:6.49, ate:"dom 01/11", st:"ok" },
+  { id:9, cat:"Limpeza", m:"supermarket", produto:"Sabão em pó", marca:"Omo", tam:"1,6 kg", por:29.90, de:42.90, ate:"dom 01/11", st:"ok" },
+  { id:10, cat:"Higiene", m:"supermarket", produto:"Papel higiênico folha dupla", marca:"Neve", tam:"12 un", por:19.90, de:27.90, ate:"dom 01/11", st:"ok" },
+  { id:11, cat:"Carnes", m:"mundial", produto:"Contrafilé", marca:"", tam:"kg", por:3.99, de:52.90, ate:"qua 28/10", st:"revisar",
     motivo:"Queda de 92% vs. histórico. Provável erro de leitura (39,90?)." },
-  { id:12, m:"guanabara", produto:"Azeite extravirgem", marca:"Gallo", tam:"500 ml", por:32.90, de:29.90, ate:"dom 01/11", st:"revisar",
+  { id:12, cat:"Mercearia", m:"guanabara", produto:"Azeite extravirgem", marca:"Gallo", tam:"500 ml", por:32.90, de:29.90, ate:"dom 01/11", st:"revisar",
     motivo:"Preço “por” maior que o “de”. As IAs leram valores diferentes." },
 ];
 
@@ -207,15 +218,16 @@ function casa(o) {
 
 function cardOferta(o) {
   const na = casa(o);
-  return `<div class="card oferta">
-    <div class="info">
-      <div class="nome">${o.produto}${o.marca ? " " + o.marca : ""} <span class="meta">${o.tam}</span></div>
-      <div class="meta">${NOME[o.m]} · até ${o.ate}</div>
-      <div style="margin-top:6px">${na ? '<span class="tag t-lista">Na sua lista</span>' : ""}<span class="tag t-desc">-${pct(o)}%</span></div>
-    </div>
-    <div class="preco"><b>${brl(o.por)}</b><s>${brl(o.de)}</s></div>
+  return `<div class="mini ${na ? "da-lista" : ""}">
+    <div>${na ? '<span class="tag t-lista">Na lista</span>' : ""}<span class="tag t-desc">-${pct(o)}%</span></div>
+    <div class="nome">${o.produto}${o.marca ? " " + o.marca : ""}</div>
+    <div class="meta">${o.tam} · ${NOME[o.m]}</div>
+    <div class="meta">até ${o.ate}</div>
+    <div class="pr"><b>${brl(o.por)}</b><s>${brl(o.de)}</s></div>
   </div>`;
 }
+
+const CATS = ["Carnes", "Mercearia", "Laticínios", "Limpeza", "Higiene"];
 
 function renderOfertas() {
   const q = norm(document.getElementById("busca").value.trim());
@@ -226,8 +238,11 @@ function renderOfertas() {
   if (ordem === "preco") v.sort((a, b) => a.por - b.por);
   if (ordem === "merc") v.sort((a, b) => a.m.localeCompare(b.m));
   v.sort((a, b) => !!casa(b) - !!casa(a));   // da lista primeiro
-  document.getElementById("lista-ofertas").innerHTML =
-    v.map(cardOferta).join("") || '<div class="vazio">Nenhuma oferta com esse filtro.</div>';
+  document.getElementById("lista-ofertas").innerHTML = CATS.map(c => {
+    const os = v.filter(o => o.cat === c);
+    return os.length ? `<div class="cat-tit"><b>${c}</b><span>${os.length} ${os.length > 1 ? "ofertas" : "oferta"}</span></div>
+      <div class="grade">${os.map(cardOferta).join("")}</div>` : "";
+  }).join("") || '<div class="vazio">Nenhuma oferta com esse filtro.</div>';
 
   const validas = OFERTAS.filter(ativa);
   document.getElementById("k-ofertas").textContent = validas.length;
