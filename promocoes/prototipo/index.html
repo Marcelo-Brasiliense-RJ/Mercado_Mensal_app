@@ -138,6 +138,29 @@ h2 { font-size:16px; margin:18px 0 4px; }
 .resbar select { background:var(--card); color:var(--text); border:1px solid var(--border); border-radius:10px;
   padding:7px 10px; font-size:13px; font-weight:600; }
 mark { background:var(--warn-soft); color:inherit; border-radius:3px; padding:0 1px; }
+.item-l { background:var(--card); border-radius:12px; padding:10px 12px; margin:6px 0; box-shadow:0 1px 3px var(--shadow); cursor:pointer; }
+.item-l .lin { display:flex; justify-content:space-between; align-items:center; gap:10px; }
+.item-l .termo { font-size:12px; color:var(--text-2); text-transform:uppercase; letter-spacing:.5px; font-weight:700; }
+.item-l .prod { font-weight:600; font-size:14px; line-height:1.25; margin-top:2px; }
+.item-l .val { text-align:right; white-space:nowrap; }
+.item-l .val b { font-size:18px; color:var(--pos); display:block; }
+.pill { display:inline-block; color:#fff; font-weight:800; font-size:11px; border-radius:6px; padding:2px 7px; }
+.item-l .mais { display:none; border-top:1px solid var(--border); margin-top:8px; padding-top:6px; }
+.item-l.aberto .mais { display:block; }
+.item-l .alt { display:flex; justify-content:space-between; gap:8px; font-size:13px; padding:3px 0; }
+.item-l .alt span:first-child { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.item-l .sem { color:var(--text-2); font-size:13px; }
+.merc-l { display:flex; align-items:center; gap:10px; background:var(--card); border-radius:12px; padding:10px 12px; margin:6px 0; box-shadow:0 1px 3px var(--shadow); }
+.merc-l .barra { flex:1; height:8px; background:var(--card-2); border-radius:4px; overflow:hidden; }
+.merc-l .barra i { display:block; height:100%; border-radius:4px; }
+.merc-l .tot { white-space:nowrap; text-align:right; font-size:13px; }
+.merc-l .tot b { display:block; font-size:15px; }
+.dica { background:var(--pos-soft); color:var(--pos); border-radius:10px; padding:8px 12px; font-size:13px; font-weight:600; margin:6px 0; }
+.achado { display:flex; justify-content:space-between; gap:10px; align-items:center; padding:8px 0; border-bottom:1px solid var(--border); }
+.achado .nm { min-width:0; font-size:14px; }
+.achado .nm small { display:block; color:var(--text-2); font-size:12px; }
+.achado .pr2 { text-align:right; white-space:nowrap; }
+.achado .pr2 b { color:var(--pos); }
 .tela { display:none; } .tela.on { display:block; }
 </style>
 </head>
@@ -149,8 +172,22 @@ mark { background:var(--warn-soft); color:inherit; border-radius:3px; padding:0 
   </header>
   <div class="aviso" id="aviso">Protótipo para validação. Todos os produtos e preços abaixo são dados de exemplo, não ofertas reais.</div>
 
+  <!-- PARA VOCE: o resumo que cabe numa tela -->
+  <section class="tela on" id="t-voce">
+    <h2>🧾 Sua lista esta semana</h2>
+    <div class="sub">O mais barato de cada item, em qualquer mercado. Toque para ver as outras opções.</div>
+    <div id="voce-lista"></div>
+    <h2>🏪 Onde comprar</h2>
+    <div class="sub">Quanto a sua lista sai em cada mercado, só com o que está em oferta.</div>
+    <div id="voce-merc"></div>
+    <h2>🔥 Achados do dia a dia</h2>
+    <div class="sub">Os maiores descontos em comida e limpeza, fora da sua lista.</div>
+    <div id="voce-achados"></div>
+    <div class="acoes" style="margin-top:14px"><button class="btn btn-s" data-t="alertas">🔔 Ver o alerta do WhatsApp</button></div>
+  </section>
+
   <!-- OFERTAS -->
-  <section class="tela on" id="t-ofertas">
+  <section class="tela" id="t-ofertas">
     <div class="resumo">
       <div class="kpi"><b id="k-ofertas">0</b><span>ofertas válidas</span></div>
       <div class="kpi"><b id="k-lista">0</b><span>da sua lista</span></div>
@@ -216,10 +253,10 @@ mark { background:var(--warn-soft); color:inherit; border-radius:3px; padding:0 
 </div>
 
 <nav><div class="in">
-  <button data-t="ofertas" class="on"><span class="ic">🏷️</span>Ofertas</button>
+  <button data-t="voce" class="on"><span class="ic">⭐</span>Para você</button>
+  <button data-t="ofertas"><span class="ic">🏷️</span>Ofertas</button>
   <button data-t="lista"><span class="ic">📝</span>Minha lista</button>
-  <button data-t="alertas"><span class="ic">🔔</span>Alertas</button>
-  <button data-t="revisar"><span class="ic">⚠️</span>Revisar<span class="badge" id="b-rev"></span></button>
+    <button data-t="revisar"><span class="ic">⚠️</span>Revisar<span class="badge" id="b-rev"></span></button>
   <button data-t="mercados"><span class="ic">🏪</span>Mercados</button>
 </div></nav>
 
@@ -261,7 +298,9 @@ function ler(k, padrao) { try { const v = localStorage.getItem(k); return v ? JS
 function salvar(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
 
 let lista = ler("promo_lista", [
-  { termo:"café", alvo:18 }, { termo:"leite", alvo:null }, { termo:"picanha", alvo:55 }, { termo:"azeite", alvo:null },
+  { termo:"arroz 5kg", alvo:null }, { termo:"feijão preto", alvo:null }, { termo:"leite integral 1l", alvo:null },
+  { termo:"café 500g", alvo:null }, { termo:"açúcar refinado", alvo:null }, { termo:"óleo de soja", alvo:null },
+  { termo:"papel higiênico", alvo:null }, { termo:"azeite", alvo:null },
 ]);
 let decisoes = ler("promo_decisoes", {});   // id -> "aprovado" | "descartado"
 let enviados = ler("promo_enviados", []);   // ids ja avisados
@@ -270,10 +309,17 @@ let fechadas = ler("promo_cats_fechadas", []);
 
 const ativa = o => o.st === "ok" || decisoes[o.id] === "aprovado";
 const pendente = o => o.st === "revisar" && !decisoes[o.id];
+// "1 Litro", "1L" e "1 l" viram "1l"; "5 kg" vira "5kg". Assim o termo casa com qualquer grafia.
+const padrao = s => norm(s).replace(/(\d)[\s,.]*(litros?|lt)\b/g, "$1l").replace(/(\d)\s+(kg|g|ml|l|un)\b/g, "$1$2");
+// A primeira palavra do termo abre o nome ("leite" casa "Leite em Po", nao "Sabonete Leite de Cabra");
+// as outras podem estar em qualquer lugar ("leite integral 1l").
+function bateTermo(o, termo) {
+  const nome = padrao(`${o.produto} ${o.marca || ""} ${o.tam || ""}`);
+  const [primeira, ...resto] = padrao(termo).split(/\s+/).filter(Boolean);
+  return !!primeira && nome.startsWith(primeira) && resto.every(p => nome.includes(p));
+}
 function casa(o) {
-  // O produto precisa comecar pelo termo: "leite" casa "Leite em Po", nao "Sabonete Leite de Cabra".
-  const alvo = norm(o.produto);
-  return lista.find(i => alvo.startsWith(norm(i.termo)) && (i.alvo == null || o.por <= i.alvo));
+  return lista.find(i => bateTermo(o, i.termo) && (i.alvo == null || o.por <= i.alvo));
 }
 
 // Cor de cada mercado, para reconhecer de relance.
@@ -360,7 +406,7 @@ function renderOfertas() {
 
 function renderLista() {
   document.getElementById("itens-lista").innerHTML = lista.map((i, idx) => {
-    const achou = OFERTAS.filter(ativa).filter(o => norm(o.produto).startsWith(norm(i.termo)))
+    const achou = OFERTAS.filter(ativa).filter(o => bateTermo(o, i.termo))
       .sort((a, b) => a.por - b.por)[0];
     const bate = achou && (i.alvo == null || achou.por <= i.alvo);
     const status = !achou ? '<span class="meta">Sem oferta esta semana</span>'
@@ -410,12 +456,64 @@ function renderMercados() {
     <small>Última coleta: ${m.coleta}${m.paginas ? ` · ${m.paginas} pág.` : ""}${m.ofertas ? ` · ${m.ofertas} ofertas` : ""} · ${m.validade}</small></div>${tag[m.status]}</div>`).join("");
 }
 
-function tudo() { renderOfertas(); renderLista(); renderAlertas(); renderRevisar(); renderMercados(); }
+const DIA_A_DIA = ["Mercearia", "Frios e Laticínios", "Carnes", "Hortifruti", "Padaria", "Bebidas", "Limpeza", "Congelados"];
+const pill = m => `<span class="pill" style="background:${COR[m]}">${NOME[m]}</span>`;
+const nomeO = o => `${o.produto}${o.marca ? " " + o.marca : ""}${o.tam ? " " + o.tam : ""}`;
+
+function renderVoce() {
+  const validas = OFERTAS.filter(ativa);
+  const porItem = lista.map(i => ({ i, os: validas.filter(o => bateTermo(o, i.termo)).sort((a, b) => a.por - b.por) }));
+
+  document.getElementById("voce-lista").innerHTML = porItem.map(({ i, os }, k) => {
+    if (!os.length) return `<div class="item-l"><div class="termo">${i.termo}</div><div class="sem">Sem oferta esta semana</div></div>`;
+    const [b, ...resto] = os;
+    return `<div class="item-l" data-abre="${k}">
+      <div class="lin"><div style="min-width:0"><div class="termo">${i.termo}</div>
+        <div class="prod">${nomeO(b)}</div>
+        <div style="margin-top:4px">${pill(b.m)} <span class="meta" style="font-size:12px;color:var(--text-2)">${b.ate ? "até " + b.ate : "preço de hoje"}${b.cond ? " · " + b.cond : ""}</span></div></div>
+        <div class="val"><b>${brl(b.por)}</b>${resto.length ? `<span class="meta" style="font-size:12px;color:var(--text-2)">+${resto.length} ${resto.length > 1 ? "opções" : "opção"} ▾</span>` : ""}</div></div>
+      <div class="mais">${resto.slice(0, 5).map(o => `<div class="alt"><span>${pill(o.m)} ${nomeO(o)}</span><span>${brl(o.por)}</span></div>`).join("")}
+        ${resto.length > 5 ? `<div class="alt"><button class="btn btn-s" data-q="${i.termo}" style="padding:6px 10px">Ver todas as ${os.length}</button></div>` : ""}</div>
+    </div>`;
+  }).join("") || '<div class="vazio">Sua lista está vazia. Adicione itens em “Minha lista”.</div>';
+
+  // Por mercado: o mais barato de cada item dentro daquele mercado.
+  const ms = MERCADOS.filter(m => m.status === "ok").map(m => {
+    const achados = porItem.map(({ os }) => os.find(o => o.m === m.id)).filter(Boolean);
+    return { m, n: achados.length, total: achados.reduce((t, o) => t + o.por, 0) };
+  }).sort((a, b) => b.n - a.n || a.total - b.total);
+  const comOferta = porItem.filter(x => x.os.length);
+  const melhorTotal = comOferta.reduce((t, x) => t + x.os[0].por, 0);
+  const lojas = new Set(comOferta.map(x => x.os[0].m));
+  const top = ms[0];
+  document.getElementById("voce-merc").innerHTML = (comOferta.length ? `<div class="dica">${
+      top && top.n === comOferta.length
+        ? `Indo só no ${top.m.nome} você acha os ${top.n} itens por ${brl(top.total)}.`
+        : `Nenhum mercado tem tudo. ${top ? `O ${top.m.nome} tem ${top.n} de ${comOferta.length}.` : ""}`
+    } Os ${comOferta.length} itens, pegando o mais barato de cada: ${brl(melhorTotal)} em ${lojas.size} ${lojas.size > 1 ? "mercados" : "mercado"}.</div>` : "")
+    + ms.map(({ m, n, total }) => `<div class="merc-l">${pill(m.id)}
+      <div class="barra"><i style="width:${comOferta.length ? n / comOferta.length * 100 : 0}%;background:${COR[m.id]}"></i></div>
+      <div class="tot"><b>${n ? brl(total) : "—"}</b>${n}/${comOferta.length} itens</div></div>`).join("");
+
+  // Achados: maior desconto de verdade (com preco "de"), comida e limpeza, fora da lista, 1 por produto.
+  const vistos = new Set();
+  const achados = validas.filter(o => o.de > o.por && DIA_A_DIA.includes(o.cat) && !casa(o) && pct(o) >= 15)
+    .sort((a, b) => pct(b) - pct(a))
+    .filter(o => { const k = norm(o.produto).split(" ").slice(0, 3).join(" "); return !vistos.has(k) && vistos.add(k); })
+    .slice(0, 10);
+  document.getElementById("voce-achados").innerHTML = `<div class="card">${achados.map(o => `<div class="achado">
+      <div class="nm">${nomeO(o)}<small>${pill(o.m)} ${o.cat}</small></div>
+      <div class="pr2"><b>${brl(o.por)}</b><br><span class="tag t-desc">-${pct(o)}%</span></div></div>`).join("")}</div>`;
+}
+
+function tudo() { renderVoce(); renderOfertas(); renderLista(); renderAlertas(); renderRevisar(); renderMercados(); }
 
 document.addEventListener("click", e => {
+  const card = e.target.closest("[data-abre]");
+  if (card && !e.target.closest("button")) { card.classList.toggle("aberto"); return; }
   const t = e.target.closest("button"); if (!t) return;
   if (t.dataset.t) {
-    document.querySelectorAll("nav button").forEach(b => b.classList.toggle("on", b === t));
+    document.querySelectorAll("nav button").forEach(b => b.classList.toggle("on", b.dataset.t === t.dataset.t));
     document.querySelectorAll(".tela").forEach(s => s.classList.toggle("on", s.id === "t-" + t.dataset.t));
     window.scrollTo(0, 0);
   }
@@ -429,6 +527,10 @@ document.addEventListener("click", e => {
     fechadas = fechadas.length ? [] : [...CATS]; salvar("promo_cats_fechadas", fechadas); renderOfertas();
   }
   if (t.dataset.c) { filtroC = t.dataset.c; renderOfertas(); }
+  if (t.dataset.q && !t.closest("#sugest")) {
+    document.querySelectorAll("nav button").forEach(b => b.classList.toggle("on", b.dataset.t === "ofertas"));
+    document.querySelectorAll(".tela").forEach(s => s.classList.toggle("on", s.id === "t-ofertas"));
+  }
   if (t.dataset.q) { document.getElementById("busca").value = t.dataset.q; renderOfertas(); }
   if (t.id === "limpar-busca") { document.getElementById("busca").value = ""; renderOfertas(); document.getElementById("busca").focus(); }
   if (t.id === "zerar" || t.id === "zerar2") { document.getElementById("busca").value = ""; filtroM = "todos"; filtroC = "todas"; renderOfertas(); }
