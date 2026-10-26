@@ -130,3 +130,15 @@ def test_oferta_repetida_na_capa_sai_uma_vez():
     assert [o["produto"] for o in sem_repetidas(itens)] == [
         "Leite UHT Integral Italac", "Leite UHT Desnatado Italac",
         "Cafe Patusco 500g Tradicional", "Cafe Patusco 500g Extra Forte"]
+
+
+def test_chaves_gemini_em_ordem(monkeypatch):
+    from promocoes.ia import chaves_gemini
+
+    for k in ("GEMINI_API_KEY", "GEMINI_API_KEY_2", "GEMINI_API_KEY_3", "GEMINI_API_KEY_10"):
+        monkeypatch.delenv(k, raising=False)
+    monkeypatch.setenv("GEMINI_API_KEY_3", "c")
+    monkeypatch.setenv("GEMINI_API_KEY", "a")
+    monkeypatch.setenv("GEMINI_API_KEY_2", "b")
+    monkeypatch.setenv("GEMINI_API_KEY_10", "")
+    assert chaves_gemini() == ["a", "b", "c"]

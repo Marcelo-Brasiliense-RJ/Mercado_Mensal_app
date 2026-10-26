@@ -25,9 +25,13 @@ Baixa o encarte vigente e gera uma imagem por página em `coletor/data/`.
 
 1. Aplicar no SQL Editor do Supabase, em ordem: `0037_monitor_promocoes.sql` e `0038_ofertas.sql`.
 2. Variáveis do coletor: `SUPABASE_URL`, `SUPABASE_KEY` (service_role) e, para o comando `lista`, `PROMOCOES_CASA`.
-3. Rodada da semana:
+3. Rodada da semana (coleta, IA, fotos e publicação):
 
-       uv run promocoes coletar && uv run promocoes extrair && uv run promocoes fotos
-       uv run promocoes publicar          # só ofertas aprovadas vão para o app
+       ./promocoes/rodar_semana.sh              # todos os mercados
+       ./promocoes/rodar_semana.sh guanabara    # só um
+
+   Chaves no ambiente: `GEMINI_API_KEY` (mais `_2`, `_3`: cada uma tem cota própria),
+   `OPENROUTER_API_KEY`, `SUPABASE_URL` (ou a `NEXT_PUBLIC_SUPABASE_URL` do app) e
+   `SUPABASE_SERVICE_ROLE_KEY`. A anon key do app não serve: publicar exige service_role.
 
 Sem a 0038 aplicada, a aba mostra "As ofertas ainda não foram ligadas" e o resto do app segue igual.

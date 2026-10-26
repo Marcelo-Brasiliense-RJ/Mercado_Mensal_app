@@ -1,0 +1,65 @@
+# Monitor de promocoes: coleta os encartes, le com IA gratuita, gera fotos e publica
+# na aba Ofertas do app. Roda sozinho; tambem da para rodar na mao em Actions > Run workflow.
+name: Monitor de promoções
+
+on:
+  schedule:
+    - cron: "0 10 * * 1,4"   # segunda e quinta, 7h no Rio: todos os mercados
+    - cron: "0 10 * * 3"     # quarta, 7h: so o Guanabara (encarte muda no meio da semana)
+  workflow_dispatch:
+    inputs:
+      mercados:
+        description: "Mercados (vazio = todos). Ex.: guanabara mundial"
+        required: false
+        default: ""
+
+concurrency:
+  group: promocoes
+  cancel-in-progress: false
+
+jobs:
+  rodar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
+      GEMINI_API_KEY_3: ${{ secrets.GEMINI_API_KEY_3 }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL || secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY || secrets.SUPABASE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+
+      # Cache da IA (a mesma pagina nunca e lida duas vezes) e historico de precos
+      # (regra dos 50%) passam de uma rodada para a outra.
+      - uses: actions/cache@v4
+        with:
+          path: promocoes/coletor/data
+          key: promocoes-data-${{ github.run_id }}
+          restore-keys: promocoes-data-
+
+      - name: Conferir segredos
+        run: |
+          faltam=""
+          for v in GEMINI_API_KEY OPENROUTER_API_KEY SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY; do
+            [ -n "${!v}" ] || faltam="$faltam $v"
+          done
+          if [ -n "$faltam" ]; then echo "::error::Faltam segredos:$faltam"; exit 1; fi
+
+      - name: Rodada
+        env:
+          AGENDA: ${{ github.event.schedule }}
+          MERCADOS: ${{ inputs.mercados }}
+        run: |
+          if [ "$AGENDA" = "0 10 * * 3" ]; then MERCADOS="guanabara"; fi
+          ./promocoes/rodar_semana.sh $MERCADOS
+
+      # Encartes vencidos so ocupam o cache.
+      - name: Limpar encartes antigos
+        if: always()
+        run: find promocoes/coletor/data/encartes -mindepth 2 -maxdepth 2 -type d -mtime +21 -exec rm -rf {} + || true

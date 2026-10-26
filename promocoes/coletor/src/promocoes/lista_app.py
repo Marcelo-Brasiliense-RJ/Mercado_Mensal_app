@@ -12,8 +12,18 @@ from pathlib import Path
 import httpx
 
 
+def _url_do_app() -> str | None:
+    """SUPABASE_URL, ou a mesma URL que o app web usa (NEXT_PUBLIC_SUPABASE_URL...)."""
+    if os.environ.get("SUPABASE_URL"):
+        return os.environ["SUPABASE_URL"]
+    return next((v for k, v in sorted(os.environ.items()) if k.startswith("NEXT_PUBLIC_SUPABASE_URL") and v), None)
+
+
 def _rpc(nome: str, corpo: dict, *precisa: str):
-    env = {k: os.environ.get(k) for k in ("SUPABASE_URL", "SUPABASE_KEY", *precisa)}
+    # A chave tem que ser a service_role: a anon (publica, do app) nao executa estas funcoes.
+    env = {"SUPABASE_URL": _url_do_app(),
+           "SUPABASE_KEY": os.environ.get("SUPABASE_KEY") or os.environ.get("SUPABASE_SERVICE_ROLE_KEY"),
+           **{k: os.environ.get(k) for k in precisa}}
     faltam = [k for k, v in env.items() if not v]
     if faltam:
         raise RuntimeError(f"faltam variaveis: {', '.join(faltam)}")
