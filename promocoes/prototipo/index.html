@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Monitor de Promoções</title>
+<style>
+:root {
+  --bg:#F4EEE7; --card:#FFFFFF; --card-2:#F3EDE6;
+  --text:#241E1A; --text-2:#786C63; --border:#EAE1D8;
+  --brand:#C15F3C; --brand-ink:#FFF8F4; --brand-soft:#F6E7E2;
+  --pos:#17935B; --pos-soft:#E2F1E9;
+  --warn:#9A5D0F; --warn-soft:#FBEAD2;
+  --neg:#C23A34; --neg-soft:#FBE6E4;
+  --shadow:rgba(74,48,28,0.10);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg:#161210; --card:#211B17; --card-2:#2A231D;
+    --text:#F3EBE3; --text-2:#B4A89E; --border:#33291F;
+    --brand:#CD7A5C; --brand-ink:#2A130B; --brand-soft:#2C1A13;
+    --pos:#37B37F; --pos-soft:#17281F;
+    --warn:#E7A33C; --warn-soft:#352814;
+    --neg:#E8706A; --neg-soft:#361F1D;
+    --shadow:rgba(0,0,0,0.4);
+  }
+}
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--text);
+  font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+.wrap { max-width:720px; margin:0 auto; padding:0 16px 96px; }
+header { padding:20px 0 8px; }
+h1 { font-size:22px; margin:0; }
+.sub { color:var(--text-2); font-size:13px; margin-top:2px; }
+.aviso { background:var(--warn-soft); color:var(--warn); border-radius:10px;
+  padding:8px 12px; font-size:13px; margin:12px 0; font-weight:600; }
+.resumo { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:12px 0; }
+.kpi { background:var(--card); border-radius:12px; padding:10px 12px; box-shadow:0 1px 3px var(--shadow); }
+.kpi b { display:block; font-size:22px; }
+.kpi span { color:var(--text-2); font-size:12px; }
+nav { position:fixed; left:0; right:0; bottom:0; background:var(--card);
+  border-top:1px solid var(--border); display:flex; justify-content:center; z-index:5; }
+nav .in { display:flex; max-width:720px; width:100%; }
+nav button { flex:1; border:0; background:none; color:var(--text-2); padding:10px 4px 14px;
+  font-size:12px; cursor:pointer; position:relative; }
+nav button .ic { display:block; font-size:20px; }
+nav button.on { color:var(--brand); font-weight:700; }
+nav .badge { position:absolute; top:6px; left:calc(50% + 8px); background:var(--neg); color:#fff;
+  border-radius:9px; font-size:10px; padding:1px 5px; }
+.chips { display:flex; gap:6px; overflow-x:auto; padding:4px 0 8px; scrollbar-width:none; }
+.chip { border:1px solid var(--border); background:var(--card); color:var(--text);
+  border-radius:999px; padding:6px 12px; font-size:13px; white-space:nowrap; cursor:pointer; }
+.chip.on { background:var(--brand); color:var(--brand-ink); border-color:var(--brand); }
+input[type=search], input[type=text], input[type=number] { width:100%; padding:10px 12px; border-radius:10px;
+  border:1px solid var(--border); background:var(--card); color:var(--text); font-size:15px; }
+.linha { display:flex; gap:8px; align-items:center; }
+.card { background:var(--card); border-radius:12px; padding:12px; margin:8px 0;
+  box-shadow:0 1px 3px var(--shadow); }
+.oferta { display:flex; gap:12px; align-items:flex-start; }
+.oferta .info { flex:1; min-width:0; }
+.oferta .nome { font-weight:600; }
+.oferta .meta { color:var(--text-2); font-size:12px; margin-top:2px; }
+.preco { text-align:right; white-space:nowrap; }
+.preco b { font-size:18px; color:var(--pos); display:block; }
+.preco s { color:var(--text-2); font-size:12px; }
+.tag { display:inline-block; border-radius:6px; padding:1px 7px; font-size:11px; font-weight:700; margin-right:4px; }
+.t-lista { background:var(--brand-soft); color:var(--brand); }
+.t-desc { background:var(--pos-soft); color:var(--pos); }
+.t-rev { background:var(--warn-soft); color:var(--warn); }
+.t-off { background:var(--neg-soft); color:var(--neg); }
+.t-ok { background:var(--pos-soft); color:var(--pos); }
+h2 { font-size:16px; margin:18px 0 4px; }
+.vazio { color:var(--text-2); text-align:center; padding:24px; }
+.btn { border:0; border-radius:10px; padding:10px 14px; font-weight:600; cursor:pointer; font-size:14px; }
+.btn-p { background:var(--brand); color:var(--brand-ink); }
+.btn-s { background:var(--card-2); color:var(--text); }
+.btn-pos { background:var(--pos-soft); color:var(--pos); }
+.btn-neg { background:var(--neg-soft); color:var(--neg); }
+.x { border:0; background:none; color:var(--text-2); font-size:18px; cursor:pointer; padding:4px 8px; }
+.wpp { background:#DCF8C6; color:#111; border-radius:10px 10px 10px 2px; padding:10px 12px;
+  white-space:pre-wrap; font-size:14px; max-width:420px; }
+.mk { display:flex; justify-content:space-between; gap:8px; align-items:center; }
+.mk small { color:var(--text-2); display:block; }
+.motivo { color:var(--warn); font-size:12px; margin-top:4px; }
+.acoes { display:flex; gap:8px; margin-top:8px; }
+.tela { display:none; } .tela.on { display:block; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>🛒 Monitor de Promoções</h1>
+    <div class="sub">Curicica / Jacarepaguá · semana de 26/10 a 01/11</div>
+  </header>
+  <div class="aviso">Protótipo para validação. Todos os produtos e preços abaixo são dados de exemplo, não ofertas reais.</div>
+
+  <!-- OFERTAS -->
+  <section class="tela on" id="t-ofertas">
+    <div class="resumo">
+      <div class="kpi"><b id="k-ofertas">0</b><span>ofertas válidas</span></div>
+      <div class="kpi"><b id="k-lista">0</b><span>da sua lista</span></div>
+      <div class="kpi"><b id="k-merc">0/5</b><span>mercados lidos</span></div>
+    </div>
+    <input type="search" id="busca" placeholder="Buscar produto (ex.: picanha, café)">
+    <div class="chips" id="chips-merc"></div>
+    <div class="chips" id="chips-ord"></div>
+    <div id="lista-ofertas"></div>
+  </section>
+
+  <!-- MINHA LISTA -->
+  <section class="tela" id="t-lista">
+    <h2>Minha lista de compras</h2>
+    <div class="sub">Aviso quando algum item aparecer em oferta. Preço-alvo é opcional.</div>
+    <div class="card">
+      <div class="linha">
+        <input type="text" id="novo-termo" placeholder="Produto (ex.: café 500g)">
+        <input type="number" id="novo-alvo" placeholder="Até R$" style="max-width:100px" step="0.01" min="0">
+        <button class="btn btn-p" id="add-termo">Adicionar</button>
+      </div>
+    </div>
+    <div id="itens-lista"></div>
+  </section>
+
+  <!-- ALERTAS -->
+  <section class="tela" id="t-alertas">
+    <h2>Próximo alerta (WhatsApp)</h2>
+    <div class="sub">Agrupado por mercado. Só entra oferta validada e ainda não avisada.</div>
+    <div class="card"><div class="wpp" id="previa"></div>
+      <div class="acoes"><button class="btn btn-p" id="enviar">Simular envio</button></div>
+    </div>
+    <h2>Já enviados</h2>
+    <div id="enviados"></div>
+  </section>
+
+  <!-- REVISAR -->
+  <section class="tela" id="t-revisar">
+    <h2>Precisa de revisão</h2>
+    <div class="sub">As duas IAs discordaram ou alguma regra falhou. Não entra no alerta até você decidir.</div>
+    <div id="lista-rev"></div>
+  </section>
+
+  <!-- MERCADOS -->
+  <section class="tela" id="t-mercados">
+    <h2>Mercados e fontes</h2>
+    <div class="sub">De onde vem o encarte de cada um.</div>
+    <div id="lista-merc"></div>
+  </section>
+</div>
+
+<nav><div class="in">
+  <button data-t="ofertas" class="on"><span class="ic">🏷️</span>Ofertas</button>
+  <button data-t="lista"><span class="ic">📝</span>Minha lista</button>
+  <button data-t="alertas"><span class="ic">🔔</span>Alertas</button>
+  <button data-t="revisar"><span class="ic">⚠️</span>Revisar<span class="badge" id="b-rev"></span></button>
+  <button data-t="mercados"><span class="ic">🏪</span>Mercados</button>
+</div></nav>
+
+<script>
+// Dados de exemplo, so para validar o desenho. Nada aqui veio dos encartes.
+const MERCADOS = [
+  { id:"mundial", nome:"Mundial", fonte:"Site oficial (encarte em imagem)", status:"ok", coleta:"seg 26/10 07:00", validade:"até qua 28/10", paginas:8 },
+  { id:"guanabara", nome:"Guanabara", fonte:"Site oficial (imagem/PDF)", status:"ok", coleta:"seg 26/10 07:05", validade:"até dom 01/11", paginas:12 },
+  { id:"supermarket", nome:"Supermarket", fonte:"Site oficial · preço com CPF", status:"ok", coleta:"seg 26/10 07:10", validade:"até dom 01/11", paginas:6 },
+  { id:"superbom", nome:"Superbom", fonte:"Encaminhado por WhatsApp (caixa de entrada)", status:"manual", coleta:"aguardando encarte", validade:"—", paginas:0 },
+  { id:"economia", nome:"Rede Economia", fonte:"Encaminhado por WhatsApp (caixa de entrada)", status:"falha", coleta:"sem encarte desta semana", validade:"—", paginas:0 },
+];
+const NOME = Object.fromEntries(MERCADOS.map(m => [m.id, m.nome]));
+
+const OFERTAS = [
+  { id:1, m:"mundial", produto:"Picanha bovina", marca:"Friboi", tam:"kg", por:49.90, de:69.90, ate:"qua 28/10", st:"ok" },
+  { id:2, m:"mundial", produto:"Café torrado e moído", marca:"Pilão", tam:"500 g", por:17.98, de:24.90, ate:"qua 28/10", st:"ok" },
+  { id:3, m:"mundial", produto:"Leite UHT integral", marca:"Italac", tam:"1 L", por:4.79, de:5.99, ate:"qua 28/10", st:"ok" },
+  { id:4, m:"guanabara", produto:"Arroz branco tipo 1", marca:"Tio João", tam:"5 kg", por:24.90, de:31.90, ate:"dom 01/11", st:"ok" },
+  { id:5, m:"guanabara", produto:"Café torrado e moído", marca:"Melitta", tam:"500 g", por:16.49, de:22.99, ate:"dom 01/11", st:"ok" },
+  { id:6, m:"guanabara", produto:"Óleo de soja", marca:"Soya", tam:"900 ml", por:6.49, de:7.99, ate:"dom 01/11", st:"ok" },
+  { id:7, m:"guanabara", produto:"Feijão preto", marca:"Kicaldo", tam:"1 kg", por:6.99, de:9.49, ate:"dom 01/11", st:"ok" },
+  { id:8, m:"supermarket", produto:"Leite UHT integral", marca:"Parmalat", tam:"1 L", por:4.99, de:6.49, ate:"dom 01/11", st:"ok" },
+  { id:9, m:"supermarket", produto:"Sabão em pó", marca:"Omo", tam:"1,6 kg", por:29.90, de:42.90, ate:"dom 01/11", st:"ok" },
+  { id:10, m:"supermarket", produto:"Papel higiênico folha dupla", marca:"Neve", tam:"12 un", por:19.90, de:27.90, ate:"dom 01/11", st:"ok" },
+  { id:11, m:"mundial", produto:"Contrafilé", marca:"", tam:"kg", por:3.99, de:52.90, ate:"qua 28/10", st:"revisar",
+    motivo:"Queda de 92% vs. histórico. Provável erro de leitura (39,90?)." },
+  { id:12, m:"guanabara", produto:"Azeite extravirgem", marca:"Gallo", tam:"500 ml", por:32.90, de:29.90, ate:"dom 01/11", st:"revisar",
+    motivo:"Preço “por” maior que o “de”. As IAs leram valores diferentes." },
+];
+
+const ORDENS = [["desc","Maior desconto"],["preco","Menor preço"],["merc","Por mercado"]];
+const brl = v => v.toLocaleString("pt-BR", { style:"currency", currency:"BRL" });
+const pct = o => Math.round((1 - o.por / o.de) * 100);
+const norm = s => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+
+function ler(k, padrao) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : padrao; } catch { return padrao; } }
+function salvar(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+
+let lista = ler("promo_lista", [
+  { termo:"café", alvo:18 }, { termo:"leite", alvo:null }, { termo:"picanha", alvo:55 }, { termo:"azeite", alvo:null },
+]);
+let decisoes = ler("promo_decisoes", {});   // id -> "aprovado" | "descartado"
+let enviados = ler("promo_enviados", []);   // ids ja avisados
+let filtroM = "todos", ordem = "desc";
+
+const ativa = o => o.st === "ok" || decisoes[o.id] === "aprovado";
+const pendente = o => o.st === "revisar" && !decisoes[o.id];
+function casa(o) {
+  const alvo = norm(`${o.produto} ${o.marca}`);
+  return lista.find(i => alvo.includes(norm(i.termo)) && (i.alvo == null || o.por <= i.alvo));
+}
+
+function cardOferta(o) {
+  const na = casa(o);
+  return `<div class="card oferta">
+    <div class="info">
+      <div class="nome">${o.produto}${o.marca ? " " + o.marca : ""} <span class="meta">${o.tam}</span></div>
+      <div class="meta">${NOME[o.m]} · até ${o.ate}</div>
+      <div style="margin-top:6px">${na ? '<span class="tag t-lista">Na sua lista</span>' : ""}<span class="tag t-desc">-${pct(o)}%</span></div>
+    </div>
+    <div class="preco"><b>${brl(o.por)}</b><s>${brl(o.de)}</s></div>
+  </div>`;
+}
+
+function renderOfertas() {
+  const q = norm(document.getElementById("busca").value.trim());
+  let v = OFERTAS.filter(ativa)
+    .filter(o => filtroM === "todos" || o.m === filtroM)
+    .filter(o => !q || norm(`${o.produto} ${o.marca}`).includes(q));
+  if (ordem === "desc") v.sort((a, b) => pct(b) - pct(a));
+  if (ordem === "preco") v.sort((a, b) => a.por - b.por);
+  if (ordem === "merc") v.sort((a, b) => a.m.localeCompare(b.m));
+  v.sort((a, b) => !!casa(b) - !!casa(a));   // da lista primeiro
+  document.getElementById("lista-ofertas").innerHTML =
+    v.map(cardOferta).join("") || '<div class="vazio">Nenhuma oferta com esse filtro.</div>';
+
+  const validas = OFERTAS.filter(ativa);
+  document.getElementById("k-ofertas").textContent = validas.length;
+  document.getElementById("k-lista").textContent = validas.filter(casa).length;
+  document.getElementById("k-merc").textContent = MERCADOS.filter(m => m.status === "ok").length + "/5";
+
+  const cm = [["todos","Todos"], ...MERCADOS.map(m => [m.id, m.nome])];
+  document.getElementById("chips-merc").innerHTML = cm.map(([id, n]) =>
+    `<button class="chip ${filtroM === id ? "on" : ""}" data-m="${id}">${n}</button>`).join("");
+  document.getElementById("chips-ord").innerHTML = ORDENS.map(([id, n]) =>
+    `<button class="chip ${ordem === id ? "on" : ""}" data-o="${id}">${n}</button>`).join("");
+}
+
+function renderLista() {
+  document.getElementById("itens-lista").innerHTML = lista.map((i, idx) => {
+    const achou = OFERTAS.filter(ativa).filter(o => norm(`${o.produto} ${o.marca}`).includes(norm(i.termo)))
+      .sort((a, b) => a.por - b.por)[0];
+    const bate = achou && (i.alvo == null || achou.por <= i.alvo);
+    const status = !achou ? '<span class="meta">Sem oferta esta semana</span>'
+      : bate ? `<span class="tag t-ok">Em oferta</span><span class="meta">${brl(achou.por)} no ${NOME[achou.m]}</span>`
+      : `<span class="tag t-rev">Acima do alvo</span><span class="meta">melhor: ${brl(achou.por)} no ${NOME[achou.m]}</span>`;
+    return `<div class="card mk"><div><b>${i.termo}</b>
+      <small>${i.alvo != null ? "até " + brl(i.alvo) : "qualquer preço"}</small><div style="margin-top:4px">${status}</div></div>
+      <button class="x" data-del="${idx}" aria-label="Remover">✕</button></div>`;
+  }).join("") || '<div class="vazio">Lista vazia.</div>';
+}
+
+function paraAvisar() { return OFERTAS.filter(ativa).filter(casa).filter(o => !enviados.includes(o.id)); }
+
+function renderAlertas() {
+  const itens = paraAvisar();
+  const porM = {};
+  itens.forEach(o => (porM[o.m] ??= []).push(o));
+  document.getElementById("previa").textContent = itens.length
+    ? Object.entries(porM).map(([m, os]) => `*${NOME[m]}*\n` + os.map(o =>
+        `🛒 ${o.produto}${o.marca ? " " + o.marca : ""} ${o.tam} ${brl(o.por)} (até ${o.ate})`).join("\n")).join("\n\n")
+    : "Nada novo para avisar.";
+  document.getElementById("enviar").disabled = !itens.length;
+  document.getElementById("enviados").innerHTML = enviados.length
+    ? OFERTAS.filter(o => enviados.includes(o.id)).map(o =>
+        `<div class="card mk"><div>${o.produto} ${o.marca}<small>${NOME[o.m]} · ${brl(o.por)}</small></div><span class="tag t-ok">Enviado</span></div>`).join("")
+      + '<div class="acoes"><button class="btn btn-s" id="limpar-env">Limpar histórico</button></div>'
+    : '<div class="vazio">Nenhum alerta enviado ainda.</div>';
+}
+
+function renderRevisar() {
+  const p = OFERTAS.filter(pendente);
+  document.getElementById("b-rev").textContent = p.length || "";
+  document.getElementById("b-rev").style.display = p.length ? "" : "none";
+  document.getElementById("lista-rev").innerHTML = p.map(o => `<div class="card">
+      <div class="oferta"><div class="info"><div class="nome">${o.produto} ${o.marca} <span class="meta">${o.tam}</span></div>
+      <div class="meta">${NOME[o.m]} · até ${o.ate}</div><div class="motivo">⚠️ ${o.motivo}</div></div>
+      <div class="preco"><b style="color:var(--warn)">${brl(o.por)}</b><s>${brl(o.de)}</s></div></div>
+      <div class="acoes"><button class="btn btn-pos" data-ap="${o.id}">Está certo</button>
+      <button class="btn btn-neg" data-ds="${o.id}">Descartar</button></div></div>`).join("")
+    || '<div class="vazio">Tudo revisado. 👍</div>';
+}
+
+function renderMercados() {
+  const tag = { ok:'<span class="tag t-ok">Coletado</span>', manual:'<span class="tag t-rev">Manual</span>', falha:'<span class="tag t-off">Sem encarte</span>' };
+  document.getElementById("lista-merc").innerHTML = MERCADOS.map(m => `<div class="card mk">
+    <div><b>${m.nome}</b><small>${m.fonte}</small>
+    <small>Última coleta: ${m.coleta} · ${m.paginas} pág. · ${m.validade}</small></div>${tag[m.status]}</div>`).join("");
+}
+
+function tudo() { renderOfertas(); renderLista(); renderAlertas(); renderRevisar(); renderMercados(); }
+
+document.addEventListener("click", e => {
+  const t = e.target.closest("button"); if (!t) return;
+  if (t.dataset.t) {
+    document.querySelectorAll("nav button").forEach(b => b.classList.toggle("on", b === t));
+    document.querySelectorAll(".tela").forEach(s => s.classList.toggle("on", s.id === "t-" + t.dataset.t));
+    window.scrollTo(0, 0);
+  }
+  if (t.dataset.m) { filtroM = t.dataset.m; renderOfertas(); }
+  if (t.dataset.o) { ordem = t.dataset.o; renderOfertas(); }
+  if (t.dataset.del) { lista.splice(+t.dataset.del, 1); salvar("promo_lista", lista); tudo(); }
+  if (t.dataset.ap) { decisoes[t.dataset.ap] = "aprovado"; salvar("promo_decisoes", decisoes); tudo(); }
+  if (t.dataset.ds) { decisoes[t.dataset.ds] = "descartado"; salvar("promo_decisoes", decisoes); tudo(); }
+  if (t.id === "add-termo") {
+    const termo = document.getElementById("novo-termo").value.trim(); if (!termo) return;
+    const a = parseFloat(document.getElementById("novo-alvo").value);
+    lista.push({ termo, alvo: isNaN(a) ? null : a }); salvar("promo_lista", lista);
+    document.getElementById("novo-termo").value = ""; document.getElementById("novo-alvo").value = ""; tudo();
+  }
+  if (t.id === "enviar") { enviados.push(...paraAvisar().map(o => o.id)); salvar("promo_enviados", enviados); tudo(); }
+  if (t.id === "limpar-env") { enviados = []; salvar("promo_enviados", enviados); tudo(); }
+});
+document.getElementById("busca").addEventListener("input", renderOfertas);
+tudo();
+</script>
+</body>
+</html>
