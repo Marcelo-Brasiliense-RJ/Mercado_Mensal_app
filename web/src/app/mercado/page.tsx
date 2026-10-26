@@ -137,12 +137,33 @@ export default function ModoMercado() {
   // Codigo de barras sem conta nao tem catalogo para consultar, entao ele serve
   // para o que importa aqui: nao deixar passar item. Cai no campo com o codigo
   // preenchido no nome, e a pessoa troca pelo nome de verdade se quiser.
-  function codigoLido(code: string) {
+  // Codigo lido: pergunta o nome na base publica. Achando, o campo ja nasce
+  // preenchido e so falta o preco; nao achando, cai no nome pelo codigo, que
+  // pelo menos nao deixa o item passar.
+  async function codigoLido(code: string) {
     setLendoCodigo(false);
-    setNome(`Código ${code.slice(-4)}`);
-    setPreco("");
     setQtd("1");
-    setAviso("Código lido. Diga o preço e confirme.");
+    setPreco("");
+    setNome(`Código ${code.slice(-4)}`);
+    setAviso("Código lido. Procurando o nome…");
+    try {
+      const r = await fetch(`/api/produto?codigo=${encodeURIComponent(code)}`);
+      const d = (await r.json()) as {
+        ok?: boolean;
+        encontrado?: boolean;
+        nome?: string;
+        unidade?: string | null;
+      };
+      if (d?.ok && d.encontrado && d.nome) {
+        setNome(d.nome);
+        setUnidade(d.unidade || unitFor(d.nome));
+        setAviso(`É “${d.nome}”? Diga o preço e toque em Peguei.`);
+        return;
+      }
+      setAviso("Não achei esse código na base. Escreva o nome e o preço.");
+    } catch {
+      setAviso("Código lido. Escreva o nome e o preço.");
+    }
   }
 
   function remover(id: string) {
