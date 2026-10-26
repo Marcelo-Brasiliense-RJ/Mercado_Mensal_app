@@ -4,10 +4,11 @@ import { useState } from "react";
 import type { StockItem } from "@/lib/types";
 import { stockRatio } from "@/lib/format";
 import { stepFor } from "@/lib/defaults";
-import { CheckIcon, MicIcon, PlusIcon, SearchIcon } from "@/components/ui/icons";
+import { BarcodeIcon, CheckIcon, MicIcon, PlusIcon, SearchIcon } from "@/components/ui/icons";
 import { ScreenHeader } from "@/components/layout/ScreenHeader";
 import { useStore, type RpcResult } from "@/lib/store";
 import { VoiceModal } from "@/components/voz/VoiceModal";
+import { BarcodeModal } from "@/components/lista/BarcodeModal";
 import { ItemDetailModal } from "./ItemDetailModal";
 import { BatchAddModal } from "./BatchAddModal";
 
@@ -63,6 +64,9 @@ export function StockView() {
   const [busy, setBusy] = useState(false);
   const [agindo, setAgindo] = useState<string | null>(null);
   const [voiceOpen, setVoiceOpen] = useState(false);
+  // O leitor tambem mora aqui: quem esta no mercado abre o Estoque para ver o que
+  // falta e, de codigo na mao, nao deveria ter que trocar de aba para registrar.
+  const [scanOpen, setScanOpen] = useState(false);
   const [stockAddOpen, setStockAddOpen] = useState(false);
 
   const filtered = stock
@@ -152,6 +156,13 @@ export function StockView() {
       >
         <MicIcon size={18} />
         Falar
+      </button>
+      <button
+        onClick={() => setScanOpen(true)}
+        className="hidden h-[44px] shrink-0 items-center gap-2 rounded-[12px] border border-border bg-card px-4 text-[14px] font-bold lg:flex"
+      >
+        <BarcodeIcon size={18} />
+        Código
       </button>
       <button
         onClick={() => setStockAddOpen(true)}
@@ -284,6 +295,15 @@ export function StockView() {
               <MicIcon size={22} />
               Falar
             </button>
+            {/* Ler codigo pelo Estoque veio da main; aqui ele entra na mesma
+                barra, em vez de virar um terceiro botao flutuante no canto. */}
+            <button
+              onClick={() => setScanOpen(true)}
+              className="flex h-[54px] flex-1 flex-col items-center justify-center gap-0.5 rounded-[14px] border border-border bg-card-2 text-[12px] font-bold"
+            >
+              <BarcodeIcon size={22} />
+              Código
+            </button>
             <button
               onClick={() => setStockAddOpen(true)}
               className="flex h-[54px] flex-1 flex-col items-center justify-center gap-0.5 rounded-[14px] border border-border bg-card-2 text-[12px] font-bold"
@@ -297,6 +317,7 @@ export function StockView() {
 
       <BatchAddModal open={stockAddOpen} onClose={() => setStockAddOpen(false)} />
       <VoiceModal open={voiceOpen} onClose={() => setVoiceOpen(false)} />
+      <BarcodeModal open={scanOpen} onClose={() => setScanOpen(false)} />
       <ItemDetailModal item={detail} onClose={() => setDetailId(null)} />
     </>
   );

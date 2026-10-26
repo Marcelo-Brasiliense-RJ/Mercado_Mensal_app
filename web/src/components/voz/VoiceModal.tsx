@@ -176,7 +176,10 @@ export function VoiceModal({ open, onClose }: { open: boolean; onClose: () => vo
       lidos.map((i) => ({
         nome: i.nome,
         qtd: i.qtd,
-        preco: i.preco ?? 0,
+        // Preco nao falado nasce com o ultimo que a casa pagou (regra 2 da secao
+        // 0.1 do tarefas.md: todo campo nasce preenchido). Falar "comprar
+        // absorvente" vinha com R$ 0,00 e obrigava a digitar o preco no corredor.
+        preco: i.preco ?? findByName(i.nome, stock)?.priceLast ?? 0,
         unidade: i.unidade,
       })),
     );

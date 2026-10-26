@@ -12,6 +12,40 @@ type Detector = { detect: (src: CanvasImageSource) => Promise<{ rawValue: string
 // 1D de produto. QR fica de fora de proposito: quem le nota fiscal e o outro fluxo.
 const FORMATOS = ["ean_13", "ean_8", "upc_a", "upc_e", "itf", "code_128"];
 
+// Camera pedida em resolucao alta e foco continuo.
+//
+// Por que existe: com o default do navegador (tipicamente 640x480, foco fixo) as
+// barras finas de um EAN ocupam menos de um pixel cada e o decodificador nunca
+// fecha a leitura. Em uso real no iPhone isso apareceu como "a camera abre, eu
+// encosto no codigo e nao acontece nada" -- nao era o leitor estar quebrado, era
+// o quadro nao ter resolucao para resolver as barras.
+//
+// focusMode nao esta na lib de tipos do TS e nem todo navegador aceita; vai em
+// `advanced`, que por definicao e ignorado por quem nao suporta.
+const VIDEO = {
+  facingMode: "environment",
+  width: { ideal: 1920 },
+  height: { ideal: 1080 },
+  advanced: [{ focusMode: "continuous" }],
+} as unknown as MediaTrackConstraints;
+
+// Alguns aparelhos ignoram focusMode na negociacao inicial mas aceitam depois que
+// a track esta viva. Falhar aqui nao e erro: a leitura segue com o foco que veio.
+async function pedirFocoContinuo(s: MediaStream | null) {
+  const track = s?.getVideoTracks()[0];
+  if (!track?.getCapabilities) return;
+  try {
+    const caps = track.getCapabilities() as Record<string, unknown>;
+    if ("focusMode" in caps) {
+      await track.applyConstraints({
+        advanced: [{ focusMode: "continuous" }],
+      } as unknown as MediaTrackConstraints);
+    }
+  } catch {
+    // sem foco continuo, segue com o padrao do aparelho
+  }
+}
+
 export function BarcodeScanner({
   onResult,
   onError,
@@ -63,9 +97,8 @@ export function BarcodeScanner({
         }).BarcodeDetector;
 
         if (BD) {
-          stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: "environment" },
-          });
+          stream = await navigator.mediaDevices.getUserMedia({ video: VIDEO });
+          await pedirFocoContinuo(stream);
           const video = videoRef.current!;
           video.srcObject = stream;
           await video.play();
@@ -100,11 +133,15 @@ export function BarcodeScanner({
         ]);
         const reader = new BrowserMultiFormatReader(hints);
         const controls = await reader.decodeFromConstraints(
-          { video: { facingMode: "environment" } },
+          { video: VIDEO },
           videoRef.current!,
           (res) => {
             if (!doneRef.current && res) aceitar(res.getText());
           },
+        );
+        // O ZXing abre a propria camera; o foco so da para pedir depois disso.
+        await pedirFocoContinuo(
+          (videoRef.current?.srcObject as MediaStream | null) ?? null,
         );
         parar = () => controls.stop();
       } catch {
