@@ -14,7 +14,8 @@ import { useEffect, useSyncExternalStore } from "react";
 // ponytail: um raio fixo por ponto. Loja grande ou GPS ruim dentro do predio pode
 // precisar de raio maior; o upgrade e guardar o espalhamento de cada ponto.
 
-export type Ponto = { lat: number; lng: number; n: number; em: number };
+// mercado: id dos acompanhados (guanabara...) ou o nome de outro ("Atacadão").
+export type Ponto = { lat: number; lng: number; n: number; em: number; mercado?: string; nome?: string };
 
 const CHAVE = "lugares_mercado";
 const RAIO = 45; // m: dentro da loja, longe o bastante do estacionamento na maioria
@@ -32,10 +33,33 @@ export function distancia(a: { lat: number; lng: number }, b: { lat: number; lng
   return 2 * r * Math.asin(Math.sqrt(h));
 }
 
-// Esta dentro de um mercado conhecido? So com GPS preciso.
+// Em qual ponto conhecido a pessoa esta (-1: nenhum). So com GPS preciso.
+export function pontoAtual(pos: { lat: number; lng: number; precisao: number }, pontos: Ponto[]): number {
+  if (!(pos.precisao <= PRECISAO_MAX)) return -1;
+  let melhor = -1;
+  let d = Infinity;
+  pontos.forEach((p, i) => {
+    const x = distancia(pos, p);
+    if (x <= RAIO && x < d) [melhor, d] = [i, x];
+  });
+  return melhor;
+}
+
 export function dentroDeMercado(pos: { lat: number; lng: number; precisao: number }, pontos: Ponto[]): boolean {
-  if (!(pos.precisao <= PRECISAO_MAX)) return false;
-  return pontos.some((p) => distancia(pos, p) <= RAIO);
+  return pontoAtual(pos, pontos) >= 0;
+}
+
+// Nome do mapa -> mercado que o monitor acompanha. "Supermercados Guanabara" -> guanabara.
+const CONHECIDOS: [RegExp, string][] = [
+  [/guanabara/, "guanabara"],
+  [/mundial/, "mundial"],
+  [/super\s*bom/, "superbom"],
+  [/supermarket/, "supermarket"],
+  [/economia/, "economia"],
+];
+export function idDoMercado(nome: string): string | null {
+  const n = nome.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  return CONHECIDOS.find(([re]) => re.test(n))?.[1] ?? null;
 }
 
 // Junta o ponto novo ao da mesma loja (media ponderada) ou cria um novo.
@@ -45,13 +69,22 @@ export function aprender(pontos: Ponto[], pos: { lat: number; lng: number; preci
   if (i < 0) return [...pontos, { lat: pos.lat, lng: pos.lng, n: 1, em: agora }].sort((a, b) => b.em - a.em).slice(0, MAX_PONTOS);
   const p = pontos[i];
   const n = Math.min(p.n, 20); // o centro ainda se move um pouco com leituras novas
-  const novo = { lat: (p.lat * n + pos.lat) / (n + 1), lng: (p.lng * n + pos.lng) / (n + 1), n: p.n + 1, em: agora };
+  const novo = { ...p, lat: (p.lat * n + pos.lat) / (n + 1), lng: (p.lng * n + pos.lng) / (n + 1), n: p.n + 1, em: agora };
   return pontos.map((x, j) => (j === i ? novo : x));
 }
 
 // ============ estado do aparelho ============
-type Estado = { noMercado: boolean; permitido: "sim" | "nao" | "perguntar" | "sem" };
-let estado: Estado = { noMercado: false, permitido: "perguntar" };
+type Estado = {
+  noMercado: boolean;
+  permitido: "sim" | "nao" | "perguntar" | "sem";
+  // o mercado deste ponto, quando ja se sabe; `perguntar`: ponto novo sem nome ainda
+  mercado: string | null;
+  nomeMercado: string | null;
+  perguntar: { sugestao: string | null } | null;
+};
+let estado: Estado = { noMercado: false, permitido: "perguntar", mercado: null, nomeMercado: null, perguntar: null };
+let ultimaPos: { lat: number; lng: number; precisao: number } | null = null;
+export const mercadoAtual = () => (estado.noMercado ? estado.mercado : null);
 const ouvintes = new Set<() => void>();
 const definir = (e: Partial<Estado>) => {
   estado = { ...estado, ...e };
@@ -106,8 +139,54 @@ export async function atualizarLugar(pedir = false) {
   if (p !== estado.permitido) definir({ permitido: p });
   if (p === "sem" || p === "nao" || (p === "perguntar" && !pedir)) return;
   const pos = await posicao();
-  if (pos) definir({ noMercado: dentroDeMercado(pos, lerPontos()) });
+  if (pos) situar(pos, lerPontos());
 }
+
+function situar(pos: { lat: number; lng: number; precisao: number }, pontos: Ponto[]) {
+  ultimaPos = pos;
+  const i = pontoAtual(pos, pontos);
+  const p = pontos[i];
+  definir({
+    noMercado: i >= 0,
+    mercado: p?.mercado ?? null,
+    nomeMercado: p?.nome ?? null,
+    perguntar: p && !p.mercado ? { sugestao: estado.perguntar?.sugestao ?? null } : null,
+  });
+  if (p && !p.mercado && !estado.perguntar?.sugestao) void sugerir(pos);
+}
+
+// Nome do mercado pelo mapa aberto (OpenStreetMap): o supermercado mais perto do ponto.
+// So sugestao: a pessoa confirma com um toque, uma vez por loja.
+async function sugerir(pos: { lat: number; lng: number }) {
+  const q = `[out:json][timeout:10];nwr(around:150,${pos.lat},${pos.lng})["shop"~"supermarket|wholesale"];out center tags 10;`;
+  let nome: string | null = null;
+  try {
+    const r = await fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(q)}`, {
+      signal: AbortSignal.timeout(10000),
+    });
+    const j = (await r.json()) as { elements: { lat?: number; lon?: number; center?: { lat: number; lon: number }; tags?: Record<string, string> }[] };
+    const perto = j.elements
+      .map((e) => ({ nome: e.tags?.brand || e.tags?.name, lat: e.lat ?? e.center?.lat, lng: e.lon ?? e.center?.lon }))
+      .filter((e): e is { nome: string; lat: number; lng: number } => !!e.nome && e.lat != null && e.lng != null)
+      .sort((a, b) => distancia(pos, a) - distancia(pos, b));
+    nome = perto[0]?.nome ?? null;
+  } catch {
+    // mapa fora do ar: a pergunta aparece sem sugestao
+  }
+  if (estado.perguntar) definir({ perguntar: { sugestao: nome } });
+}
+
+// A pessoa disse qual mercado e este ponto (id dos acompanhados ou nome de outro).
+export function nomearMercado(nome: string) {
+  if (!ultimaPos) return;
+  const pontos = lerPontos();
+  const i = pontoAtual(ultimaPos, pontos);
+  if (i < 0) return;
+  pontos[i] = { ...pontos[i], mercado: idDoMercado(nome) ?? nome.trim(), nome: nome.trim() };
+  gravarPontos(pontos);
+  situar(ultimaPos, pontos);
+}
+export const posicaoAtual = () => ultimaPos;
 
 // Item no carrinho: grava onde a pessoa esta (sem perguntar; so se ja tem permissao).
 export async function aprenderMercado() {
@@ -116,7 +195,7 @@ export async function aprenderMercado() {
   if (!pos) return;
   const pontos = aprender(lerPontos(), pos);
   gravarPontos(pontos);
-  definir({ noMercado: dentroDeMercado(pos, pontos) });
+  situar(pos, pontos);
 }
 
 let ligado = false;

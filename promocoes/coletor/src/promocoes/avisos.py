@@ -94,7 +94,22 @@ def mensagem(achados: list[tuple[dict, dict]]) -> dict:
     return {"title": f"⭐ {len(achados)} produtos de olho em promoção", "body": corpo, "url": "/app/ofertas#de-olho"}
 
 
+def pedidos() -> str:
+    """Mercados que a casa pediu para acompanhar (0043): aparece no log de cada rodada,
+    para entrar no monitor (precisa de um leitor de encarte novo)."""
+    try:
+        ps = lista_app._rpc("mercado_mercados_pedidos_h", {}) or []
+    except Exception:  # banco sem a 0043
+        return ""
+    if not isinstance(ps, list):
+        return ""
+    return "pedidos de mercado novo: " + ", ".join(f"{x['nome']} ({x['vezes']}x)" for x in ps) if ps else ""
+
+
 def avisar() -> str:
+    pend = pedidos()
+    if pend:
+        print(pend)
     p = lista_app._rpc("mercado_push_pendentes_h", {})
     vistos = precos(p)
     if vistos:

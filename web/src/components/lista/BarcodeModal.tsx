@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import { AvisoMaisBarato } from "@/components/ofertas/AvisoMaisBarato";
 import { AvisoPrecoSubiu } from "@/components/ofertas/AvisoPrecoSubiu";
 import { Modal } from "@/components/ui/Modal";
@@ -13,6 +13,10 @@ import { isTypedBarcode, onlyDigits, prettyBarcode } from "@/lib/barcode";
 import { BarcodeScanner } from "./BarcodeScanner";
 import { DestinoSwitch, type Destino } from "@/components/ui/Destino";
 import { useLugar } from "@/lib/lugar";
+import { useListaOfertas } from "@/components/ofertas/useOfertas";
+import { nomeMercado } from "@/lib/ofertas";
+import { precoNoMercado } from "@/lib/precoMercado";
+import { usePrecosVistos } from "@/lib/precosVistos";
 
 // Ler o codigo, dizer a quantidade, pronto: o item cai no carrinho.
 //
@@ -45,7 +49,18 @@ export function BarcodeModal({
 }) {
   const { findBarcode, addTripItemByBarcode, addStockByBarcode, baixaStock, showToast, trip, stock } = useStore();
   // Dentro de um mercado conhecido (GPS), o codigo vai para o carrinho de qualquer tela.
-  const { noMercado } = useLugar();
+  const { noMercado, mercado } = useLugar();
+  // No mercado identificado, o preco ja vem DAQUELE mercado: encarte ou ultimo visto la.
+  const ofertas = useListaOfertas();
+  const vistos = usePrecosVistos(noMercado ? mercado : null);
+  const [origemPreco, setOrigemPreco] = useState<string | null>(null);
+  function sugerirPreco(n: string, code: string) {
+    // nomeMercado devolve o proprio nome para mercado fora da lista ("Atacadão")
+    const s = precoNoMercado(n, code, noMercado ? mercado : null, ofertas, vistos, nomeMercado);
+    if (!s) return;
+    setPreco(String(s.preco));
+    setOrigemPreco(s.texto);
+  }
   const padrao: Destino = noMercado ? "carrinho" : destinoPadrao;
   const [destino, setDestino] = useState<Destino>(padrao);
   const emCasa = destino === "estoque";
@@ -70,19 +85,21 @@ export function BarcodeModal({
   // precisar fechar o leitor e conferir o carrinho.
   const [lidos, setLidos] = useState<string[]>([]);
 
-  const resolver = useCallback(
-    async (code: string) => {
+  async function resolver(code: string) {
+    {
       setBusy(true);
       const info = await findBarcode(code);
       setBusy(false);
       setCodigo(code);
       setFase("confirmar");
       setQtd("1");
+      setOrigemPreco(null);
       if (info?.encontrado) {
         setConhecido(true);
         setNome(info.nome);
         setUnidade(info.unidade || unitFor(info.nome));
         setPreco(info.preco != null ? String(info.preco) : "");
+        sugerirPreco(info.nome, code);
       } else {
         // Codigo novo para esta casa: antes de pedir o nome, pergunta na base
         // publica. Ler o codigo e ainda ter que digitar "refrigerante" quebra a
@@ -110,14 +127,14 @@ export function BarcodeModal({
             // Preco da ultima compra desse item, se a casa ja comprou.
             const jaTem = findByName(d.nome, stock);
             if (jaTem?.priceLast != null) setPreco(String(jaTem.priceLast));
+            sugerirPreco(d.nome, code);
           }
         } catch {
           // Base fora do ar: segue como antes, com o campo vazio.
         }
       }
-    },
-    [findBarcode, stock],
-  );
+    }
+  }
 
   // Nome digitado na primeira leitura: unidade pela palavra e preco da ultima
   // compra, se a casa ja tem esse item (regra 2, campo nasce preenchido).
@@ -374,7 +391,10 @@ export function BarcodeModal({
             </span>
             <input
               value={preco}
-              onChange={(e) => setPreco(e.target.value)}
+              onChange={(e) => {
+                setPreco(e.target.value);
+                setOrigemPreco(null);
+              }}
               inputMode="decimal"
               placeholder="0,00"
               aria-label="Preço"
@@ -384,9 +404,13 @@ export function BarcodeModal({
               className="h-[58px] w-full rounded-[14px] border border-border bg-card-2 pl-[52px] pr-4 text-[22px] font-bold"
             />
           </div>
-          <p className="mb-5 text-[12px] text-text-3">
-            Em branco, usamos o preço da última compra desse item.
-          </p>
+          {origemPreco ? (
+            <p className="mb-5 text-[13px] font-bold text-brand">📍 {origemPreco}. Confira e confirme.</p>
+          ) : (
+            <p className="mb-5 text-[12px] text-text-3">
+              Em branco, usamos o preço da última compra desse item.
+            </p>
+          )}
 
           <AvisoPrecoSubiu nome={nome} preco={preco.trim() === "" ? null : Number(preco.replace(",", ".")) || null} />
           <AvisoMaisBarato
