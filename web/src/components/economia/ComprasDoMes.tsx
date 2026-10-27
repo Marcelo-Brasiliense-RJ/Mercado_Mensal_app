@@ -1,9 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { brl } from "@/lib/format";
 import { unitFor } from "@/lib/defaults";
-import { useStore, type Compra } from "@/lib/store";
+import { useStore } from "@/lib/store";
+import type { CompraMes } from "@/lib/economia";
+
+type Compra = CompraMes;
 
 // Compras ja registradas no mes, editaveis. Ate aqui nao havia como corrigir uma
 // compra passada em lugar nenhum: duas bandejas de carne entraram com o preco por
@@ -12,9 +15,21 @@ import { useStore, type Compra } from "@/lib/store";
 const campo =
   "h-11 min-w-0 rounded-[11px] border border-border bg-card-2 px-2.5 text-[14px]";
 
-export function ComprasDoMes() {
-  const { loadCompras, updateCompra, deleteCompra, addCompra, showToast } = useStore();
-  const [compras, setCompras] = useState<Compra[]>([]);
+// Fechado por padrao: e a parte de corrigir, nao a de ler. Inclusao so no mes corrente
+// (a compra nova entra com a data de hoje).
+export function ComprasDoMes({
+  compras,
+  recarregar,
+  podeIncluir,
+  titulo,
+}: {
+  compras: Compra[];
+  recarregar: () => Promise<void> | void;
+  podeIncluir: boolean;
+  titulo: string;
+}) {
+  const { updateCompra, deleteCompra, addCompra, showToast } = useStore();
+  const [aberto, setAberto] = useState(false);
   const [editando, setEditando] = useState<string | null>(null);
   const [qtd, setQtd] = useState("");
   const [preco, setPreco] = useState("");
@@ -23,22 +38,6 @@ export function ComprasDoMes() {
   const [nQtd, setNQtd] = useState("1");
   const [nPreco, setNPreco] = useState("");
   const [busy, setBusy] = useState(false);
-
-  const recarregar = useCallback(async () => {
-    setCompras(await loadCompras());
-  }, [loadCompras]);
-
-  // setState no .then, nao no corpo do effect: chamada sincrona dispara a regra
-  // react-hooks/set-state-in-effect e causa render em cascata.
-  useEffect(() => {
-    let vivo = true;
-    loadCompras().then((cs) => {
-      if (vivo) setCompras(cs);
-    });
-    return () => {
-      vivo = false;
-    };
-  }, [loadCompras]);
 
   const num = (s: string) => Number(s.replace(",", "."));
 
@@ -95,25 +94,35 @@ export function ComprasDoMes() {
 
   return (
     <div className="rounded-[20px] border border-border bg-card p-[18px] shadow-[0_2px_10px_var(--shadow)] lg:p-[22px]">
-      <div className="mb-1 flex items-center justify-between gap-3">
-        <span className="min-w-0 text-xs font-bold uppercase tracking-wide text-text-3">
-          Compras do mês
-          {compras.length > 0 && (
-            // Quantas e quanto, na frente: e a pergunta que se faz olhando aqui.
-            <span className="ml-2 font-extrabold normal-case tracking-normal text-text">
-              {compras.length} {compras.length === 1 ? "compra" : "compras"} ·{" "}
-              {brl(compras.reduce((a, c) => a + c.total, 0))}
-            </span>
-          )}
+      <button
+        type="button"
+        onClick={() => setAberto((v) => !v)}
+        aria-expanded={aberto}
+        className="flex w-full items-center justify-between gap-3 text-left"
+      >
+        <span className="min-w-0">
+          <span className="block text-xs font-bold uppercase tracking-wide text-text-3">{titulo}</span>
+          {/* Quantas e quanto, na frente: e a pergunta que se faz olhando aqui. */}
+          <span className="block text-[14px] font-extrabold">
+            {compras.length
+              ? `${compras.length} ${compras.length === 1 ? "compra" : "compras"} · ${brl(compras.reduce((a, c) => a + c.total, 0))}`
+              : "nenhuma ainda"}
+          </span>
         </span>
+        <span className="shrink-0 text-[13px] font-bold text-brand">{aberto ? "Fechar" : "Ver e corrigir"}</span>
+      </button>
+
+      {aberto && (
+        <div className="mt-3">
+      {podeIncluir && (
         <button
           type="button"
           onClick={() => setNovo((v) => !v)}
-          className="h-11 text-[13px] font-bold text-brand"
+          className="mb-1 h-11 text-[13px] font-bold text-brand"
         >
-          {novo ? "Cancelar" : "+ Incluir"}
+          {novo ? "Cancelar" : "+ Incluir compra esquecida"}
         </button>
-      </div>
+      )}
       <p className="mb-3 text-[12px] leading-snug text-text-3">
         Corrigir aqui ajusta o gasto do mês e o estoque junto.
       </p>
@@ -161,7 +170,7 @@ export function ComprasDoMes() {
 
       {compras.length === 0 ? (
         <p className="text-[14px] text-text-2">
-          Nenhuma compra registrada neste mês ainda.
+          Nenhuma compra registrada neste mês.
         </p>
       ) : (
         <div className="divide-y divide-border">
@@ -234,6 +243,8 @@ export function ComprasDoMes() {
               )}
             </div>
           ))}
+        </div>
+      )}
         </div>
       )}
     </div>

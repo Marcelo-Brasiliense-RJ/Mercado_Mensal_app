@@ -57,16 +57,6 @@ export type BarcodeInfo = {
   salvaVinculo: boolean;
 };
 
-// Uma compra ja registrada no mes, como a aba Economia lista para editar.
-export type Compra = {
-  id: string;
-  name: string;
-  qty: number;
-  unit: string;
-  price: number;
-  total: number;
-  at: string;
-};
 
 // Slugs devolvidos pelas RPCs (grep "'erro'," em supabase/migrations).
 const ERROS: Record<string, string> = {
@@ -160,7 +150,6 @@ type Store = Data & {
   buyItems: (ids: string[]) => Promise<RpcResult>;
   removeItems: (ids: string[]) => Promise<RpcResult>;
   setBudget: (total: number) => Promise<RpcResult>;
-  loadCompras: () => Promise<Compra[]>;
   updateCompra: (id: string, patch: { qty?: number; price?: number }) => Promise<RpcResult>;
   deleteCompra: (id: string) => Promise<RpcResult>;
   addCompra: (c: { name: string; qty: number; price: number; unit: string }) => Promise<RpcResult>;
@@ -547,13 +536,8 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
     return r;
   }, []);
 
-  // Compras ja registradas do mes. Editar mexe em duas coisas, o gasto e o estoque,
-  // e quem cuida disso e a 0033; aqui so recarregamos tudo depois de cada escrita.
-  const loadCompras = useCallback(async () => {
-    const { data } = await createClient().rpc("mercado_compras_web");
-    return (data as Compra[] | null) ?? [];
-  }, []);
-
+  // Editar compra mexe em duas coisas, o gasto e o estoque, e quem cuida disso e a
+  // 0033; aqui so recarregamos tudo depois de cada escrita.
   const updateCompra = useCallback(
     async (id: string, patch: { qty?: number; price?: number }) => {
       const r = await callRpc("mercado_compra_update_web", {
@@ -652,7 +636,6 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       buyItems,
       removeItems,
       setBudget,
-      loadCompras,
       updateCompra,
       deleteCompra,
       addCompra,
@@ -692,7 +675,6 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       buyItems,
       removeItems,
       setBudget,
-      loadCompras,
       updateCompra,
       deleteCompra,
       addCompra,

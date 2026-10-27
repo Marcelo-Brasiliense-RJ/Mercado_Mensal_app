@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import { useListaOfertas } from "@/components/ofertas/useOfertas";
-import { corMercado, maisBarataPara, nomeMercado, type Oferta } from "@/lib/ofertas";
+import { corMercado, corredor, maisBarataPara, nomeMercado, type Oferta } from "@/lib/ofertas";
+import { categoriaDe, ICONE } from "@/lib/categorias";
+import { Grupo, useRecolhidos } from "@/components/ui/Grupo";
 import type { StockItem } from "@/lib/types";
 import { brl, stockRatio } from "@/lib/format";
 import { stepFor } from "@/lib/defaults";
@@ -77,6 +79,14 @@ export function StockView() {
     .filter((i) => i.name.toLowerCase().includes(q.toLowerCase()))
     .sort((a, b) => ORDEM[estadoDe(a)] - ORDEM[estadoDe(b)] || a.name.localeCompare(b.name));
   const faltando = stock.filter((i) => estadoDe(i) !== "tem");
+  // Por corredor do mercado (mesmas categorias dos encartes), cada um abre e fecha.
+  const { aberto, alternar } = useRecolhidos("estoque_fechados");
+  const grupos = Object.entries(
+    filtered.reduce<Record<string, StockItem[]>>((g, i) => {
+      (g[categoriaDe(i.name, ofertas)] ??= []).push(i);
+      return g;
+    }, {}),
+  ).sort((a, b) => corredor(a[0]) - corredor(b[0]));
   const detail = stock.find((i) => i.id === detailId) ?? null;
 
   function toggleSel(id: string) {
@@ -223,22 +233,38 @@ export function StockView() {
           </div>
         )}
 
-        {/* Dois cards por linha no celular: cabe o dobro de despensa num olhar. */}
-        <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4 lg:gap-3.5">
-          {filtered.map((i) => (
-            <Card
-              key={i.id}
-              item={i}
-              selMode={selMode}
-              selected={selected.has(i.id)}
-              ocupado={agindo === i.id}
-              onAbrir={() => onItem(i)}
-              onUsei={() => usei(i)}
-              onRepor={() => repor(i)}
-              oferta={estadoDe(i) !== "tem" ? maisBarataPara(ofertas, i.name) : null}
-            />
-          ))}
-        </div>
+        {grupos.map(([cat, itens]) => {
+          const acabando = itens.filter((i) => estadoDe(i) !== "tem").length;
+          return (
+            <Grupo
+              key={cat}
+              titulo={cat}
+              icone={ICONE[cat] ?? "🛒"}
+              info={`${itens.length} ${itens.length === 1 ? "item" : "itens"}`}
+              destaque={acabando ? `${acabando} acabando` : undefined}
+              // Buscando, tudo aberto: o item procurado nao pode ficar escondido.
+              aberto={!!q || aberto(cat)}
+              onAlternar={() => alternar(cat)}
+            >
+              {/* Dois cards por linha no celular: cabe o dobro de despensa num olhar. */}
+              <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4 lg:gap-3.5">
+                {itens.map((i) => (
+                  <Card
+                    key={i.id}
+                    item={i}
+                    selMode={selMode}
+                    selected={selected.has(i.id)}
+                    ocupado={agindo === i.id}
+                    onAbrir={() => onItem(i)}
+                    onUsei={() => usei(i)}
+                    onRepor={() => repor(i)}
+                    oferta={estadoDe(i) !== "tem" ? maisBarataPara(ofertas, i.name) : null}
+                  />
+                ))}
+              </div>
+            </Grupo>
+          );
+        })}
 
         {stock.length > 0 && filtered.length === 0 && (
           <p className="pt-10 text-center text-text-3">Nenhum item encontrado.</p>

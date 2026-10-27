@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { brl } from "@/lib/format";
 import { corMercado, nomeMercado, porUnidade, type Oferta } from "@/lib/ofertas";
+import { ICONE } from "@/lib/categorias";
 
 // Pecas pequenas da aba Ofertas, usadas pela grade e pela lista De olho.
 export function Selo({ mercado }: { mercado: string }) {
@@ -16,10 +17,6 @@ export function Selo({ mercado }: { mercado: string }) {
   );
 }
 
-const ICONE: Record<string, string> = {
-  Mercearia: "🥫", Bebidas: "🥤", Carnes: "🥩", "Frios e Laticínios": "🧀", Hortifruti: "🥦", Padaria: "🍞",
-  Congelados: "🧊", "Doces e Biscoitos": "🍪", Limpeza: "🧽", "Perfumaria e Higiene": "🧴", Bebê: "🍼", Pet: "🐾",
-};
 
 export function Foto({ o, src, className = "" }: { o?: Oferta | null; src?: string; className?: string }) {
   const [falhou, setFalhou] = useState(false);
