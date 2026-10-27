@@ -55,13 +55,52 @@ jobs:
             exit 1
           fi
 
-      - name: Rodada
+      # Um passo por mercado: a lista de passos do run mostra o andamento ao vivo.
+      # Quarta (Guanabara) e rodada manual com mercados escolhidos pulam os outros.
+      - name: Escolher mercados
+        id: m
         env:
           AGENDA: ${{ github.event.schedule }}
           MERCADOS: ${{ inputs.mercados }}
         run: |
           if [ "$AGENDA" = "0 10 * * 3" ]; then MERCADOS="guanabara"; fi
-          ./promocoes/rodar_semana.sh $MERCADOS
+          echo "lista= ${MERCADOS:-superbom guanabara mundial supermarket} " >> "$GITHUB_OUTPUT"
+
+      - name: Superbom
+        id: superbom
+        if: contains(steps.m.outputs.lista, ' superbom ')
+        continue-on-error: true
+        run: ./promocoes/rodar_semana.sh superbom
+
+      - name: Guanabara
+        id: guanabara
+        if: contains(steps.m.outputs.lista, ' guanabara ')
+        continue-on-error: true
+        run: ./promocoes/rodar_semana.sh guanabara
+
+      - name: Mundial
+        id: mundial
+        if: contains(steps.m.outputs.lista, ' mundial ')
+        continue-on-error: true
+        run: ./promocoes/rodar_semana.sh mundial
+
+      - name: Supermarket
+        id: supermarket
+        if: contains(steps.m.outputs.lista, ' supermarket ')
+        continue-on-error: true
+        run: ./promocoes/rodar_semana.sh supermarket
+
+      # Os mercados seguem mesmo se um falhar; no fim o run fica vermelho (e o GitHub
+      # manda e-mail) se algum falhou.
+      - name: Resultado
+        if: always()
+        run: |
+          falhou=""
+          [ "${{ steps.superbom.outcome }}" = "failure" ] && falhou="$falhou Superbom"
+          [ "${{ steps.guanabara.outcome }}" = "failure" ] && falhou="$falhou Guanabara"
+          [ "${{ steps.mundial.outcome }}" = "failure" ] && falhou="$falhou Mundial"
+          [ "${{ steps.supermarket.outcome }}" = "failure" ] && falhou="$falhou Supermarket"
+          if [ -n "$falhou" ]; then echo "::error::Falhou:$falhou"; exit 1; fi
 
       # Encartes vencidos so ocupam o cache.
       - name: Limpar encartes antigos
