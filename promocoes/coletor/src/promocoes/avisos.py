@@ -36,7 +36,8 @@ def casa_desejo(o: dict, termo: str) -> bool:
     "Paleta, Peito ou Acém Bovino"), as outras em qualquer lugar."""
     nome = padrao(" ".join(x for x in (o.get("produto"), o.get("marca"), o.get("tamanho")) if x))
     pedacos = [padrao(p.strip()) for p in re.split(r",|\s+ou\s+|\s+e\s+|/", o.get("produto") or "", flags=re.I)]
-    primeira, *resto = padrao(termo).split() or [""]
+    # pontuacao fora do termo: "paleta, peito" (estrela num encarte com virgula) vira "paleta peito"
+    primeira, *resto = re.sub(r"[^a-z0-9 ]", " ", padrao(termo)).split() or [""]
     return bool(primeira) and any(p.startswith(primeira) for p in pedacos) and all(p in nome for p in resto)
 
 
@@ -59,6 +60,8 @@ def novidades(p: dict) -> dict[str, list[tuple[dict, dict]]]:
     """Por casa: (desejo, oferta mais barata ainda nao avisada) de cada desejo em promocao."""
     por_casa: dict[str, list[tuple[dict, dict]]] = {}
     for d in p.get("desejos", []):
+        if not d.get("aparelho", True):  # casa sem celular inscrito: so guarda o preco
+            continue
         vistos = set(d.get("avisados") or [])
         achadas = sorted((o for o in p.get("ofertas", []) if casa_desejo(o, d["termo"])),
                          key=lambda o: float(o["preco_por"]))
@@ -66,6 +69,17 @@ def novidades(p: dict) -> dict[str, list[tuple[dict, dict]]]:
         if nova:
             por_casa.setdefault(d["household_id"], []).append((d, nova))
     return por_casa
+
+
+def precos(p: dict) -> list[dict]:
+    """A promocao mais barata de cada desejo agora, para o historico do card (0042)."""
+    out = []
+    for d in p.get("desejos", []):
+        achadas = [o for o in p.get("ofertas", []) if casa_desejo(o, d["termo"])]
+        if achadas:
+            o = min(achadas, key=lambda o: float(o["preco_por"]))
+            out.append({"id": d["id"], "preco": float(o["preco_por"]), "mercado": o["mercado"], "fim": o.get("fim")})
+    return out
 
 
 def mensagem(achados: list[tuple[dict, dict]]) -> dict:
@@ -81,12 +95,18 @@ def mensagem(achados: list[tuple[dict, dict]]) -> dict:
 
 
 def avisar() -> str:
+    p = lista_app._rpc("mercado_push_pendentes_h", {})
+    vistos = precos(p)
+    if vistos:
+        try:
+            lista_app._rpc("mercado_desejos_precos_h", {"p_vistos": vistos})
+        except Exception as e:  # banco sem a 0042: o aviso segue, so sem historico
+            print(f"avisos: historico de preco nao gravado ({e})")
     chave_privada = os.environ.get("VAPID_PRIVATE_KEY")
     if not chave_privada:
-        return "avisos | sem VAPID_PRIVATE_KEY nos Secrets: nada enviado"
+        return f"avisos | {len(vistos)} preços guardados | sem VAPID_PRIVATE_KEY nos Secrets: nada enviado"
     from pywebpush import WebPushException, webpush
 
-    p = lista_app._rpc("mercado_push_pendentes_h", {})
     por_casa = novidades(p)
     avisos, mortas, enviados, falhas = [], [], 0, 0
     for casa, achados in por_casa.items():
@@ -106,5 +126,6 @@ def avisar() -> str:
             avisos += [{"desejo_id": d["id"], "chave": chave(o)} for d, o in achados]
     if avisos or mortas:
         lista_app._rpc("mercado_push_registrar_h", {"p_avisos": avisos, "p_mortas": mortas})
-    return (f"avisos | {sum(map(len, por_casa.values()))} promoções novas de olho | {enviados} notificações"
+    return (f"avisos | {len(vistos)} preços guardados | {sum(map(len, por_casa.values()))} promoções novas de olho"
+            f" | {enviados} notificações"
             f" | {len(mortas)} aparelhos saíram" + (f" | {falhas} falharam" if falhas else ""))

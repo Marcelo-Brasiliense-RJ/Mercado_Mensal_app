@@ -6,6 +6,11 @@ import { useStore } from "@/lib/store";
 import { Modal } from "@/components/ui/Modal";
 import { SearchIcon } from "@/components/ui/icons";
 import {
+  desconto,
+  nomeMercado,
+  padrao,
+  porUnidade,
+  veredito,
   casaBusca,
   maisBarato,
   nomeBonito,
@@ -17,7 +22,7 @@ import {
   type Oferta,
 } from "@/lib/ofertas";
 import { desligarPush, estadoPush, ligarPush, type EstadoPush } from "@/lib/push";
-import { Foto, Selo } from "./pecas";
+import { Foto, PorUnidade, Selo } from "./pecas";
 import { removerDesejo, salvarDesejo, useDesejos } from "./useDesejos";
 
 // Lista "De olho": produtos que a pessoa so compra em promocao. Cada um mostra na hora
@@ -91,46 +96,132 @@ export function DeOlho({
   );
 }
 
+// Quanto a casa pagou da ultima vez por esse produto (estoque guarda o ultimo preco).
+function ultimoPago(d: Desejo, stock: { name: string; priceLast: number | null }[]): number | null {
+  const t = padrao(d.termo).replace(/[^a-z0-9 ]/g, " ").trim();
+  const primeira = t.split(/\s+/)[0];
+  const s =
+    stock.find((x) => padrao(x.name) === t) ?? stock.find((x) => padrao(x.name).split(/\s+/)[0] === primeira);
+  return s?.priceLast ?? null;
+}
+
+const dia = (iso?: string | null) =>
+  iso ? new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", timeZone: "America/Sao_Paulo" }) : "";
+
+const TOM = {
+  bom: "bg-pos-soft text-pos",
+  normal: "bg-card-2 text-text-2",
+  caro: "bg-neg-soft text-neg",
+} as const;
+const ICONE_TOM = { bom: "🟢", normal: "🟡", caro: "🔴" } as const;
+
 function LinhaDesejo({ d, opcoes, onComparar }: { d: Desejo; opcoes: Oferta[]; onComparar: () => void }) {
-  const { showToast } = useStore();
+  const { showToast, stock } = useStore();
   const o = opcoes[0];
   const p = o && prazo(o);
-  const mercados = new Set(opcoes.map((x) => x.mercado)).size;
+  const off = o ? desconto(o) : 0;
+  const pago = ultimoPago(d, stock);
+  const v = veredito(o, d, pago);
+  // Outros mercados com o mesmo produto: o mais barato de cada um, depois do primeiro.
+  const outros = [...new Map(opcoes.slice(1).filter((x) => x.mercado !== o?.mercado).map((x) => [x.mercado, x])).values()];
+  const menor = d.menor_preco != null ? Number(d.menor_preco) : null;
+
   return (
-    <div
-      className={`flex items-center gap-3 rounded-2xl border bg-card p-2.5 pr-1 ${o ? "border-pos/40" : "border-border"}`}
-    >
-      <button onClick={o ? onComparar : undefined} className="flex min-w-0 flex-1 items-center gap-3 text-left">
-        <Foto o={o} src={d.tem_foto ? `/api/oferta-foto?desejo=${d.id}` : undefined} className="h-14 w-14 rounded-xl" />
+    <div className={`rounded-2xl border bg-card p-3 ${o ? "border-pos/40" : "border-border"}`}>
+      <div className="flex gap-3">
+        <Foto o={o} src={d.tem_foto ? `/api/oferta-foto?desejo=${d.id}` : undefined} className="h-16 w-16 rounded-xl" />
         <div className="min-w-0 flex-1">
-          <div className="truncate text-[15px] font-extrabold">{d.nome}</div>
-          {o ? (
-            <>
-              <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1">
-                <Selo mercado={o.mercado} />
-                <span className="text-[16px] font-extrabold text-pos tabular-nums">{brl(o.preco_por)}</span>
-                {mercados > 1 && <span className="text-[12px] font-bold text-brand">+{mercados - 1} mercado{mercados > 2 ? "s" : ""}</span>}
-              </div>
-              <div className={`mt-0.5 text-[12px] ${p?.urgente ? "font-bold text-warn" : "text-text-2"}`}>
-                {p?.texto ?? "Preço de hoje"}
-                {o.condicao ? ` · ${o.condicao}` : ""}
-              </div>
-            </>
+          <div className="line-clamp-2 text-[15px] font-extrabold leading-tight">{d.nome}</div>
+          {v ? (
+            <span className={`mt-1 inline-block rounded-full px-2.5 py-0.5 text-[12px] font-extrabold ${TOM[v.tom]}`}>
+              {ICONE_TOM[v.tom]} {v.texto}
+            </span>
           ) : (
-            <div className="mt-0.5 text-[13px] text-text-2">Sem promoção agora · aviso quando entrar</div>
+            <span className="mt-1 inline-block rounded-full bg-card-2 px-2.5 py-0.5 text-[12px] font-bold text-text-2">
+              Sem promoção agora · aviso quando entrar
+            </span>
           )}
         </div>
-      </button>
-      <button
-        onClick={async () => {
-          if (await removerDesejo(d.id)) showToast(`${d.nome} saiu do De olho`);
-          else showToast("Não deu para tirar. Tente de novo.");
-        }}
-        aria-label={`Parar de vigiar ${d.nome}`}
-        className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-[20px] text-text-3 active:bg-card-2"
-      >
-        ×
-      </button>
+        <button
+          onClick={async () => {
+            if (await removerDesejo(d.id)) showToast(`${d.nome} saiu do De olho`);
+            else showToast("Não deu para tirar. Tente de novo.");
+          }}
+          aria-label={`Parar de vigiar ${d.nome}`}
+          className="-mr-1 -mt-1 grid h-10 w-10 shrink-0 place-items-center rounded-full text-[20px] text-text-3 active:bg-card-2"
+        >
+          ×
+        </button>
+      </div>
+
+      {o && (
+        <button onClick={onComparar} className="mt-2.5 block w-full rounded-xl bg-card-2 px-3 py-2.5 text-left">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <Selo mercado={o.mercado} />
+            <span className="text-[22px] font-extrabold leading-none text-pos tabular-nums">{brl(o.preco_por)}</span>
+            {off > 0 && (
+              <>
+                <s className="text-[13px] text-text-3">{brl(o.preco_de!)}</s>
+                <span className="rounded bg-pos px-1.5 py-px text-[11px] font-extrabold text-white">-{off}%</span>
+              </>
+            )}
+            <PorUnidade o={o} />
+          </div>
+          <div className={`mt-1 text-[13px] ${p?.urgente ? "font-bold text-warn" : "text-text-2"}`}>
+            {p?.texto ?? "Preço de hoje"}
+            {o.condicao ? ` · ${o.condicao}` : ""}
+          </div>
+          {outros.length > 0 && (
+            <div className="mt-1 text-[12px] text-text-2">
+              {/* Com o preco por kg/L: pacote menor parece mais barato sem ser. */}
+              Também:{" "}
+              {outros
+                .slice(0, 3)
+                .map((x) => {
+                  const u = porUnidade(x);
+                  return `${nomeMercado(x.mercado)} ${brl(x.preco_por)}${u ? ` (${brl(u.valor)}/${u.u})` : ""}`;
+                })
+                .join(" · ")}
+              <span className="font-bold text-brand"> · comparar</span>
+            </div>
+          )}
+        </button>
+      )}
+
+      {/* O que ajuda a decidir: quanto pagou, a menor ja vista e a ultima promocao. */}
+      {(pago != null || menor != null || (!o && d.ultimo_preco != null)) && (
+        <div className="mt-2 grid grid-cols-2 gap-2 text-[12px]">
+          {pago != null && (
+            <div className="rounded-xl border border-border px-2.5 py-1.5">
+              <div className="text-text-3">Você pagou</div>
+              <div className="text-[14px] font-extrabold tabular-nums">{brl(pago)}</div>
+            </div>
+          )}
+          {menor != null && (
+            <div className="rounded-xl border border-border px-2.5 py-1.5">
+              <div className="text-text-3">Menor já visto</div>
+              <div className="text-[14px] font-extrabold tabular-nums">
+                {brl(menor)}
+                <span className="ml-1 text-[11px] font-bold text-text-2">
+                  {d.menor_mercado ? nomeMercado(d.menor_mercado) : ""} {dia(d.menor_em)}
+                </span>
+              </div>
+            </div>
+          )}
+          {!o && d.ultimo_preco != null && (
+            <div className="col-span-2 rounded-xl border border-border px-2.5 py-1.5">
+              <div className="text-text-3">Última promoção</div>
+              <div className="text-[14px] font-extrabold tabular-nums">
+                {brl(Number(d.ultimo_preco))}
+                <span className="ml-1 text-[11px] font-bold text-text-2">
+                  {d.ultimo_mercado ? `no ${nomeMercado(d.ultimo_mercado)}` : ""}
+                  {d.ultimo_fim ? ` · até ${dia(d.ultimo_fim)}` : d.ultimo_visto ? ` · vista em ${dia(d.ultimo_visto)}` : ""}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -5,15 +5,20 @@ import { Modal } from "@/components/ui/Modal";
 import { QtyStepper } from "@/components/ui/QtyStepper";
 import { useStore } from "@/lib/store";
 import type { ShopItem } from "@/lib/types";
+import { brl } from "@/lib/format";
+import { casaItem, maisBarato, nomeCompleto, porUnidade, prazo, type Oferta } from "@/lib/ofertas";
+import { useListaOfertas } from "@/components/ofertas/useOfertas";
+import { Foto, Selo } from "@/components/ofertas/pecas";
 
 const UNITS = ["un", "kg", "g", "L", "ml", "pct", "cx", "dz"];
 const field =
   "h-12 w-full rounded-[13px] border border-border bg-card-2 px-3.5 text-[15px]";
 const labelCls = "mb-1.5 block text-xs font-bold text-text-2";
 
-// Acoes ao clicar num item da lista: editar quantidade/unidade/preco (controle
-// de quanto quer comprar e o preco pesquisado), comprar (repoe estoque), baixa
-// por consumo (so quando ja tem em estoque) e tirar da lista.
+// Ao tocar num item da lista: primeiro ONDE ele esta mais barato esta semana (um
+// mercado por linha, o menor em cima; tocar usa aquele preco), depois quanto quer
+// e por quanto, e so duas acoes: Comprei e Tirar. Baixa de estoque saiu daqui: mora
+// no Estoque (-1/+1 no card), e oito botoes num popup ninguem le no corredor.
 export function ListItemActions({
   item,
   onClose,
@@ -25,9 +30,8 @@ export function ListItemActions({
   onComprar: (id: string) => Promise<void>;
   onRemover: (id: string) => Promise<void>;
 }) {
-  const { stock, updateShopItem, zerarStock, baixaStock, showToast } = useStore();
-  const [parcial, setParcial] = useState(false);
-  const [qBaixa, setQBaixa] = useState("");
+  const { stock, updateShopItem, showToast } = useStore();
+  const ofertas = useListaOfertas();
   const [busy, setBusy] = useState(false);
   // Campos de edicao, pre-preenchidos com o item atual (o parent remonta por key).
   const [qtd, setQtd] = useState(item ? String(item.desired_quantity) : "1");
@@ -66,39 +70,73 @@ export function ListItemActions({
     setBusy(false);
     onClose();
   }
-  async function baixaTotal() {
-    if (!emEstoque) return;
-    setBusy(true);
-    const r = await zerarStock([emEstoque.id]);
-    setBusy(false);
-    if (!r.ok) return showToast(r.erro);
-    showToast(`${item!.name}: baixa total`);
-    onClose();
-  }
-  async function baixaParcial() {
-    const n = Number(qBaixa.replace(",", "."));
-    if (!emEstoque || !n || n <= 0) return;
-    setBusy(true);
-    const r = await baixaStock(emEstoque.id, n);
-    setBusy(false);
-    if (!r.ok) return showToast(r.erro);
-    showToast(`${item!.name}: baixa de ${n} ${emEstoque.unit}`);
-    onClose();
-  }
-
   const btn = "h-[50px] w-full rounded-[14px] text-[15px] font-bold disabled:opacity-50";
+  // Um por mercado: a oferta mais barata de cada um, o menor em cima.
+  const porMercado = [
+    ...new Map(
+      ofertas
+        .filter((o) => casaItem(o, item.name))
+        .sort(maisBarato)
+        .reverse()
+        .map((o) => [o.mercado, o] as [string, Oferta]),
+    ).values(),
+  ].sort(maisBarato);
+  const precoAtual = preco === "" ? null : Number(preco.replace(",", ".")) || null;
   const totalPrevisto =
     (Number(qtd.replace(",", ".")) || 0) *
     (preco === "" ? 0 : Number(preco.replace(",", ".")) || 0);
 
   return (
     <Modal open={!!item} onClose={onClose} maxWidth={420}>
-      <div className="mb-1 text-[19px] font-extrabold">{item.name}</div>
+      <div className="mb-1 pr-12 text-[20px] font-extrabold capitalize">{item.name}</div>
       <div className="mb-4 text-[13px] text-text-2">
-        {emEstoque
-          ? `Você tem ${emEstoque.current} ${emEstoque.unit} em casa.`
-          : "Item da lista de compras."}
+        {emEstoque ? `🏠 Em casa: ${emEstoque.current} ${emEstoque.unit}` : "🏠 Não tem em casa"}
       </div>
+
+      {porMercado.length > 0 ? (
+        <div className="mb-4">
+          <div className="mb-1.5 text-xs font-bold text-text-2">Onde está mais barato esta semana</div>
+          <div className="flex flex-col gap-1.5">
+            {porMercado.slice(0, 5).map((o, i) => {
+              const u = porUnidade(o);
+              const p = prazo(o);
+              const usado = precoAtual === o.preco_por;
+              return (
+                <button
+                  key={o.id}
+                  type="button"
+                  onClick={() => setPreco(String(o.preco_por))}
+                  className={`flex items-center gap-2.5 rounded-[14px] border p-2 text-left ${
+                    i === 0 ? "border-pos bg-pos-soft" : "border-border bg-card"
+                  } ${usado ? "ring-2 ring-brand" : ""}`}
+                >
+                  <Foto o={o} className="h-11 w-11 rounded-lg" />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <Selo mercado={o.mercado} />
+                      {i === 0 && (
+                        <span className="text-[11px] font-extrabold text-pos">
+                          {/* o primeiro ganha no preco por kg/L; se outro tem etiqueta menor, diz o porque */}
+                          {u && porMercado.some((x) => x.preco_por < o.preco_por) ? `MAIS BARATO POR ${u.u.toUpperCase()}` : "MAIS BARATO"}
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-0.5 truncate text-[12px] text-text-2">{nomeCompleto(o)}</div>
+                    <div className="text-[11px] text-text-3">{p?.texto ?? "Preço de hoje"}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className={`text-[17px] font-extrabold tabular-nums ${i === 0 ? "text-pos" : ""}`}>{brl(o.preco_por)}</div>
+                    {u && <div className="text-[11px] text-text-2">{brl(u.valor)}/{u.u}</div>}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+          <div className="mt-1.5 text-[11px] text-text-3">Toque num mercado para usar o preço dele.</div>
+        </div>
+      ) : (
+        <div className="mb-4 rounded-[13px] bg-card-2 px-3 py-2 text-[13px] text-text-2">Sem oferta desse item esta semana.</div>
+      )}
 
       {/* Editar quanto quer comprar e o preco pesquisado.
           Form so aqui: os botoes de acao abaixo ficam de fora de proposito,
@@ -140,75 +178,18 @@ export function ListItemActions({
       <button
         type="submit"
         disabled={busy}
-        className={`${btn} mb-4 bg-brand text-brand-ink`}
+        className={`${btn} mb-3 border border-brand bg-card text-brand`}
       >
-        Salvar alterações
+        Salvar quantidade e preço
       </button>
       </form>
 
-      <div className="mb-2 border-t border-border" />
-
-      <div className="flex flex-col gap-3">
-        <button
-          onClick={comprar}
-          disabled={busy}
-          className={`${btn} border border-brand bg-card text-brand`}
-        >
-          Comprei (repõe o estoque)
+      <div className="flex gap-3">
+        <button onClick={comprar} disabled={busy} className={`${btn} flex-[1.4] bg-pos text-white`}>
+          ✓ Comprei
         </button>
-
-        {emEstoque &&
-          (parcial ? (
-            <div className="flex items-center gap-3">
-              <div className="min-w-0 flex-1">
-                <QtyStepper
-                  value={qBaixa}
-                  onChange={setQBaixa}
-                  unit={emEstoque.unit}
-                  autoFocus
-                  placeholder={emEstoque.unit}
-                />
-              </div>
-              <button
-                type="button"
-                onClick={baixaParcial}
-                disabled={busy || !Number(qBaixa.replace(",", "."))}
-                className="h-12 shrink-0 rounded-[13px] bg-warn px-5 text-[15px] font-bold text-white disabled:opacity-50"
-              >
-                Baixar
-              </button>
-            </div>
-          ) : (
-            <div className="flex gap-3">
-              <button
-                onClick={() => setParcial(true)}
-                disabled={busy}
-                className={`${btn} border border-warn bg-card text-warn`}
-              >
-                Baixa parcial
-              </button>
-              <button
-                onClick={baixaTotal}
-                disabled={busy}
-                className={`${btn} border border-warn bg-warn text-white`}
-              >
-                Baixa total
-              </button>
-            </div>
-          ))}
-
-        <button
-          onClick={remover}
-          disabled={busy}
-          className={`${btn} border border-neg bg-card text-neg`}
-        >
+        <button onClick={remover} disabled={busy} className={`${btn} flex-1 border border-neg bg-card text-neg`}>
           Tirar da lista
-        </button>
-        <button
-          onClick={onClose}
-          className={`${btn} border border-border bg-card`}
-        >
-          Cancelar
         </button>
       </div>
     </Modal>

@@ -212,6 +212,27 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  // Lista muda na tela na hora (uma ida ao banco so) e o resto recarrega por tras.
+  // Antes cada toque esperava 4 leituras do banco: "Repor" demorava a aparecer na Lista.
+  const naListaLocal = useCallback(
+    (novos: { name: string; desired_quantity: number; unit: string; estimated_price: number | null }[]) =>
+      setData((d) => {
+        const shopping = [...d.shopping];
+        for (const n of novos) {
+          const nome = n.name.trim().toLowerCase();
+          if (shopping.some((i) => i.status === "pending" && i.name.toLowerCase() === nome)) continue;
+          shopping.push({ ...n, name: nome, id: `local-${nome}`, status: "pending" });
+        }
+        return { ...d, shopping };
+      }),
+    [],
+  );
+  const listaStatusLocal = useCallback(
+    (ids: string[], status: "bought" | "removed") =>
+      setData((d) => ({ ...d, shopping: d.shopping.map((i) => (ids.includes(i.id) ? { ...i, status } : i)) })),
+    [],
+  );
+
   const zerarStock = useCallback(
     async (ids: string[]) => {
       const r = await callRpc("mercado_stock_zerar_web", { p_ids: ids });
@@ -276,10 +297,17 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   const stockToList = useCallback(
     async (ids: string[]) => {
       const r = await callRpc("mercado_stock_to_list_web", { p_ids: ids });
-      if (r.ok) await reloadData();
+      if (r.ok) {
+        naListaLocal(
+          data.stock
+            .filter((i) => ids.includes(i.id))
+            .map((i) => ({ name: i.name, desired_quantity: Math.max(1, Math.round(i.normal - i.current)), unit: i.unit, estimated_price: i.priceLast })),
+        );
+        void reloadData();
+      }
       return r;
     },
-    [reloadData],
+    [reloadData, naListaLocal, data.stock],
   );
 
   const reloadTrip = useCallback(async () => {
@@ -505,10 +533,13 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
         p_unit: item.unit,
         p_price: item.estimated_price,
       });
-      if (r.ok) await reloadData();
+      if (r.ok) {
+        naListaLocal([item]);
+        void reloadData();
+      }
       return r;
     },
-    [reloadData],
+    [reloadData, naListaLocal],
   );
 
   const updateShopItem = useCallback(
@@ -536,28 +567,37 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
         p_unit: item.unit,
         p_price: item.priceLast,
       });
-      if (r.ok) await reloadData();
+      if (r.ok) {
+        naListaLocal([{ name: item.name, desired_quantity: Math.max(1, Math.round(item.normal - item.current)), unit: item.unit, estimated_price: item.priceLast }]);
+        void reloadData();
+      }
       return r;
     },
-    [reloadData],
+    [reloadData, naListaLocal],
   );
 
   const buyItems = useCallback(
     async (ids: string[]) => {
       const r = await callRpc("mercado_list_buy_web", { p_ids: ids });
-      if (r.ok) await reloadData();
+      if (r.ok) {
+        listaStatusLocal(ids, "bought");
+        void reloadData(); // estoque reposto chega em seguida
+      }
       return r;
     },
-    [reloadData],
+    [reloadData, listaStatusLocal],
   );
 
   const removeItems = useCallback(
     async (ids: string[]) => {
       const r = await callRpc("mercado_list_remove_web", { p_ids: ids });
-      if (r.ok) await reloadData();
+      if (r.ok) {
+        listaStatusLocal(ids, "removed");
+        void reloadData();
+      }
       return r;
     },
-    [reloadData],
+    [reloadData, listaStatusLocal],
   );
 
   // Ate a 0021 isto so mexia no estado em memoria: o orcamento sumia no reload.
