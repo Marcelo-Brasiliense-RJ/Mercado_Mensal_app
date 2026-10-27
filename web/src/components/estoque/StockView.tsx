@@ -56,6 +56,7 @@ export function StockView() {
     stock,
     zerarStock,
     baixaStock,
+    addStock,
     deleteStock,
     stockToList,
     addStockToList,
@@ -114,6 +115,15 @@ export function StockView() {
     setAgindo(null);
     // "Usei" e o toque mais facil de dar sem querer: o aviso ja traz o Desfazer.
     showToast(r.ok ? `${item.name}: usei ${fmtQtd(passo)} ${item.unit}` : r.erro, { desfazer: r.ok });
+  }
+
+  // Um toque, sem popup: chegou mais um em casa (o "+1" do card).
+  async function mais(item: StockItem) {
+    setAgindo(item.id);
+    const passo = stepFor(item.unit);
+    const r = await addStock({ name: item.name, qty: passo, unit: item.unit });
+    setAgindo(null);
+    showToast(r.ok ? `${item.name}: +${fmtQtd(passo)} ${item.unit}` : r.erro, { desfazer: r.ok });
   }
 
   // Um toque, sem popup: mandar para a lista de compras.
@@ -257,6 +267,7 @@ export function StockView() {
                     ocupado={agindo === i.id}
                     onAbrir={() => onItem(i)}
                     onUsei={() => usei(i)}
+                    onMais={() => mais(i)}
                     onRepor={() => repor(i)}
                     oferta={estadoDe(i) !== "tem" ? maisBarataPara(ofertas, i.name) : null}
                   />
@@ -364,6 +375,7 @@ function Card({
   ocupado,
   onAbrir,
   onUsei,
+  onMais,
   onRepor,
   oferta,
 }: {
@@ -373,6 +385,7 @@ function Card({
   ocupado: boolean;
   onAbrir: () => void;
   onUsei: () => void;
+  onMais: () => void;
   onRepor: () => void;
   oferta?: Oferta | null;
 }) {
@@ -424,23 +437,29 @@ function Card({
       </button>
 
       {!selMode && (
-        <div className="flex border-t border-border">
-          {/* Acabou nao tem o que dar baixa: o card inteiro vira "Repor". */}
-          {!acabou && (
-            <button
-              onClick={onUsei}
-              disabled={ocupado}
-              className="h-11 flex-1 border-r border-border text-[13px] font-bold text-text-2 disabled:opacity-40"
-            >
-              Usei
-            </button>
-          )}
+        // Tres toques sem popup: tirar, somar e mandar para a lista. O passo e o da
+        // unidade (1 un, 0,5 kg), o mesmo do "Usei" de antes.
+        <div className="grid grid-cols-3 border-t border-border">
+          <button
+            onClick={onUsei}
+            disabled={ocupado || acabou}
+            aria-label={`Usei ${fmtQtd(stepFor(item.unit))} ${item.unit} de ${item.name}`}
+            className="h-12 border-r border-border text-[17px] font-extrabold text-text-2 disabled:opacity-30"
+          >
+            −{fmtQtd(stepFor(item.unit))}
+          </button>
+          <button
+            onClick={onMais}
+            disabled={ocupado}
+            aria-label={`Chegou mais ${fmtQtd(stepFor(item.unit))} ${item.unit} de ${item.name}`}
+            className="h-12 border-r border-border text-[17px] font-extrabold text-pos disabled:opacity-30"
+          >
+            +{fmtQtd(stepFor(item.unit))}
+          </button>
           <button
             onClick={onRepor}
             disabled={ocupado}
-            className={`h-11 flex-1 text-[13px] font-bold text-brand disabled:opacity-40 ${
-              acabou ? "bg-brand/5" : ""
-            }`}
+            className={`h-12 text-[13px] font-bold text-brand disabled:opacity-40 ${acabou ? "bg-brand/5" : ""}`}
           >
             Repor
           </button>
