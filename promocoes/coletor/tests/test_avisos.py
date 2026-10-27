@@ -104,7 +104,7 @@ def test_sem_chave_guarda_preco_e_nao_envia(monkeypatch):
     monkeypatch.setattr(avisos.lista_app, "_rpc", rpc)
     r = avisos.avisar()
     assert "sem VAPID_PRIVATE_KEY" in r and "1 preços guardados" in r
-    assert chamadas[1] == ("mercado_desejos_precos_h", {"p_vistos": [
+    assert next(c for c in chamadas if c[0] == "mercado_desejos_precos_h") == ("mercado_desejos_precos_h", {"p_vistos": [
         {"id": 7, "preco": 22.5, "mercado": "mundial", "fim": "2026-10-29T23:59:00-03:00"}]})
 
 

@@ -10,7 +10,8 @@ import {
 } from "react";
 import type { StockItem, ShopItem, SavingRow, MonthPoint, Trip } from "./types";
 import { createClient } from "./supabase/client";
-import { aprenderMercado } from "./lugar";
+import { aprenderMercado, mercadoAtual } from "./lugar";
+import { registrarPreco } from "./precosVistos";
 
 // Estado das telas do app. Os dados vem do Supabase (RPCs _web, leitura por
 // familia). As acoes de edicao (marcar comprado, adicionar item, orcamento) sao
@@ -338,6 +339,8 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       if (r.ok) {
         await reloadTrip();
         void aprenderMercado(); // pegou produto aqui: dentro de um mercado
+        const m = mercadoAtual();
+        if (m && item.price) void registrarPreco(m, item.name, item.price, null);
       }
       return r;
     },
@@ -480,6 +483,8 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       }
       await reloadTrip();
       void aprenderMercado();
+      const m = mercadoAtual();
+      if (m && item.price && item.name) void registrarPreco(m, item.name, item.price, item.code);
       return { ok: true as const };
     },
     [reloadTrip],

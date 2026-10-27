@@ -11,6 +11,8 @@ import { BarcodeIcon } from "@/components/ui/icons";
 import { unitFor, findByName } from "@/lib/defaults";
 import type { TripItem } from "@/lib/types";
 import { atualizarLugar, useLugar } from "@/lib/lugar";
+import { nomeMercado } from "@/lib/ofertas";
+import { QualMercado } from "./QualMercado";
 
 // Painel do modo "No mercado". Ate a 0026 a compra so podia ser aberta e
 // alimentada pelo Telegram, e o painel era inalcancavel sem o bot. Agora o ciclo
@@ -27,7 +29,7 @@ export function CartPanel({ onScan }: { onScan?: () => void }) {
     showToast,
   } = useStore();
   const [busy, setBusy] = useState(false);
-  const { noMercado } = useLugar();
+  const { noMercado, mercado } = useLugar();
   // Item aberto no popup de editar. O preco falado erra com frequencia (a etiqueta
   // e da embalagem e a transcricao come a virgula), entao corrigir na hora e o
   // gesto mais comum de todos.
@@ -87,6 +89,8 @@ export function CartPanel({ onScan }: { onScan?: () => void }) {
   // Sem compra aberta o painel nao some: e daqui que se comeca.
   if (!trip) {
     return (
+      <>
+      <QualMercado />
       <div
         className={`rounded-[20px] border bg-card p-[18px] shadow-[0_1px_3px_var(--shadow)] lg:p-[22px] ${
           noMercado ? "border-2 border-brand bg-brand-soft" : "border-border"
@@ -95,7 +99,9 @@ export function CartPanel({ onScan }: { onScan?: () => void }) {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0">
             <div className="text-[16px] font-extrabold">
-              {noMercado ? "📍 Parece que você está no mercado" : "Vai ao mercado agora?"}
+              {noMercado
+                ? `📍 Parece que você está no ${mercado ? nomeMercado(mercado) : "mercado"}`
+                : "Vai ao mercado agora?"}
             </div>
             <div className="mt-0.5 text-[13px] leading-snug text-text-2">
               {noMercado
@@ -125,6 +131,7 @@ export function CartPanel({ onScan }: { onScan?: () => void }) {
           </div>
         </div>
       </div>
+      </>
     );
   }
 
@@ -147,11 +154,13 @@ export function CartPanel({ onScan }: { onScan?: () => void }) {
   }
 
   return (
+    <>
+    <QualMercado />
     <div className="rounded-[20px] border-2 border-brand bg-card p-[18px] shadow-[0_2px_12px_var(--shadow)] lg:p-[22px]">
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="text-xs font-bold uppercase tracking-wide text-brand">
-            No mercado
+            {noMercado && mercado ? `No ${nomeMercado(mercado)}` : "No mercado"}
           </div>
           <div className="mt-0.5 text-[13px] text-text-3">
             carrinho em andamento
@@ -323,5 +332,6 @@ export function CartPanel({ onScan }: { onScan?: () => void }) {
 
       <CartItemModal item={editar} onClose={() => setEditar(null)} />
     </div>
+    </>
   );
 }
