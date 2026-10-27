@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { AvisoMaisBarato } from "@/components/ofertas/AvisoMaisBarato";
+import { AvisoPrecoSubiu } from "@/components/ofertas/AvisoPrecoSubiu";
 import { Modal } from "@/components/ui/Modal";
 import { QtyStepper } from "@/components/ui/QtyStepper";
 import { BarcodeIcon } from "@/components/ui/icons";
@@ -312,6 +313,7 @@ export function BarcodeModal({ open, onClose }: { open: boolean; onClose: () => 
             Em branco, usamos o preço da última compra desse item.
           </p>
 
+          <AvisoPrecoSubiu nome={nome} preco={preco.trim() === "" ? null : Number(preco.replace(",", ".")) || null} />
           <AvisoMaisBarato
             nome={nome}
             preco={preco.trim() === "" ? null : Number(preco.replace(",", ".")) || null}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { casaBusca, casaItem, maisBarato, melhorQue, porUnidade, prazo, resumir, type ItemFalta, type Oferta } from "./ofertas";
+import { casaBusca, casaItem, corredor, maisBarato, melhorQue, porMercado, porUnidade, precoSubiu, prazo, resumir, type ItemFalta, type Oferta } from "./ofertas";
 
 let id = 0;
 const of = (o: Partial<Oferta>): Oferta => ({
@@ -97,5 +97,34 @@ describe("melhorQue (aviso no carrinho)", () => {
     const carne = [of({ produto: "Patinho", tamanho: "500g", preco_por: 20 })]; // R$ 40/kg
     expect(melhorQue(carne, "patinho", 45, "kg")?.economia).toBeCloseTo(5);
     expect(melhorQue(carne, "patinho", 35, "kg")).toBeNull();
+  });
+});
+
+describe("precoSubiu", () => {
+  it("avisa so com alta de verdade", () => {
+    expect(precoSubiu(12, 10)).toBeCloseTo(0.2);
+    expect(precoSubiu(11, 10)).toBeNull(); // 10%: normal
+    expect(precoSubiu(2.3, 2)).toBeNull(); // 15% mas so R$ 0,30
+    expect(precoSubiu(12, null)).toBeNull();
+    expect(precoSubiu(null, 10)).toBeNull();
+  });
+});
+
+describe("porMercado e corredor", () => {
+  const ofertas = [
+    of({ produto: "Arroz", tamanho: "5kg", preco_por: 14.95, mercado: "guanabara", categoria: "Mercearia" }),
+    of({ produto: "Arroz", tamanho: "5kg", preco_por: 19.6, mercado: "mundial", categoria: "Mercearia" }),
+    of({ produto: "Detergente", preco_por: 1.99, mercado: "mundial", categoria: "Limpeza" }),
+  ];
+  it("conta quantos itens valem em cada mercado", () => {
+    const itens = [{ name: "arroz" }, { name: "detergente" }, { name: "palmito" }];
+    const { melhor, conta } = porMercado(itens, ofertas);
+    expect(conta).toEqual({ guanabara: 1, mundial: 1 });
+    expect(melhor.get(itens[0])?.mercado).toBe("guanabara");
+    expect(melhor.has(itens[2])).toBe(false);
+  });
+  it("hortifruti antes de limpeza; desconhecido no fim", () => {
+    expect(corredor("Hortifruti")).toBeLessThan(corredor("Limpeza"));
+    expect(corredor("xyz")).toBeGreaterThan(corredor("Outros"));
   });
 });

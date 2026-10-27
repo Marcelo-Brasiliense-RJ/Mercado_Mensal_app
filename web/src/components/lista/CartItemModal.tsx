@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { AvisoMaisBarato } from "@/components/ofertas/AvisoMaisBarato";
+import { AvisoPrecoSubiu } from "@/components/ofertas/AvisoPrecoSubiu";
 import { QtyStepper } from "@/components/ui/QtyStepper";
 import { brl } from "@/lib/format";
 import { useStore } from "@/lib/store";
@@ -86,6 +87,7 @@ export function CartItemModal({
         </div>
       )}
 
+      <AvisoPrecoSubiu nome={item.name} preco={p > 0 ? p : null} />
       <AvisoMaisBarato
         nome={item.name}
         preco={p > 0 ? p : null}

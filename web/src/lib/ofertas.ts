@@ -183,3 +183,34 @@ export function melhorQue(
 export function maisBarataPara(ofertas: Oferta[], nome: string): Oferta | null {
   return ofertas.filter((o) => casaItem(o, nome)).sort(maisBarato)[0] ?? null;
 }
+
+// Preco bem acima do que a casa pagou da ultima vez: 15% e R$ 0,50 de folga, para nao
+// apitar por centavo. null quando nao ha compra anterior ou o preco esta normal.
+export function precoSubiu(preco: number | null, ultimo: number | null | undefined): number | null {
+  if (preco == null || !(preco > 0) || ultimo == null || !(ultimo > 0)) return null;
+  const alta = (preco - ultimo) / ultimo;
+  return alta >= 0.15 && preco - ultimo >= 0.5 ? alta : null;
+}
+
+// Ordem dos corredores de um supermercado tipico: entrada pelo hortifruti, limpeza no fundo.
+export const CORREDOR = [
+  "Hortifruti", "Padaria", "Carnes", "Frios e Laticínios", "Congelados", "Mercearia",
+  "Doces e Biscoitos", "Bebidas", "Limpeza", "Perfumaria e Higiene", "Bebê", "Pet", "Utilidades", "Outros",
+];
+export const corredor = (categoria?: string | null) => {
+  const i = CORREDOR.indexOf(categoria ?? "");
+  return i < 0 ? CORREDOR.length : i;
+};
+
+// Itens da lista que valem comprar em cada mercado (onde esta a oferta mais barata deles).
+export function porMercado<T extends { name: string }>(itens: T[], ofertas: Oferta[]) {
+  const melhor = new Map<T, Oferta>();
+  const conta: Record<string, number> = {};
+  for (const i of itens) {
+    const o = maisBarataPara(ofertas, i.name);
+    if (!o) continue;
+    melhor.set(i, o);
+    conta[o.mercado] = (conta[o.mercado] ?? 0) + 1;
+  }
+  return { melhor, conta };
+}

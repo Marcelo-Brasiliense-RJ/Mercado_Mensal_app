@@ -38,7 +38,7 @@ jobs:
 
       # Cache da IA (a mesma pagina nunca e lida duas vezes) e historico de precos
       # (regra dos 50%) passam de uma rodada para a outra.
-      - uses: actions/cache@v4
+      - uses: actions/cache/restore@v4
         with:
           path: promocoes/coletor/data
           key: promocoes-data-${{ github.run_id }}
@@ -106,3 +106,10 @@ jobs:
       - name: Limpar encartes antigos
         if: always()
         run: find promocoes/coletor/data/encartes -mindepth 2 -maxdepth 2 -type d -mtime +21 -exec rm -rf {} + || true
+
+      # Salva mesmo quando um mercado falha: o que ja foi lido nao e lido de novo.
+      - uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: promocoes/coletor/data
+          key: promocoes-data-${{ github.run_id }}

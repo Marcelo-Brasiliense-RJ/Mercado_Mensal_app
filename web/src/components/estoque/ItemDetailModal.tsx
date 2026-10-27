@@ -103,7 +103,7 @@ export function ItemDetailModal({
     const r = await zerarStock([item!.id]);
     setBusy(false);
     if (!r.ok) return showToast(r.erro);
-    showToast(`${item!.name}: acabou`);
+    showToast(`${item!.name}: acabou`, { desfazer: true });
     fechar();
   }
 
@@ -116,7 +116,7 @@ export function ItemDetailModal({
     const r = await baixaStock(item!.id, n);
     setBusy(false);
     if (!r.ok) return showToast(r.erro);
-    showToast(`${item!.name}: baixa de ${n} ${item!.unit}`);
+    showToast(`${item!.name}: baixa de ${n} ${item!.unit}`, { desfazer: true });
     fechar();
   }
 
@@ -127,7 +127,7 @@ export function ItemDetailModal({
     const r = await baixaStock(item!.id, n);
     setBusy(false);
     if (!r.ok) return showToast(r.erro);
-    showToast(`${item!.name}: baixa de ${n} ${item!.unit}`);
+    showToast(`${item!.name}: baixa de ${n} ${item!.unit}`, { desfazer: true });
     fechar();
   }
 
@@ -139,7 +139,7 @@ export function ItemDetailModal({
     const r = await addStock({ name: item!.name, qty: falta, unit: item!.unit });
     setBusy(false);
     if (!r.ok) return showToast(r.erro);
-    showToast(`${item!.name} reposto no estoque`);
+    showToast(`${item!.name} reposto no estoque`, { desfazer: true });
     fechar();
   }
 

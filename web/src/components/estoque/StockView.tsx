@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { useListaOfertas } from "@/components/ofertas/useOfertas";
+import { corMercado, maisBarataPara, nomeMercado, type Oferta } from "@/lib/ofertas";
 import type { StockItem } from "@/lib/types";
-import { stockRatio } from "@/lib/format";
+import { brl, stockRatio } from "@/lib/format";
 import { stepFor } from "@/lib/defaults";
 import { BarcodeIcon, CheckIcon, MicIcon, PlusIcon, SearchIcon } from "@/components/ui/icons";
 import { ScreenHeader } from "@/components/layout/ScreenHeader";
@@ -46,6 +48,8 @@ const CORES: Record<Estado, { faixa: string; selo: string; texto: string }> = {
 };
 
 export function StockView() {
+  // Selo de oferta nos cards que estao acabando (mesma busca da aba Ofertas, em cache).
+  const ofertas = useListaOfertas();
   const {
     stock,
     zerarStock,
@@ -95,9 +99,11 @@ export function StockView() {
   // Um toque, sem popup: tirar uma unidade do que tem em casa.
   async function usei(item: StockItem) {
     setAgindo(item.id);
-    const r = await baixaStock(item.id, stepFor(item.unit));
+    const passo = stepFor(item.unit);
+    const r = await baixaStock(item.id, passo);
     setAgindo(null);
-    if (!r.ok) showToast(r.erro);
+    // "Usei" e o toque mais facil de dar sem querer: o aviso ja traz o Desfazer.
+    showToast(r.ok ? `${item.name}: usei ${fmtQtd(passo)} ${item.unit}` : r.erro, { desfazer: r.ok });
   }
 
   // Um toque, sem popup: mandar para a lista de compras.
@@ -229,6 +235,7 @@ export function StockView() {
               onAbrir={() => onItem(i)}
               onUsei={() => usei(i)}
               onRepor={() => repor(i)}
+              oferta={estadoDe(i) !== "tem" ? maisBarataPara(ofertas, i.name) : null}
             />
           ))}
         </div>
@@ -331,6 +338,7 @@ function Card({
   onAbrir,
   onUsei,
   onRepor,
+  oferta,
 }: {
   item: StockItem;
   selMode: boolean;
@@ -339,6 +347,7 @@ function Card({
   onAbrir: () => void;
   onUsei: () => void;
   onRepor: () => void;
+  oferta?: Oferta | null;
 }) {
   const estado = estadoDe(item);
   const cor = CORES[estado];
@@ -373,6 +382,18 @@ function Card({
           {fmtQtd(item.current)}
           <span className="ml-1 text-[13px] font-bold text-text-3">{item.unit}</span>
         </div>
+        {/* Acabando e em oferta: ja diz onde repor mais barato. */}
+        {oferta && (
+          <div
+            className="mt-2 inline-flex max-w-full rounded-md px-2 py-0.5 text-[11px] font-bold text-white"
+            style={{ background: corMercado(oferta.mercado) }}
+            title={`Em oferta no ${nomeMercado(oferta.mercado)}`}
+          >
+            <span className="truncate">
+              🏷 {nomeMercado(oferta.mercado)} · {brl(oferta.preco_por)}
+            </span>
+          </div>
+        )}
       </button>
 
       {!selMode && (

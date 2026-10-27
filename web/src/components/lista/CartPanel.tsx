@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { AvisoMaisBarato } from "@/components/ofertas/AvisoMaisBarato";
+import { AvisoPrecoSubiu } from "@/components/ofertas/AvisoPrecoSubiu";
 import { brl } from "@/lib/format";
 import { useStore } from "@/lib/store";
 import { QtyStepper } from "@/components/ui/QtyStepper";
@@ -273,6 +274,7 @@ export function CartPanel({ onScan }: { onScan?: () => void }) {
             : `Em ${unidade}. Sem preço, usamos o da última compra desse item.`}
         </div>
         <div className="mt-3 empty:hidden">
+          <AvisoPrecoSubiu nome={nome} preco={preco.trim() === "" ? null : Number(preco.replace(",", ".")) || null} />
           <AvisoMaisBarato
             nome={nome}
             preco={preco.trim() === "" ? null : Number(preco.replace(",", ".")) || null}
