@@ -26,7 +26,8 @@ jobs:
       GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
       GEMINI_API_KEY_3: ${{ secrets.GEMINI_API_KEY_3 }}
       OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-      SUPABASE_URL: ${{ secrets.SUPABASE_URL || secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      # A URL nao e segredo e pode ficar em Variables; as chaves so em Secrets (Variables aparecem no log).
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL || vars.SUPABASE_URL || secrets.NEXT_PUBLIC_SUPABASE_URL || vars.NEXT_PUBLIC_SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY || secrets.SUPABASE_KEY }}
     steps:
       - uses: actions/checkout@v4
@@ -49,7 +50,10 @@ jobs:
           for v in GEMINI_API_KEY OPENROUTER_API_KEY SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY; do
             [ -n "${!v}" ] || faltam="$faltam $v"
           done
-          if [ -n "$faltam" ]; then echo "::error::Faltam segredos:$faltam"; exit 1; fi
+          if [ -n "$faltam" ]; then
+            echo "::error::Faltam em Settings > Secrets and variables > Actions > aba Secrets:$faltam"
+            exit 1
+          fi
 
       - name: Rodada
         env:
