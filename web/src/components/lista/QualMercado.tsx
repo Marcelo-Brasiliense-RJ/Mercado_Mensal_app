@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { pedirMercado } from "@/lib/mercadosCasa";
 import { useStore } from "@/lib/store";
 import { MERCADOS } from "@/lib/ofertas";
 import { idDoMercado, nomearMercado, posicaoAtual, useLugar } from "@/lib/lugar";
@@ -26,7 +26,7 @@ export function QualMercado() {
     nomearMercado(nome);
     if (sim) {
       const p = posicaoAtual();
-      await createClient().rpc("mercado_pedir_mercado_web", { p_nome: nome, p_lat: p?.lat ?? null, p_lng: p?.lng ?? null });
+      await pedirMercado(nome, p?.lat ?? null, p?.lng ?? null);
       showToast(`${nome} anotado na lista de mercados a acompanhar`);
     } else showToast(`Ok, ${nome} só hoje`);
     setOutro(null);

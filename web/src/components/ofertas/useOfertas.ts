@@ -4,7 +4,12 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { ItemFalta, Oferta } from "@/lib/ofertas";
 
-export type DadosOfertas = { ofertas: Oferta[]; lista: ItemFalta[]; atualizado_em: string | null };
+export type DadosOfertas = {
+  ofertas: Oferta[];
+  lista: ItemFalta[];
+  atualizado_em: string | null;
+  meus_mercados?: string[] | null; // 0044: null = a casa ainda nao escolheu (ve todos)
+};
 export type EstadoOfertas =
   | { fase: "carregando" }
   | { fase: "desligado" } // migration 0038 ainda nao aplicada
@@ -34,15 +39,32 @@ function buscar(): Promise<EstadoOfertas> {
   return promessa;
 }
 
+// Trocar os mercados da casa muda o que vem: descarta o cache e todas as telas buscam de novo.
+let versao = 0;
+const ouvintes = new Set<() => void>();
+export function recarregarOfertas() {
+  cache = null;
+  versao += 1;
+  ouvintes.forEach((f) => f());
+}
+
 export function useOfertas(): EstadoOfertas {
   const [estado, setEstado] = useState<EstadoOfertas>({ fase: "carregando" });
+  const [v, setV] = useState(versao);
+  useEffect(() => {
+    const f = () => setV(versao);
+    ouvintes.add(f);
+    return () => {
+      ouvintes.delete(f);
+    };
+  }, []);
   useEffect(() => {
     let vivo = true;
     buscar().then((e) => vivo && setEstado(e));
     return () => {
       vivo = false;
     };
-  }, []);
+  }, [v]);
   return estado;
 }
 

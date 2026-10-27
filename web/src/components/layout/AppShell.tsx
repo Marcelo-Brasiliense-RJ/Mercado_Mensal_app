@@ -17,7 +17,7 @@ const META: Record<string, { title: string; subtitle: string }> = {
   "/app/lista": { title: "Lista", subtitle: "de compras" },
   "/app/ofertas": { title: "Ofertas", subtitle: "da semana" },
   "/app/economia": { title: "Economia", subtitle: "do mês" },
-  "/app/config": { title: "Família", subtitle: "e ajustes" },
+  "/app/config": { title: "Ajustes", subtitle: "família e app" },
 };
 
 export function AppShell({ children }: { children: React.ReactNode }) {

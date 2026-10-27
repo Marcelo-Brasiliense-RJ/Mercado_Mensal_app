@@ -1,7 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { TelegramIcon } from "@/components/ui/icons";
+import { brl } from "@/lib/format";
+import { corMercado, nomeMercado } from "@/lib/ofertas";
+import { carregarMeusMercados } from "@/lib/mercadosCasa";
+import { atualizarLugar, esquecerMercado, mercadosAprendidos, useLugar, type Ponto } from "@/lib/lugar";
+import { useTheme } from "@/theme/useTheme";
+import { MeusMercadosModal } from "@/components/ofertas/MeusMercados";
+import { AvisoCelular } from "@/components/ofertas/DeOlho";
+import { BudgetModal } from "@/components/economia/BudgetModal";
 import { ScreenHeader } from "@/components/layout/ScreenHeader";
 import { useStore } from "@/lib/store";
 import { useHousehold } from "@/lib/household";
@@ -10,10 +18,25 @@ import { BOT_HANDLE, botDeepLink } from "@/lib/config";
 
 const cardCls =
   "rounded-[20px] border border-border bg-card p-[18px] shadow-[0_2px_12px_var(--shadow)] lg:p-[22px]";
+const secao = "mb-2 mt-2 px-1 text-[12px] font-bold uppercase tracking-[0.08em] text-text-3";
+const btn2 = "h-11 rounded-[12px] border border-border bg-card-2 px-4 text-[14px] font-bold";
+
+// Ajustes do app, na ordem em que a pessoa precisa: a casa (familia e onde compra),
+// o que o app faz sozinho (avisos, localizacao), o dinheiro (orcamento) e o resto.
 
 export function FamiliaView() {
   const { household, reload } = useHousehold();
-  const { showToast } = useStore();
+  const { showToast, budget } = useStore();
+  const { theme, toggle } = useTheme();
+  const lugar = useLugar();
+  const [mercados, setMercados] = useState<string[] | null>(null);
+  const [mercadosAberto, setMercadosAberto] = useState(false);
+  const [orcamentoAberto, setOrcamentoAberto] = useState(false);
+  const [pontos, setPontos] = useState<Ponto[]>(() => (typeof window === "undefined" ? [] : mercadosAprendidos()));
+  // recarrega ao fechar a escolha de mercados
+  useEffect(() => {
+    if (!mercadosAberto) carregarMeusMercados().then((m) => setMercados(m?.escolhidos ?? []));
+  }, [mercadosAberto]);
   const [trocar, setTrocar] = useState(false);
   const [novoCodigo, setNovoCodigo] = useState("");
   const [erro, setErro] = useState<string | null>(null);
@@ -67,38 +90,153 @@ export function FamiliaView() {
 
   return (
     <div className="lg:max-w-[720px]">
-      <ScreenHeader title="Família e ajustes" />
+      <ScreenHeader title="Ajustes" subtitle="da família e do app" />
 
-      <div className="space-y-[18px]">
-        {/* Codigo de convite */}
+      <div className="space-y-3">
+        <div className={secao}>Sua casa</div>
+        {/* Familia e convite */}
         <div className={cardCls}>
           <div className="mb-4 text-[20px] font-extrabold">{family.familia}</div>
-          <div className="mb-2 text-xs font-bold text-text-2">Código de convite</div>
+          <div className="mb-2 text-xs font-bold text-text-2">Código para convidar quem mora com você</div>
           <div className="flex flex-wrap items-center gap-3">
             <div className="rounded-[12px] bg-brand-soft px-5 py-3 font-mono text-[24px] font-extrabold tracking-[0.18em] text-brand">
               {family.invite_code}
             </div>
-            <button
-              onClick={copy}
-              className="h-12 rounded-[12px] border border-border bg-card-2 px-4 text-[14px] font-bold"
-            >
+            <button onClick={copy} className={`${btn2} h-12`}>
               Copiar
             </button>
-            <button
-              onClick={share}
-              className="h-12 rounded-[12px] border border-border bg-card-2 px-4 text-[14px] font-bold"
-            >
+            <button onClick={share} className={`${btn2} h-12`}>
               Compartilhar
+            </button>
+          </div>
+          <p className="mt-3 text-[12px] leading-snug text-text-3">
+            Quem entrar com esse código vê e mexe no mesmo estoque, lista e economia. Outra casa? Ela cria a família
+            dela no cadastro.
+          </p>
+        </div>
+
+        {/* Onde compra */}
+        <div className={cardCls}>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-[16px] font-extrabold">🏪 Onde você compra</div>
+              <div className="text-[13px] text-text-2">Ofertas, De olho e avisos mostram só estes.</div>
+            </div>
+            <button onClick={() => setMercadosAberto(true)} className={`${btn2} shrink-0`}>
+              Trocar
+            </button>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {mercados == null ? null : mercados.length ? (
+              mercados.map((m) => (
+                <span
+                  key={m}
+                  className="rounded-full px-3 py-1 text-[13px] font-extrabold text-white"
+                  style={{ background: corMercado(m) }}
+                >
+                  {nomeMercado(m)}
+                </span>
+              ))
+            ) : (
+              <span className="text-[13px] font-bold text-warn">Nenhum escolhido: aparecem todos os mercados.</span>
+            )}
+          </div>
+        </div>
+
+        <div className={secao}>O que o app faz sozinho</div>
+        {/* Avisos no celular */}
+        <div className={cardCls}>
+          <div className="text-[16px] font-extrabold">🔔 Aviso no celular</div>
+          <div className="mb-3 text-[13px] text-text-2">
+            Quando um produto De olho entrar em promoção nos seus mercados.
+          </div>
+          <AvisoCelular />
+        </div>
+
+        {/* Localizacao */}
+        <div className={cardCls}>
+          <div className="text-[16px] font-extrabold">📍 Localização</div>
+          <div className="text-[13px] text-text-2">
+            Dentro de um mercado que você já usou, o que você ler ou falar entra no carrinho e o preço vem de lá. Fica só
+            neste celular.
+          </div>
+          <div className="mt-3 text-[14px] font-bold">
+            {lugar.permitido === "sim"
+              ? lugar.noMercado
+                ? `✅ Ligada · agora no ${lugar.mercado ? nomeMercado(lugar.mercado) : "mercado"}`
+                : "✅ Ligada"
+              : lugar.permitido === "nao"
+                ? "🔕 Bloqueada: Ajustes do celular → Privacidade → Localização → Despensa."
+                : lugar.permitido === "sem"
+                  ? "Este aparelho não tem localização."
+                  : "Desligada"}
+          </div>
+          {lugar.permitido === "perguntar" && (
+            <button onClick={() => atualizarLugar(true)} className="mt-2 h-11 rounded-[12px] bg-brand px-4 text-[14px] font-bold text-brand-ink">
+              Ligar localização
+            </button>
+          )}
+          {pontos.length > 0 && (
+            <div className="mt-3">
+              <div className="mb-1.5 text-xs font-bold text-text-2">Mercados que o app já reconhece</div>
+              <div className="divide-y divide-border rounded-[14px] border border-border">
+                {pontos.map((p, i) => (
+                  <div key={`${p.lat},${p.lng}`} className="flex items-center gap-3 px-3 py-2">
+                    <span className="flex-1 text-[14px] font-bold">
+                      {p.nome ?? "Mercado sem nome"}
+                      <span className="ml-1.5 text-[12px] font-normal text-text-3">{p.n} {p.n > 1 ? "itens" : "item"}</span>
+                    </span>
+                    <button
+                      onClick={() => {
+                        esquecerMercado(i);
+                        setPontos(mercadosAprendidos());
+                        showToast(`${p.nome ?? "Mercado"} esquecido`);
+                      }}
+                      className="h-9 px-2 text-[13px] font-bold text-text-2 underline"
+                    >
+                      Esquecer
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className={secao}>Dinheiro</div>
+        <div className={cardCls}>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <div className="text-[16px] font-extrabold">💰 Orçamento do mês</div>
+              <div className="text-[13px] text-text-2">
+                {budget.total > 0 ? `${brl(budget.total)} por mês` : "Sem orçamento: a Economia não avisa se passar."}
+              </div>
+            </div>
+            <button onClick={() => setOrcamentoAberto(true)} className={`${btn2} shrink-0`}>
+              {budget.total > 0 ? "Mudar" : "Definir"}
+            </button>
+          </div>
+        </div>
+
+        <div className={secao}>App</div>
+        <div className={cardCls}>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <div className="text-[16px] font-extrabold">{theme === "dark" ? "🌙" : "☀️"} Aparência</div>
+              <div className="text-[13px] text-text-2">{theme === "dark" ? "Escura" : "Clara"}</div>
+            </div>
+            <button onClick={toggle} className={`${btn2} shrink-0`}>
+              {theme === "dark" ? "Usar clara" : "Usar escura"}
             </button>
           </div>
         </div>
 
         {/* Conectar Telegram */}
         <div className={cardCls}>
-          <div className="mb-1.5 text-[15px] font-extrabold">Conectar Telegram</div>
+          <div className="mb-1.5 text-[16px] font-extrabold">Telegram</div>
           <div className="mb-4 text-[14px] leading-relaxed text-text-2">
-            Abra o bot <span className="font-bold text-text">{BOT_HANDLE}</span>. Ele
-            já vem com o código pronto para registrar compras por áudio.
+            Registrar compras por áudio no bot <span className="font-bold text-text">{BOT_HANDLE}</span>. Ele já
+            vem com o código da sua família.
           </div>
           <a
             href={botDeepLink(family.invite_code)}
@@ -111,9 +249,10 @@ export function FamiliaView() {
           </a>
         </div>
 
+        <div className={secao}>Conta</div>
         {/* Trocar de familia */}
         <div className={cardCls}>
-          <div className="mb-1.5 text-[15px] font-extrabold">Trocar de família</div>
+          <div className="mb-1.5 text-[16px] font-extrabold">Trocar de família</div>
           {!trocar ? (
             <>
               <div className="mb-4 text-[14px] leading-relaxed text-text-2">
@@ -159,11 +298,14 @@ export function FamiliaView() {
         {/* Sair (so no mobile: no desktop fica na sidebar) */}
         <button
           onClick={sair}
-          className="flex h-[50px] items-center justify-center rounded-[16px] border border-border bg-card font-bold text-neg lg:hidden"
+          className="flex h-[50px] w-full items-center justify-center rounded-[16px] border border-border bg-card font-bold text-neg lg:hidden"
         >
           Sair da conta
         </button>
       </div>
+
+      {mercadosAberto && <MeusMercadosModal onClose={() => setMercadosAberto(false)} />}
+      <BudgetModal open={orcamentoAberto} onClose={() => setOrcamentoAberto(false)} />
     </div>
   );
 }

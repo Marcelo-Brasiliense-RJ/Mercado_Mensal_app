@@ -221,3 +221,16 @@ export function useLugar() {
   }, []);
   return e;
 }
+
+// Ajustes: os mercados que o app aprendeu neste aparelho, e esquecer um (ex.: errou o nome).
+export const mercadosAprendidos = () => lerPontos();
+export function esquecerMercado(i: number) {
+  const p = lerPontos();
+  p.splice(i, 1);
+  gravarPontos(p);
+  if (ultimaPos) situar(ultimaPos, p);
+}
+export function esquecerTodos() {
+  gravarPontos([]);
+  definir({ noMercado: false, mercado: null, nomeMercado: null, perguntar: null });
+}

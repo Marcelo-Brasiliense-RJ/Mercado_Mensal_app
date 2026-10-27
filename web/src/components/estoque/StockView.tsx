@@ -15,6 +15,7 @@ import { VoiceModal } from "@/components/voz/VoiceModal";
 import { BarcodeModal } from "@/components/lista/BarcodeModal";
 import { ItemDetailModal } from "./ItemDetailModal";
 import { BatchAddModal } from "./BatchAddModal";
+import { PrimeirosPassos } from "./PrimeirosPassos";
 
 // Despensa em cards, dois por linha.
 //
@@ -206,6 +207,8 @@ export function StockView() {
       <ScreenHeader title="Estoque" subtitle="Despensa" action={headerAction} />
 
       <div className="space-y-4 pb-[150px] lg:pb-10">
+        <PrimeirosPassos onFalar={() => setVoiceOpen(true)} onDigitar={() => setStockAddOpen(true)} />
+
         {/* Primeira coisa da tela: o que falta, com a acao junto. Antes o topo
             trazia contagem de itens e valor em reais, que nao fazem ninguem agir. */}
         {faltando.length > 0 && (
