@@ -54,6 +54,8 @@ export function BarcodeModal({
   const [codigo, setCodigo] = useState("");
   const [conhecido, setConhecido] = useState(false);
   const [marca, setMarca] = useState("");
+  // Foto da embalagem vinda da base publica: confere num relance se leu o produto certo.
+  const [foto, setFoto] = useState<string | null>(null);
   const [nome, setNome] = useState("");
   const [qtd, setQtd] = useState("1");
   const [unidade, setUnidade] = useState("un");
@@ -98,10 +100,12 @@ export function BarcodeModal({
             nome?: string;
             unidade?: string | null;
             marca?: string;
+            foto?: string | null;
           };
           if (d?.ok && d.encontrado && d.nome) {
             setNome(d.nome);
             setMarca(d.marca ?? "");
+            setFoto(d.foto ?? null);
             setUnidade(d.unidade || unitFor(d.nome));
             // Preco da ultima compra desse item, se a casa ja comprou.
             const jaTem = findByName(d.nome, stock);
@@ -133,6 +137,7 @@ export function BarcodeModal({
     setQtd("1");
     setUnidade("un");
     setConhecido(false);
+    setFoto(null);
     setDigitado("");
     setEditandoNome(false);
   }
@@ -300,8 +305,12 @@ export function BarcodeModal({
               precisa RECONHECER o que leu num relance, nao ler um rotulo de
               campo. Trocar o nome e excecao, entao vira um link discreto. */}
           <div className="mb-4 rounded-[16px] border-[1.5px] border-brand bg-brand/5 p-4">
-            <div className="text-[20px] font-extrabold leading-tight">
-              {nome || "Produto novo"}
+            <div className="flex items-start gap-3">
+              {foto && (
+                // eslint-disable-next-line @next/next/no-img-element -- foto da loja, so referencia visual
+                <img src={foto} alt="" className="h-16 w-16 shrink-0 rounded-xl bg-white object-contain" />
+              )}
+              <div className="min-w-0 text-[20px] font-extrabold leading-tight">{nome || "Produto novo"}</div>
             </div>
             <div className="mt-1 text-[12px] text-text-3">
               {marca ? `${marca} · ` : ""}

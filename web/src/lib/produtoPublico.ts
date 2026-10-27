@@ -5,14 +5,17 @@
 // promessa do leitor. A base devolve "REFRIGERANTE SUKITA UVA 2L"; o que o app
 // precisa e do nome GENERICO ("refrigerante"), porque o estoque e por produto, e
 // marca e detalhe da compra (secao 2 do CONTEXTO.md).
-// ponytail: so Open Food Facts, que cobre comida e bebida. Limpeza e higiene
-// quase nao estao la; nesses o campo volta vazio e a pessoa digita, como antes.
+// Open Food Facts cobre comida e bebida, mas quase nada de limpeza e higiene (creme
+// dental, absorvente, detergente voltavam "Produto novo"). Por isso tambem consulta
+// o catalogo publico de lojas brasileiras na plataforma VTEX (supermercados e
+// farmacias), que busca pelo EAN e tem de tudo que se vende em mercado.
 
 export type ProdutoPublico = {
   nome: string; // como esta no rotulo, legivel: "Refrigerante Sukita Uva 2L"
   generico: string; // sem marca e sem tamanho: "refrigerante"
   unidade: string | null;
   marca: string;
+  foto?: string | null;
 };
 
 // "2l" -> L, "500ml" -> ml, "100 g" -> g, "1,5kg" -> kg
@@ -97,5 +100,26 @@ export function mapearOpenFoodFacts(json: unknown): ProdutoPublico | null {
     generico: nomeGenerico(bruto, marca),
     unidade: unidadeDe(String(p.quantity ?? "")),
     marca: marca.split(",")[0]?.trim() ?? "",
+  };
+}
+
+// Resposta de /api/catalog_system/pub/products/search?fq=alternateIds_Ean:CODIGO
+// (VTEX): lista de produtos; o primeiro e o do codigo. Unidade fica por conta do
+// app (pelo nome): "100g" de creme dental e 1 unidade, nao 100 gramas no estoque.
+export function mapearVtex(json: unknown): ProdutoPublico | null {
+  const p = Array.isArray(json) ? (json[0] as Record<string, unknown> | undefined) : undefined;
+  const bruto = String(p?.productName ?? "")
+    .replace(/[®™]/g, "")
+    .replace(/\s+-\s+/g, " ")
+    .trim();
+  if (!p || !bruto) return null;
+  const marca = String(p.brand ?? "").trim();
+  const itens = p.items as { images?: { imageUrl?: string }[] }[] | undefined;
+  return {
+    nome: nomeExibicao(bruto),
+    generico: nomeGenerico(bruto, marca),
+    unidade: null,
+    marca: marca && marca === marca.toUpperCase() ? nomeExibicao(marca) : marca,
+    foto: itens?.[0]?.images?.[0]?.imageUrl ?? null,
   };
 }

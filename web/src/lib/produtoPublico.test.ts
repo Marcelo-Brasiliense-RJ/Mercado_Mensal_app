@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   mapearOpenFoodFacts,
+  mapearVtex,
   nomeExibicao,
   nomeGenerico,
   unidadeDe,
@@ -52,5 +53,25 @@ describe("nome pelo codigo de barras", () => {
     });
     expect(mapearOpenFoodFacts({ status: 0 })).toBe(null);
     expect(mapearOpenFoodFacts({ status: 1, product: { product_name: "" } })).toBe(null);
+  });
+});
+
+describe("catalogo VTEX (limpeza e higiene)", () => {
+  it("le nome, marca e foto; sem unidade", () => {
+    const r = mapearVtex([
+      {
+        productName: "Absorvente Interno Intimus® Discreto Médio - 16 un",
+        brand: "INTIMUS",
+        items: [{ images: [{ imageUrl: "https://x/foto.jpg" }] }],
+      },
+    ]);
+    expect(r?.nome).toBe("Absorvente Interno Intimus Discreto Médio 16 un");
+    expect(r?.marca).toBe("Intimus");
+    expect(r?.foto).toBe("https://x/foto.jpg");
+    expect(r?.unidade).toBeNull();
+  });
+  it("lista vazia: nao achou", () => {
+    expect(mapearVtex([])).toBeNull();
+    expect(mapearVtex({ erro: 1 })).toBeNull();
   });
 });
