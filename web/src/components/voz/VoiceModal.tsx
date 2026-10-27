@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { ItemGrid, type GridItem } from "@/components/receipt/ItemGrid";
 import { MicIcon } from "@/components/ui/icons";
+import { DestinoSwitch, nomeDestino } from "@/components/ui/Destino";
 import { useStore } from "@/lib/store";
 import { findByName, unitFor } from "@/lib/defaults";
 import {
@@ -40,21 +41,31 @@ type Reconhecedor = {
 
 const MAX_SEGUNDOS = 60;
 
-const DESTINOS: { id: VozIntencao; label: string; desc: string }[] = [
-  { id: "lista", label: "Lista", desc: "ainda vou comprar" },
-  { id: "carrinho", label: "Carrinho", desc: "peguei agora no mercado" },
-  { id: "estoque", label: "Estoque", desc: "já tenho em casa" },
-];
+// Destino pela tela de onde a pessoa abriu. No Estoque tudo vai para o estoque,
+// diga o que disser ("comprei arroz" la e guardar a compra). Na Lista vale o que a
+// frase diz entre lista e carrinho; "estoque" so se ela trocar na chave.
+function destinoDaTela(tela: "estoque" | "mercado", ouvido: VozIntencao): VozIntencao {
+  if (tela === "estoque") return "estoque";
+  return ouvido === "lista" ? "lista" : "carrinho";
+}
 
 type Fase = "gravar" | "gravando" | "enviando" | "conferir" | "salvando";
 
-export function VoiceModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function VoiceModal({
+  open,
+  onClose,
+  tela = "mercado",
+}: {
+  open: boolean;
+  onClose: () => void;
+  tela?: "estoque" | "mercado";
+}) {
   const { addShopItem, addTripItem, addStock, showToast, stock } = useStore();
 
   const [fase, setFase] = useState<Fase>("gravar");
   const [segundos, setSegundos] = useState(0);
   const [texto, setTexto] = useState("");
-  const [destino, setDestino] = useState<VozIntencao>("lista");
+  const [destino, setDestino] = useState<VozIntencao>(tela === "estoque" ? "estoque" : "carrinho");
   const [itens, setItens] = useState<GridItem[]>([]);
   const [erro, setErro] = useState("");
 
@@ -93,7 +104,7 @@ export function VoiceModal({ open, onClose }: { open: boolean; onClose: () => vo
     setTexto("");
     setItens([]);
     setErro("");
-    setDestino("lista");
+    setDestino(tela === "estoque" ? "estoque" : "carrinho");
   }
 
   function fechar() {
@@ -171,7 +182,7 @@ export function VoiceModal({ open, onClose }: { open: boolean; onClose: () => vo
 
   function mostrarResultado(frase: string, intencao: VozIntencao, lidos: VozItem[]) {
     setTexto(frase);
-    setDestino(intencao);
+    setDestino(destinoDaTela(tela, intencao));
     setItens(
       lidos.map((i) => ({
         nome: i.nome,
@@ -266,9 +277,7 @@ export function VoiceModal({ open, onClose }: { open: boolean; onClose: () => vo
     setFase("conferir");
     if (gravados === 0) return showToast(falha || "Não deu para salvar.");
     showToast(
-      `${gravados} ${gravados === 1 ? "item" : "itens"} em ${
-        destino === "lista" ? "Lista" : destino === "carrinho" ? "Carrinho" : "Estoque"
-      }${falha ? ", e um deu erro" : ""}`,
+      `${gravados} ${gravados === 1 ? "item" : "itens"} em ${nomeDestino(destino)}${falha ? ", e um deu erro" : ""}`,
     );
     fechar();
   }
@@ -293,8 +302,9 @@ export function VoiceModal({ open, onClose }: { open: boolean; onClose: () => vo
       {fase !== "conferir" && fase !== "salvando" ? (
         <>
           <p className="mb-4 text-[13px] leading-relaxed text-text-2">
-            Fale normal, como você contaria pra alguém: “comprei arroz vinte reais,
-            dois pacotes, e café doze e noventa”. Você confere antes de salvar.
+            {tela === "estoque"
+              ? "Fale o que tem em casa: “três leites, dois arroz e um café”. Vai para o estoque; você confere antes de salvar."
+              : "Fale normal, como você contaria pra alguém: “comprei arroz vinte reais, dois pacotes, e café doze e noventa”. Você confere antes de salvar."}
           </p>
           {modoLocal && (
             <p className="mb-4 rounded-[13px] border border-border bg-card-2 p-3 text-[12px] leading-snug text-text-2">
@@ -354,26 +364,11 @@ export function VoiceModal({ open, onClose }: { open: boolean; onClose: () => vo
             “{texto}”
           </p>
 
-          <div className="mb-1.5 text-xs font-bold text-text-2">Vai para</div>
-          <div className="mb-4 grid grid-cols-3 gap-2">
-            {DESTINOS.map((d) => (
-              <button
-                key={d.id}
-                type="button"
-                onClick={() => setDestino(d.id)}
-                className={`rounded-[13px] border p-2.5 text-left ${
-                  destino === d.id
-                    ? "border-brand bg-brand/10"
-                    : "border-border bg-card-2"
-                }`}
-              >
-                <span className="block text-[14px] font-extrabold">{d.label}</span>
-                <span className="block text-[11px] leading-snug text-text-3">
-                  {d.desc}
-                </span>
-              </button>
-            ))}
-          </div>
+          <DestinoSwitch
+            valor={destino}
+            opcoes={["estoque", "carrinho", "lista"]}
+            onChange={(d) => setDestino(d)}
+          />
 
           {itens.length > 0 ? (
             <ItemGrid

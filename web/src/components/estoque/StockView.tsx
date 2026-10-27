@@ -349,8 +349,9 @@ export function StockView() {
       )}
 
       <BatchAddModal open={stockAddOpen} onClose={() => setStockAddOpen(false)} />
-      <VoiceModal open={voiceOpen} onClose={() => setVoiceOpen(false)} />
-      <BarcodeModal open={scanOpen} onClose={() => setScanOpen(false)} />
+      {/* Tudo que entra por aqui vai para o estoque (a chave no topo troca). */}
+      <VoiceModal open={voiceOpen} onClose={() => setVoiceOpen(false)} tela="estoque" />
+      <BarcodeModal open={scanOpen} onClose={() => setScanOpen(false)} destinoPadrao="estoque" />
       <ItemDetailModal item={detail} onClose={() => setDetailId(null)} />
     </>
   );

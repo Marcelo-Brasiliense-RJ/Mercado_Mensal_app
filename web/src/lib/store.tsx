@@ -128,6 +128,7 @@ type Store = Data & {
   }) => Promise<RpcResult>;
   cancelTrip: () => Promise<RpcResult>;
   findBarcode: (code: string) => Promise<BarcodeInfo | null>;
+  addStockByBarcode: (item: { code: string; name?: string; qty: number; unit?: string }) => Promise<RpcResult>;
   addTripItemByBarcode: (item: {
     code: string;
     name?: string;
@@ -377,6 +378,36 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
 
   // Uma chamada so: poe no carrinho e amarra o codigo ao item. O vinculo so e
   // gravado se o carrinho aceitar (ver 0035), entao aqui nao ha o que desfazer.
+  // Codigo lido na tela de Estoque: soma em casa e guarda o vinculo (0041). Sem a
+  // 0041 no banco, soma pelo caminho normal, so sem amarrar o codigo.
+  const addStockByBarcode = useCallback(
+    async (item: { code: string; name?: string; qty: number; unit?: string }) => {
+      const { data, error } = await createClient().rpc("mercado_barcode_estoque_web", {
+        p_code: item.code,
+        p_name: item.name ?? null,
+        p_qty: item.qty,
+        p_unit: item.unit ?? null,
+      });
+      if (rpcAusente(error)) {
+        const r = await callRpc("mercado_stock_add_web", {
+          p_name: item.name ?? "",
+          p_qty: item.qty,
+          p_unit: item.unit ?? "un",
+        });
+        if (r.ok) await reloadData();
+        return r;
+      }
+      if (error) return { ok: false as const, erro: "Não deu para salvar. Tente de novo." };
+      const res = data as { ok?: boolean; erro?: string } | null;
+      if (res && res.ok === false) {
+        return { ok: false as const, erro: ERROS[res.erro ?? ""] ?? "Não deu para salvar. Tente de novo." };
+      }
+      await reloadData();
+      return { ok: true as const };
+    },
+    [reloadData],
+  );
+
   const addTripItemByBarcode = useCallback(
     async (item: {
       code: string;
@@ -626,6 +657,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       addTripItem,
       cancelTrip,
       findBarcode,
+      addStockByBarcode,
       addTripItemByBarcode,
       updateTripItem,
       finalizeTrip,
@@ -665,6 +697,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       addTripItem,
       cancelTrip,
       findBarcode,
+      addStockByBarcode,
       addTripItemByBarcode,
       updateTripItem,
       finalizeTrip,
