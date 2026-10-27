@@ -35,3 +35,12 @@ Baixa o encarte vigente e gera uma imagem por página em `coletor/data/`.
    `SUPABASE_SERVICE_ROLE_KEY`. A anon key do app não serve: publicar exige service_role.
 
 Sem a 0038 aplicada, a aba mostra "As ofertas ainda não foram ligadas" e o resto do app segue igual.
+
+### De olho e aviso no celular (0039)
+
+- `0039_de_olho.sql`: lista "De olho" (⭐ nos cards ou "Ficar de olho" na aba Ofertas) e as
+  inscrições de aviso. Sem ela, a seção não aparece.
+- Aviso nativo (Web Push): no iPhone só com o app na Tela de Início (iOS 16.4+).
+- Quem envia é o passo "Avisar no celular" do workflow (`promocoes avisar`), depois de publicar.
+  Precisa do Secret `VAPID_PRIVATE_KEY` (par da chave pública em `web/src/lib/push.ts`).
+  Sem ele o passo só avisa que pulou. Cada promoção avisa uma vez por produto.

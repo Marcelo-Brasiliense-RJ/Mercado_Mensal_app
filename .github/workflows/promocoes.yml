@@ -29,6 +29,8 @@ jobs:
       # A URL nao e segredo e pode ficar em Variables; as chaves so em Secrets (Variables aparecem no log).
       SUPABASE_URL: ${{ secrets.SUPABASE_URL || vars.SUPABASE_URL || secrets.NEXT_PUBLIC_SUPABASE_URL || vars.NEXT_PUBLIC_SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY || secrets.SUPABASE_KEY }}
+      # Aviso no celular dos produtos "De olho" (migration 0039). Sem ele, o passo so avisa que pulou.
+      VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
     steps:
       - uses: actions/checkout@v4
 
@@ -89,6 +91,13 @@ jobs:
         if: contains(steps.m.outputs.lista, ' supermarket ')
         continue-on-error: true
         run: ./promocoes/rodar_semana.sh supermarket
+
+      # Depois de publicar: notifica quem marcou um produto que entrou em promocao.
+      - name: Avisar no celular
+        if: always()
+        continue-on-error: true
+        working-directory: promocoes/coletor
+        run: uv run promocoes avisar
 
       # Os mercados seguem mesmo se um falhar; no fim o run fica vermelho (e o GitHub
       # manda e-mail) se algum falhou.
