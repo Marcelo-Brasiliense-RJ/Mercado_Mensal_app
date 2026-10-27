@@ -10,6 +10,7 @@ import { CartItemModal } from "./CartItemModal";
 import { BarcodeIcon } from "@/components/ui/icons";
 import { unitFor, findByName } from "@/lib/defaults";
 import type { TripItem } from "@/lib/types";
+import { atualizarLugar, useLugar } from "@/lib/lugar";
 
 // Painel do modo "No mercado". Ate a 0026 a compra so podia ser aberta e
 // alimentada pelo Telegram, e o painel era inalcancavel sem o bot. Agora o ciclo
@@ -26,6 +27,7 @@ export function CartPanel({ onScan }: { onScan?: () => void }) {
     showToast,
   } = useStore();
   const [busy, setBusy] = useState(false);
+  const { noMercado } = useLugar();
   // Item aberto no popup de editar. O preco falado erra com frequencia (a etiqueta
   // e da embalagem e a transcricao come a virgula), entao corrigir na hora e o
   // gesto mais comum de todos.
@@ -46,6 +48,9 @@ export function CartPanel({ onScan }: { onScan?: () => void }) {
   }
 
   async function abrir() {
+    // Toque do "Estou no mercado": a hora de pedir a localizacao (o iPhone so pergunta
+    // com gesto). Com ela, o app aprende esta loja e da proxima vez ja sabe sozinho.
+    void atualizarLugar(true);
     setBusy(true);
     const r = await startTrip();
     setBusy(false);
@@ -82,12 +87,20 @@ export function CartPanel({ onScan }: { onScan?: () => void }) {
   // Sem compra aberta o painel nao some: e daqui que se comeca.
   if (!trip) {
     return (
-      <div className="rounded-[20px] border border-border bg-card p-[18px] shadow-[0_1px_3px_var(--shadow)] lg:p-[22px]">
+      <div
+        className={`rounded-[20px] border bg-card p-[18px] shadow-[0_1px_3px_var(--shadow)] lg:p-[22px] ${
+          noMercado ? "border-2 border-brand bg-brand-soft" : "border-border"
+        }`}
+      >
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0">
-            <div className="text-[16px] font-extrabold">Vai ao mercado agora?</div>
+            <div className="text-[16px] font-extrabold">
+              {noMercado ? "📍 Parece que você está no mercado" : "Vai ao mercado agora?"}
+            </div>
             <div className="mt-0.5 text-[13px] leading-snug text-text-2">
-              Abra a compra e vá anotando o que pegar, com o total subindo em tempo real.
+              {noMercado
+                ? "Abra o carrinho: o que você ler ou falar já entra nele."
+                : "Abra a compra e vá anotando o que pegar, com o total subindo em tempo real."}
             </div>
           </div>
           <div className="flex shrink-0 gap-2">
@@ -107,7 +120,7 @@ export function CartPanel({ onScan }: { onScan?: () => void }) {
               disabled={busy}
               className="h-[50px] shrink-0 rounded-[14px] bg-brand px-5 text-[15px] font-bold text-brand-ink disabled:opacity-50"
             >
-              Estou no mercado
+              {noMercado ? "Abrir carrinho" : "Estou no mercado"}
             </button>
           </div>
         </div>

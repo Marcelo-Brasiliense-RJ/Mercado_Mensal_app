@@ -10,6 +10,7 @@ import {
 } from "react";
 import type { StockItem, ShopItem, SavingRow, MonthPoint, Trip } from "./types";
 import { createClient } from "./supabase/client";
+import { aprenderMercado } from "./lugar";
 
 // Estado das telas do app. Os dados vem do Supabase (RPCs _web, leitura por
 // familia). As acoes de edicao (marcar comprado, adicionar item, orcamento) sao
@@ -319,7 +320,10 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   // finalizava e tirava item, mas nao tinha como comecar nem como pegar.
   const startTrip = useCallback(async () => {
     const r = await callRpc("mercado_trip_start_web");
-    if (r.ok) await reloadTrip();
+    if (r.ok) {
+      await reloadTrip();
+      void aprenderMercado(); // abriu a compra aqui: provavel mercado (so grava com GPS bom)
+    }
     return r;
   }, [reloadTrip]);
 
@@ -331,7 +335,10 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
         p_qty: item.qty,
         p_unit: item.unit,
       });
-      if (r.ok) await reloadTrip();
+      if (r.ok) {
+        await reloadTrip();
+        void aprenderMercado(); // pegou produto aqui: dentro de um mercado
+      }
       return r;
     },
     [reloadTrip],
@@ -472,6 +479,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
         };
       }
       await reloadTrip();
+      void aprenderMercado();
       return { ok: true as const };
     },
     [reloadTrip],

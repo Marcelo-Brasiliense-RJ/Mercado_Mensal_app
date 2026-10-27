@@ -385,7 +385,7 @@ export function ListView() {
         onManual={() => setAddManualOpen(true)}
       />
       <AddItemModal open={addManualOpen} onClose={() => setAddManualOpen(false)} />
-      <BarcodeModal open={scanOpen} onClose={() => setScanOpen(false)} />
+      {scanOpen && <BarcodeModal open onClose={() => setScanOpen(false)} />}
       <VoiceModal open={voiceOpen} onClose={() => setVoiceOpen(false)} />
       <ListItemActions
         key={action?.id}

@@ -12,6 +12,7 @@ import { unitFor, findByName } from "@/lib/defaults";
 import { isTypedBarcode, onlyDigits, prettyBarcode } from "@/lib/barcode";
 import { BarcodeScanner } from "./BarcodeScanner";
 import { DestinoSwitch, type Destino } from "@/components/ui/Destino";
+import { useLugar } from "@/lib/lugar";
 
 // Ler o codigo, dizer a quantidade, pronto: o item cai no carrinho.
 //
@@ -43,13 +44,18 @@ export function BarcodeModal({
   destinoPadrao?: "estoque" | "carrinho";
 }) {
   const { findBarcode, addTripItemByBarcode, addStockByBarcode, baixaStock, showToast, trip, stock } = useStore();
-  const [destino, setDestino] = useState<Destino>(destinoPadrao);
+  // Dentro de um mercado conhecido (GPS), o codigo vai para o carrinho de qualquer tela.
+  const { noMercado } = useLugar();
+  const padrao: Destino = noMercado ? "carrinho" : destinoPadrao;
+  const [destino, setDestino] = useState<Destino>(padrao);
   const emCasa = destino === "estoque";
 
   const [fase, setFase] = useState<Fase>("ler");
   const [codigo, setCodigo] = useState("");
   const [conhecido, setConhecido] = useState(false);
   const [marca, setMarca] = useState("");
+  // Foto da embalagem vinda da base publica: confere num relance se leu o produto certo.
+  const [foto, setFoto] = useState<string | null>(null);
   const [nome, setNome] = useState("");
   const [qtd, setQtd] = useState("1");
   const [unidade, setUnidade] = useState("un");
@@ -94,10 +100,12 @@ export function BarcodeModal({
             nome?: string;
             unidade?: string | null;
             marca?: string;
+            foto?: string | null;
           };
           if (d?.ok && d.encontrado && d.nome) {
             setNome(d.nome);
             setMarca(d.marca ?? "");
+            setFoto(d.foto ?? null);
             setUnidade(d.unidade || unitFor(d.nome));
             // Preco da ultima compra desse item, se a casa ja comprou.
             const jaTem = findByName(d.nome, stock);
@@ -129,6 +137,7 @@ export function BarcodeModal({
     setQtd("1");
     setUnidade("un");
     setConhecido(false);
+    setFoto(null);
     setDigitado("");
     setEditandoNome(false);
   }
@@ -138,7 +147,7 @@ export function BarcodeModal({
     voltarALer();
     setLidos([]);
     setSemCamera(false);
-    setDestino(destinoPadrao);
+    setDestino(padrao);
   }
 
   function buscarDigitado() {
@@ -222,6 +231,9 @@ export function BarcodeModal({
         )}
       </div>
 
+      {noMercado && destinoPadrao !== "carrinho" && (
+        <div className="mb-2 text-[12px] font-bold text-brand">📍 Você está num mercado: vai para o carrinho</div>
+      )}
       <DestinoSwitch valor={destino} opcoes={["estoque", "carrinho"]} onChange={setDestino} />
 
       {fase === "ler" ? (
@@ -293,8 +305,12 @@ export function BarcodeModal({
               precisa RECONHECER o que leu num relance, nao ler um rotulo de
               campo. Trocar o nome e excecao, entao vira um link discreto. */}
           <div className="mb-4 rounded-[16px] border-[1.5px] border-brand bg-brand/5 p-4">
-            <div className="text-[20px] font-extrabold leading-tight">
-              {nome || "Produto novo"}
+            <div className="flex items-start gap-3">
+              {foto && (
+                // eslint-disable-next-line @next/next/no-img-element -- foto da loja, so referencia visual
+                <img src={foto} alt="" className="h-16 w-16 shrink-0 rounded-xl bg-white object-contain" />
+              )}
+              <div className="min-w-0 text-[20px] font-extrabold leading-tight">{nome || "Produto novo"}</div>
             </div>
             <div className="mt-1 text-[12px] text-text-3">
               {marca ? `${marca} · ` : ""}
@@ -384,7 +400,7 @@ export function BarcodeModal({
             </>
           )}
 
-          <div className="flex gap-3">
+          <div data-rodape className="flex gap-3">
             {emCasa && findByName(nome, stock) ? (
               <button
                 type="button"

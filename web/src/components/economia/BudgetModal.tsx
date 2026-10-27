@@ -43,7 +43,7 @@ export function BudgetModal({
         className="mb-5 h-[52px] w-full rounded-[14px] border border-border bg-card-2 px-3.5 text-[17px] font-bold"
         autoFocus
       />
-      <div className="flex gap-3">
+      <div data-rodape className="flex gap-3">
         <button
           type="button"
           onClick={onClose}

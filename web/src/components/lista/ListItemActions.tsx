@@ -184,7 +184,7 @@ export function ListItemActions({
       </button>
       </form>
 
-      <div className="flex gap-3">
+      <div data-rodape className="flex gap-3">
         <button onClick={comprar} disabled={busy} className={`${btn} flex-[1.4] bg-pos text-white`}>
           ✓ Comprei
         </button>

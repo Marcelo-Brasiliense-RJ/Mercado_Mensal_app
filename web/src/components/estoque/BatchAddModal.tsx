@@ -115,7 +115,7 @@ export function BatchAddModal({
         avisoDe={avisoDe}
       />
 
-      <div className="flex gap-3">
+      <div data-rodape className="flex gap-3">
         <button
           type="button"
           onClick={close}
