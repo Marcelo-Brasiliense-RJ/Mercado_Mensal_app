@@ -333,7 +333,7 @@ function VigiarModal({ open, onClose, ofertas }: { open: boolean; onClose: () =>
 
 // Ligar o aviso nativo do celular. No iPhone so funciona com o app na Tela de Inicio,
 // entao fora dela a caixa ensina o caminho em vez de mostrar um botao que nao faz nada.
-function AvisoCelular() {
+export function AvisoCelular() {
   const { showToast } = useStore();
   const [estado, setEstado] = useState<EstadoPush | null>(null);
   const [busy, setBusy] = useState(false);

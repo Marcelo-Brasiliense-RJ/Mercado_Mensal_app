@@ -97,7 +97,7 @@ export function Sidebar({ onRegistrar }: { onRegistrar: () => void }) {
         }`}
       >
         <UsersIcon size={18} />
-        Família e ajustes
+        Ajustes
       </Link>
 
       <div className="mt-2 flex gap-2">
