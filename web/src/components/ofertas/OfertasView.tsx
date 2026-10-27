@@ -5,6 +5,7 @@ import { brl } from "@/lib/format";
 import { useStore } from "@/lib/store";
 import { useOfertas } from "./useOfertas";
 import { DeOlho, Estrela } from "./DeOlho";
+import { MercadosDaCasa } from "./MeusMercados";
 import { Foto, PorUnidade, Selo } from "./pecas";
 import { Grupo, useRecolhidos } from "@/components/ui/Grupo";
 import { ICONE } from "@/lib/categorias";
@@ -92,6 +93,7 @@ export function OfertasView() {
   return (
     <div className="flex flex-col gap-6">
       <ScreenHeader title="Ofertas" subtitle="O que falta em casa, no mercado mais barato" />
+      <MercadosDaCasa />
 
       {/* Busca: o unico campo da tela */}
       <label className="relative block">

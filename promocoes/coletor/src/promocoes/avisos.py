@@ -56,6 +56,12 @@ def ate(fim: str | None) -> str:
     return f"até {DIAS[d.weekday()]} {d:%d/%m}"
 
 
+def da_casa(d: dict, ofertas: list[dict]) -> list[dict]:
+    """So os mercados que a casa marcou (0044); sem marcacao, todos."""
+    ms = d.get("mercados")
+    return [o for o in ofertas if not ms or o["mercado"] in ms]
+
+
 def novidades(p: dict) -> dict[str, list[tuple[dict, dict]]]:
     """Por casa: (desejo, oferta mais barata ainda nao avisada) de cada desejo em promocao."""
     por_casa: dict[str, list[tuple[dict, dict]]] = {}
@@ -63,7 +69,7 @@ def novidades(p: dict) -> dict[str, list[tuple[dict, dict]]]:
         if not d.get("aparelho", True):  # casa sem celular inscrito: so guarda o preco
             continue
         vistos = set(d.get("avisados") or [])
-        achadas = sorted((o for o in p.get("ofertas", []) if casa_desejo(o, d["termo"])),
+        achadas = sorted((o for o in da_casa(d, p.get("ofertas", [])) if casa_desejo(o, d["termo"])),
                          key=lambda o: float(o["preco_por"]))
         nova = next((o for o in achadas if chave(o) not in vistos), None)
         if nova:
@@ -75,7 +81,7 @@ def precos(p: dict) -> list[dict]:
     """A promocao mais barata de cada desejo agora, para o historico do card (0042)."""
     out = []
     for d in p.get("desejos", []):
-        achadas = [o for o in p.get("ofertas", []) if casa_desejo(o, d["termo"])]
+        achadas = [o for o in da_casa(d, p.get("ofertas", [])) if casa_desejo(o, d["termo"])]
         if achadas:
             o = min(achadas, key=lambda o: float(o["preco_por"]))
             out.append({"id": d["id"], "preco": float(o["preco_por"]), "mercado": o["mercado"], "fim": o.get("fim")})

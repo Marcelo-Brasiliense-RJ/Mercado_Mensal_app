@@ -112,3 +112,10 @@ def test_casa_sem_aparelho_nao_recebe_aviso():
     p = {"ofertas": OFERTAS, "desejos": [{"id": 1, "household_id": "h", "termo": "acem", "nome": "Acém",
                                           "aparelho": False, "avisados": []}]}
     assert avisos.novidades(p) == {}
+
+
+def test_so_mercados_da_casa():
+    p = {"ofertas": OFERTAS, "desejos": [{"id": 1, "household_id": "h", "termo": "acem", "nome": "Acém",
+                                          "mercados": ["guanabara"], "avisados": []}]}
+    (d, o), = avisos.novidades(p)["h"]
+    assert o["mercado"] == "guanabara"  # o Mundial e mais barato, mas a casa nao vai la
