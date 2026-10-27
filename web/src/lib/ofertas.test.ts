@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { casaBusca, casaItem, maisBarato, porUnidade, prazo, resumir, type ItemFalta, type Oferta } from "./ofertas";
+import { casaBusca, casaItem, corredor, maisBarato, melhorQue, porMercado, porUnidade, precoSubiu, prazo, resumir, type ItemFalta, type Oferta } from "./ofertas";
 
 let id = 0;
 const of = (o: Partial<Oferta>): Oferta => ({
@@ -72,5 +72,59 @@ describe("prazo", () => {
     expect(prazo(of({ fim: "2026-10-27T23:59:00-03:00" }), agora)?.texto).toBe("Termina amanhã");
     expect(prazo(of({ fim: "2026-10-30T23:59:00-03:00" }), agora)?.urgente).toBe(false);
     expect(prazo(of({ fim: null }), agora)).toBeNull();
+  });
+});
+
+describe("melhorQue (aviso no carrinho)", () => {
+  const ofertas = [
+    of({ produto: "Manteiga com Sal Aviação", tamanho: "200g", preco_por: 12.9, mercado: "guanabara" }),
+    of({ produto: "Manteiga Itambé", tamanho: "200g", preco_por: 14.5, mercado: "mundial" }),
+  ];
+  it("avisa quando outro mercado esta mais barato", () => {
+    const r = melhorQue(ofertas, "manteiga", 16.9);
+    expect(r?.oferta.mercado).toBe("guanabara");
+    expect(r?.economia).toBeCloseTo(4);
+  });
+  it("nao avisa quando o preco do carrinho ja e melhor ou a diferenca e minima", () => {
+    expect(melhorQue(ofertas, "manteiga", 12.0)).toBeNull();
+    expect(melhorQue(ofertas, "manteiga", 12.95)).toBeNull();
+  });
+  it("sem preco ou sem oferta, sem aviso", () => {
+    expect(melhorQue(ofertas, "manteiga", null)).toBeNull();
+    expect(melhorQue(ofertas, "palmito", 10)).toBeNull();
+  });
+  it("item vendido por kg compara por kg", () => {
+    const carne = [of({ produto: "Patinho", tamanho: "500g", preco_por: 20 })]; // R$ 40/kg
+    expect(melhorQue(carne, "patinho", 45, "kg")?.economia).toBeCloseTo(5);
+    expect(melhorQue(carne, "patinho", 35, "kg")).toBeNull();
+  });
+});
+
+describe("precoSubiu", () => {
+  it("avisa so com alta de verdade", () => {
+    expect(precoSubiu(12, 10)).toBeCloseTo(0.2);
+    expect(precoSubiu(11, 10)).toBeNull(); // 10%: normal
+    expect(precoSubiu(2.3, 2)).toBeNull(); // 15% mas so R$ 0,30
+    expect(precoSubiu(12, null)).toBeNull();
+    expect(precoSubiu(null, 10)).toBeNull();
+  });
+});
+
+describe("porMercado e corredor", () => {
+  const ofertas = [
+    of({ produto: "Arroz", tamanho: "5kg", preco_por: 14.95, mercado: "guanabara", categoria: "Mercearia" }),
+    of({ produto: "Arroz", tamanho: "5kg", preco_por: 19.6, mercado: "mundial", categoria: "Mercearia" }),
+    of({ produto: "Detergente", preco_por: 1.99, mercado: "mundial", categoria: "Limpeza" }),
+  ];
+  it("conta quantos itens valem em cada mercado", () => {
+    const itens = [{ name: "arroz" }, { name: "detergente" }, { name: "palmito" }];
+    const { melhor, conta } = porMercado(itens, ofertas);
+    expect(conta).toEqual({ guanabara: 1, mundial: 1 });
+    expect(melhor.get(itens[0])?.mercado).toBe("guanabara");
+    expect(melhor.has(itens[2])).toBe(false);
+  });
+  it("hortifruti antes de limpeza; desconhecido no fim", () => {
+    expect(corredor("Hortifruti")).toBeLessThan(corredor("Limpeza"));
+    expect(corredor("xyz")).toBeGreaterThan(corredor("Outros"));
   });
 });

@@ -51,3 +51,19 @@ def test_supermarket_pega_so_o_pdf_vigente():
     [e] = supermarket((FIX / "supermarket_ofertas.html").read_text())
     assert e.url.endswith("/guia-26-28.pdf")  # encarte-23-25.pdf ja venceu
     assert (e.inicio.day, e.fim.day) == (26, 28)
+
+
+def test_guanabara_validade_com_texto_novo():
+    # 27/10/2026: "Promoção válida de 27/10/2026 até 30/10/2026"
+    from promocoes.fontes import guanabara
+
+    [e] = guanabara((FIX / "guanabara_encarte_2710.html").read_text())
+    assert (e.inicio.day, e.fim.day) == (27, 30)
+
+
+def test_supermarket_com_duas_validades_na_pagina():
+    # 27/10/2026: destaques "27 a 28/10" e guia em PDF "26 a 28/10"
+    from promocoes.fontes import supermarket
+
+    [e] = supermarket((FIX / "supermarket_ofertas_2710.html").read_text())
+    assert e.url.endswith("/guia-26-28.pdf") and (e.inicio.day, e.fim.day) == (26, 28)

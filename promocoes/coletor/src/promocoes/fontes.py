@@ -66,7 +66,9 @@ def guanabara(html: str) -> list[Encarte]:
     urls = list(dict.fromkeys(re.sub(r"/styles/encarte/adaptive-image/public/", "/", u).split("?")[0] for u in miniaturas))
     if not urls:
         return []
-    m = re.search(r"válidas[^0-9]*(\d{2})/(\d{2})/(\d{4}).{0,40}?até[^0-9]*(\d{2})/(\d{2})/(\d{4})", _texto(html))
+    # "Ofertas válidas neste sábado, 24/10/2026, até segunda, 26/10/2026" ou
+    # "Promoção válida de 27/10/2026 até 30/10/2026": o texto muda de semana para semana.
+    m = re.search(r"válid[ao]s?[^0-9]*(\d{2})/(\d{2})/(\d{4}).{0,40}?até[^0-9]*(\d{2})/(\d{2})/(\d{4})", _texto(html))
     return [Encarte(
         mercado="guanabara",
         id=hashlib.sha256("|".join(urls).encode()).hexdigest()[:12],
@@ -81,23 +83,28 @@ def guanabara(html: str) -> list[Encarte]:
 
 def supermarket(html: str) -> list[Encarte]:
     # WordPress: o PDF da semana leva os dias no nome (guia-26-28.pdf); a validade vem no texto.
+    # A pagina tem mais de uma validade (destaques da semana e o guia em PDF, ex.: "27 a 28/10"
+    # e "26 a 28/10"); cada PDF casa com a sua pelos dias no nome do arquivo.
     t = _texto(html)
-    m = re.search(r"válidas.{0,60}?(\d{1,2}) a (\d{1,2})/(\d{2})/(\d{4})", t)
-    if not m:
-        return []
-    ini, fim, mes, ano = m.groups()
     pdfs = dict.fromkeys(re.findall(r'href="(https://redesupermarket\.com\.br/wp-content/uploads/[^"]+\.pdf)"', html))
     pdfs = list(pdfs) + [u for u in re.findall(r'(https://redesupermarket\.com\.br/wp-content/uploads/[^"\s]+\.pdf)', html) if u not in pdfs]
-    vigentes = [u for u in pdfs if re.search(rf"-{int(ini):02d}-{int(fim):02d}\.pdf$|-{ini}-{fim}\.pdf$", u)]
-    return [Encarte(
-        mercado="supermarket",
-        id=u.rsplit("/", 1)[1].removesuffix(".pdf"),
-        titulo=m.group(0),
-        url=u,
-        formato="pdf",
-        inicio=_dia(ini, mes, ano),
-        fim=_dia(fim, mes, ano, fim=True),
-    ) for u in vigentes]
+    encartes, vistos = [], set()
+    for m in re.finditer(r"válid[ao]s?.{0,60}?(\d{1,2}) a (\d{1,2})/(\d{2})/(\d{4})", t):
+        ini, fim, mes, ano = m.groups()
+        for u in pdfs:
+            if u in vistos or not re.search(rf"-0?{int(ini)}-0?{int(fim)}\.pdf$", u):
+                continue
+            vistos.add(u)
+            encartes.append(Encarte(
+                mercado="supermarket",
+                id=u.rsplit("/", 1)[1].removesuffix(".pdf"),
+                titulo=m.group(0),
+                url=u,
+                formato="pdf",
+                inicio=_dia(ini, mes, ano),
+                fim=_dia(fim, mes, ano, fim=True),
+            ))
+    return encartes
 
 
 PARSERS = {"mundial": mundial, "guanabara": guanabara, "supermarket": supermarket}

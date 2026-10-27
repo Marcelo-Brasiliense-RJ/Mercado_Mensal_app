@@ -50,7 +50,7 @@ export function StockAddModal({
       unit: unidade,
     });
     if (!r.ok) return showToast(r.erro);
-    showToast(`${nome.trim()} adicionado ao estoque`);
+    showToast(`${nome.trim()} adicionado ao estoque`, { desfazer: true });
     close();
   }
 

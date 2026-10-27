@@ -36,8 +36,22 @@ def local_atual(pagina: str) -> str:
     return m.group(1).strip() if m else "?"
 
 
+def _get(c: httpx.Client, url: str, **kw) -> httpx.Response:
+    """GET com 3 tentativas: o site derruba conexao de vez em quando (visto no GitHub Actions)."""
+    for n in range(3):
+        try:
+            r = c.get(url, **kw)
+            r.raise_for_status()
+            return r
+        except (httpx.TransportError, httpx.HTTPStatusError):
+            if n == 2:
+                raise
+            time.sleep(5 * (n + 1))
+    raise RuntimeError("sem resposta")
+
+
 def escolher_loja(c: httpx.Client, loja: str = LOJA_CURICICA) -> None:
-    c.get(BASE + "/ofertas/")
+    _get(c, BASE + "/ofertas/")
     c.post(BASE + "/carrinho/change-region/", headers=AJAX)
     c.post(BASE + "/carrinho/change-type-ship/", data={"tipo": "2"}, headers=AJAX)
     c.post(BASE + "/carrinho/load-calendar/", data={"type": "2", "ponto_retirada": loja}, headers=AJAX)
@@ -92,8 +106,7 @@ def coletar(c: httpx.Client, pausa_s: float = 2.0, max_paginas: int = 120) -> tu
     todas: dict[str, Oferta] = {}
     local = "?"
     for n in range(1, max_paginas + 1):
-        r = c.get(BASE + "/ofertas/", params={"page": n})
-        r.raise_for_status()
+        r = _get(c, BASE + "/ofertas/", params={"page": n})
         if n == 1:
             local = local_atual(r.text)
             if "curicica" not in local.lower():

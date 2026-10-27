@@ -151,3 +151,66 @@ export function prazo(o: Oferta, agora = new Date()): { texto: string; urgente: 
   const d = fim.toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit", timeZone: "America/Sao_Paulo" });
   return { texto: `Até ${d.replace(".", "")}`, urgente: false };
 }
+
+// Oferta melhor que o preco que a pessoa esta pagando agora (carrinho) ou espera pagar.
+// Compara por kg/L quando o item e vendido assim e a oferta tem a medida no nome;
+// senao, preco contra preco. So avisa com folga (2% e 10 centavos): aviso que nao
+// muda a decisao so atrapalha no corredor.
+export function melhorQue(
+  ofertas: Oferta[],
+  nome: string,
+  preco: number | null,
+  unidade = "un",
+): { oferta: Oferta; economia: number } | null {
+  if (!nome.trim()) return null;
+  const opcoes = ofertas.filter((o) => casaItem(o, nome)).sort(maisBarato);
+  if (!opcoes.length) return null;
+  if (preco == null || !(preco > 0)) return null;
+  const u = unidade.toLowerCase();
+  const porPeso = u === "kg" || u === "l";
+  for (const o of opcoes) {
+    const pu = porUnidade(o);
+    const valor = porPeso && pu && pu.u.toLowerCase() === u ? pu.valor : porPeso ? null : o.preco_por;
+    if (valor == null) continue;
+    const economia = preco - valor;
+    if (economia >= 0.1 && economia / preco >= 0.02) return { oferta: o, economia };
+    return null; // a melhor comparavel nao ganha: as outras tambem nao
+  }
+  return null;
+}
+
+// O mais barato agora para um item da lista, sem preco de referencia (selo na Lista).
+export function maisBarataPara(ofertas: Oferta[], nome: string): Oferta | null {
+  return ofertas.filter((o) => casaItem(o, nome)).sort(maisBarato)[0] ?? null;
+}
+
+// Preco bem acima do que a casa pagou da ultima vez: 15% e R$ 0,50 de folga, para nao
+// apitar por centavo. null quando nao ha compra anterior ou o preco esta normal.
+export function precoSubiu(preco: number | null, ultimo: number | null | undefined): number | null {
+  if (preco == null || !(preco > 0) || ultimo == null || !(ultimo > 0)) return null;
+  const alta = (preco - ultimo) / ultimo;
+  return alta >= 0.15 && preco - ultimo >= 0.5 ? alta : null;
+}
+
+// Ordem dos corredores de um supermercado tipico: entrada pelo hortifruti, limpeza no fundo.
+export const CORREDOR = [
+  "Hortifruti", "Padaria", "Carnes", "Frios e Laticínios", "Congelados", "Mercearia",
+  "Doces e Biscoitos", "Bebidas", "Limpeza", "Perfumaria e Higiene", "Bebê", "Pet", "Utilidades", "Outros",
+];
+export const corredor = (categoria?: string | null) => {
+  const i = CORREDOR.indexOf(categoria ?? "");
+  return i < 0 ? CORREDOR.length : i;
+};
+
+// Itens da lista que valem comprar em cada mercado (onde esta a oferta mais barata deles).
+export function porMercado<T extends { name: string }>(itens: T[], ofertas: Oferta[]) {
+  const melhor = new Map<T, Oferta>();
+  const conta: Record<string, number> = {};
+  for (const i of itens) {
+    const o = maisBarataPara(ofertas, i.name);
+    if (!o) continue;
+    melhor.set(i, o);
+    conta[o.mercado] = (conta[o.mercado] ?? 0) + 1;
+  }
+  return { melhor, conta };
+}

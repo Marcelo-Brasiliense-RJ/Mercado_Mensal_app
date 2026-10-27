@@ -12,9 +12,11 @@ import { CartPanel } from "./CartPanel";
 import { BarcodeModal } from "./BarcodeModal";
 import { VoiceModal } from "@/components/voz/VoiceModal";
 import { QuickBar } from "./QuickBar";
+import { useListaOfertas } from "@/components/ofertas/useOfertas";
+import { corMercado, corredor, maisBarataPara, nomeMercado, porMercado } from "@/lib/ofertas";
 
 export function ListView() {
-  const { shopping, trip, buyItems, removeItems, addTripItem, showToast, reloadTrip } =
+  const { shopping, trip, buyItems, removeItems, addTripItem, showToast, reloadTrip, stock, stockToList } =
     useStore();
   const [addManualOpen, setAddManualOpen] = useState(false);
   const [scanOpen, setScanOpen] = useState(false);
@@ -22,6 +24,25 @@ export function ListView() {
   const [q, setQ] = useState("");
   const [action, setAction] = useState<ShopItem | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  // Selo "em oferta" em cada item: ao montar a lista ja se ve onde comprar.
+  const ofertas = useListaOfertas();
+  // "Vou no Guanabara": mostra so o que vale comprar la, na ordem dos corredores.
+  // Lembrado no aparelho: quem vai sempre no mesmo mercado nao escolhe de novo.
+  const [ondeVou, setOndeVouState] = useState<string | null>(() => {
+    try {
+      return typeof window === "undefined" ? null : localStorage.getItem("lista_onde_vou");
+    } catch {
+      return null;
+    }
+  });
+  function setOndeVou(m: string | null) {
+    setOndeVouState(m);
+    try {
+      if (m) localStorage.setItem("lista_onde_vou", m);
+      else localStorage.removeItem("lista_onde_vou");
+    } catch {}
+  }
+  const [montando, setMontando] = useState(false);
 
   // Modo "No mercado" ao vivo: enquanto esta tela esta aberta, verifica a cada
   // 4s se ha compra aberta (ou novos itens) vinda do Telegram.
@@ -32,13 +53,37 @@ export function ListView() {
     return () => clearInterval(id);
   }, [reloadTrip]);
 
+  const pendentes = shopping.filter((i) => i.status === "pending");
+  const { melhor, conta } = porMercado(pendentes, ofertas);
+  const mercadosComOferta = Object.keys(conta).sort((a, b) => conta[b] - conta[a]);
+  const filtro = ondeVou && conta[ondeVou] ? ondeVou : null;
+  // Fica fora do "Vou no X" so o que esta mais barato em OUTRO mercado; item sem oferta
+  // nenhuma se compra em qualquer lugar e continua aparecendo.
+  const emOutro = (i: ShopItem) => {
+    const o = melhor.get(i);
+    return !!filtro && !!o && o.mercado !== filtro;
+  };
   const visible = shopping
     .filter((i) => i.status !== "removed")
     .filter((i) => i.name.toLowerCase().includes(q.toLowerCase()))
+    .filter((i) => !emOutro(i))
     .sort(
       (a, b) =>
-        (a.status === "bought" ? 1 : 0) - (b.status === "bought" ? 1 : 0),
+        (a.status === "bought" ? 1 : 0) - (b.status === "bought" ? 1 : 0) ||
+        (filtro ? corredor(melhor.get(a)?.categoria) - corredor(melhor.get(b)?.categoria) : 0),
     );
+  const escondidos = filtro ? pendentes.filter(emOutro).length : 0;
+
+  // Lista do mes: tudo que esta abaixo do nivel normal e ainda nao esta na lista.
+  // A quantidade sai do proprio estoque (normal - tem), pela mesma RPC do "Mandar pra lista".
+  const naLista = new Set(pendentes.map((i) => i.name.toLowerCase()));
+  const doMes = stock.filter((s) => s.normal > 0 && s.current < s.normal && !naLista.has(s.name.toLowerCase()));
+  async function montarMes() {
+    setMontando(true);
+    const r = await stockToList(doMes.map((s) => s.id));
+    setMontando(false);
+    showToast(r.ok ? `${doMes.length} itens na lista do mês` : r.erro);
+  }
   // So conta no total quem voce vai comprar: pendente e NAO esta em estoque.
   const aComprar = shopping.filter(
     (i) => i.status === "pending" && !i.em_estoque,
@@ -53,7 +98,7 @@ export function ListView() {
     setBusy(id);
     const r = await buyItems([id]);
     setBusy(null);
-    showToast(r.ok ? "Comprado, estoque reposto" : r.erro);
+    showToast(r.ok ? "Comprado, estoque reposto" : r.erro, { desfazer: r.ok });
   }
   // Um toque: o item da lista vai para o carrinho com a quantidade e o preco que
   // ja estavam ali. E o gesto mais repetido dentro do mercado, e ate agora exigia
@@ -132,6 +177,70 @@ export function ListView() {
           </div>
         </div>
 
+        {/* Lista do mes num toque: o app ja sabe o que falta para completar a casa. */}
+        {!trip && doMes.length > 0 && (
+          <div className="flex items-center gap-3 rounded-[18px] border-2 border-brand/40 bg-brand-soft p-4">
+            <div className="min-w-0 flex-1">
+              <div className="text-[17px] font-extrabold text-brand">Lista do mês</div>
+              <div className="text-[13px] text-text-2">
+                {doMes.length} {doMes.length > 1 ? "itens estão" : "item está"} abaixo do normal em casa
+              </div>
+            </div>
+            <button
+              onClick={montarMes}
+              disabled={montando}
+              className="h-12 shrink-0 rounded-[14px] bg-brand px-4 text-[15px] font-bold text-brand-ink disabled:opacity-50"
+            >
+              {montando ? "Montando…" : "Montar"}
+            </button>
+          </div>
+        )}
+
+        {/* Onde vou comprar: filtra a lista pelo mercado escolhido. */}
+        {mercadosComOferta.length > 0 && (
+          <div>
+            <div className="mb-2 text-[12px] font-bold uppercase tracking-wide text-text-3">Onde vai comprar?</div>
+            <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+              <button
+                onClick={() => setOndeVou(null)}
+                className={`h-11 shrink-0 rounded-full border-2 px-4 text-[14px] font-bold ${
+                  !filtro ? "border-text bg-text text-bg" : "border-border bg-card text-text-2"
+                }`}
+              >
+                Tudo
+              </button>
+              {mercadosComOferta.map((m) => (
+                <button
+                  key={m}
+                  onClick={() => setOndeVou(filtro === m ? null : m)}
+                  className="h-11 shrink-0 rounded-full border-2 px-4 text-[14px] font-bold"
+                  style={
+                    filtro === m
+                      ? { background: corMercado(m), borderColor: corMercado(m), color: "#fff" }
+                      : { borderColor: corMercado(m), color: corMercado(m) }
+                  }
+                >
+                  {nomeMercado(m)} · {conta[m]}
+                </button>
+              ))}
+            </div>
+            {filtro && (
+              <p className="mt-2 text-[13px] text-text-2">
+                Na ordem dos corredores.
+                {escondidos > 0 && (
+                  <>
+                    {" "}
+                    {escondidos} {escondidos > 1 ? "itens estão" : "item está"} mais barato em outro mercado.{" "}
+                    <button onClick={() => setOndeVou(null)} className="font-bold text-brand underline">
+                      Ver tudo
+                    </button>
+                  </>
+                )}
+              </p>
+            )}
+          </div>
+        )}
+
         {shopping.filter((i) => i.status !== "removed").length > 0 && (
           <div className="relative">
             <SearchIcon
@@ -191,6 +300,23 @@ export function ListView() {
                     {i.desired_quantity} {i.unit} · {brl(price)}
                     {price > 0 && ` = ${brl(i.desired_quantity * price)}`}
                   </div>
+                  {!bought &&
+                    (() => {
+                      const o = maisBarataPara(ofertas, i.name);
+                      return (
+                        o && (
+                          <div
+                            title={`Em oferta no ${nomeMercado(o.mercado)}`}
+                            className="mt-1 inline-flex max-w-full items-center gap-1.5 rounded-md px-2 py-0.5 text-[12px] font-bold text-white"
+                            style={{ background: corMercado(o.mercado) }}
+                          >
+                            <span className="truncate">
+                              🏷 {nomeMercado(o.mercado)} · {brl(o.preco_por)}
+                            </span>
+                          </div>
+                        )
+                      );
+                    })()}
                 </button>
                 {jaTenho && (
                   <span className="shrink-0 rounded-full bg-pos-soft px-2.5 py-[3px] text-[12px] font-bold text-pos">

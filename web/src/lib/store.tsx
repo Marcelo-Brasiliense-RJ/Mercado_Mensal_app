@@ -116,6 +116,9 @@ type Store = Data & {
   savingsTotal: number;
   dataLoading: boolean;
   toast: string | null;
+  // O aviso de baixo oferece "Desfazer" (so depois de escrita que o banco registra em mercado_events).
+  toastDesfazer: boolean;
+  desfazer: () => Promise<void>;
   receiptOpen: boolean;
   reloadData: () => Promise<void>;
   zerarStock: (ids: string[]) => Promise<RpcResult>;
@@ -167,7 +170,7 @@ type Store = Data & {
     items: { nome: string; marca?: string; qtd: number; preco: number; unidade: string }[],
     meta?: { chave: string; emitente?: string; total?: number },
   ) => Promise<{ ok: boolean; erro?: string; itens?: number }>;
-  showToast: (msg: string) => void;
+  showToast: (msg: string, opts?: { desfazer?: boolean }) => void;
 };
 
 const Ctx = createContext<Store | null>(null);
@@ -182,6 +185,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   const [data, setData] = useState<Data>(EMPTY);
   const [dataLoading, setDataLoading] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [toastDesfazer, setToastDesfazer] = useState(false);
   const [receiptOpen, setReceiptOpen] = useState(false);
   const toastT = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -441,11 +445,37 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
     [reloadTrip],
   );
 
-  const showToast = useCallback((msg: string) => {
+  const showToast = useCallback((msg: string, opts?: { desfazer?: boolean }) => {
     setToast(msg);
+    setToastDesfazer(!!opts?.desfazer);
+    if (toastT.current) clearTimeout(toastT.current);
+    // Com "Desfazer" o aviso fica mais tempo: da para ler e tocar com calma.
+    toastT.current = setTimeout(() => {
+      setToast(null);
+      setToastDesfazer(false);
+    }, opts?.desfazer ? 6000 : 2200);
+  }, []);
+
+  // Volta a ultima escrita da casa (0023). ponytail: desfaz o ultimo evento da familia,
+  // nao "o meu": se outra pessoa escreveu nesses 6 s, desfaz o dela. Raro com o aviso curto;
+  // o upgrade e passar o id do evento que a escrita devolve.
+  const desfazer = useCallback(async () => {
+    setToastDesfazer(false);
+    try {
+      const { data, error } = await createClient().rpc("mercado_desfazer_web");
+      const r = data as { ok?: boolean; item?: string } | null;
+      if (error || !r?.ok) {
+        setToast("Não deu para desfazer.");
+      } else {
+        await reloadData();
+        setToast(r.item ? `Desfeito: ${r.item}` : "Desfeito");
+      }
+    } catch {
+      setToast("Sem conexão. Tente de novo.");
+    }
     if (toastT.current) clearTimeout(toastT.current);
     toastT.current = setTimeout(() => setToast(null), 2200);
-  }, []);
+  }, [reloadData]);
 
   const addShopItem = useCallback(
     async (item: Omit<ShopItem, "id" | "status">) => {
@@ -594,6 +624,8 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       savingsTotal,
       dataLoading,
       toast,
+      toastDesfazer,
+      desfazer,
       receiptOpen,
       openReceipt,
       closeReceipt,
@@ -632,6 +664,8 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       savingsTotal,
       dataLoading,
       toast,
+      toastDesfazer,
+      desfazer,
       receiptOpen,
       openReceipt,
       closeReceipt,
