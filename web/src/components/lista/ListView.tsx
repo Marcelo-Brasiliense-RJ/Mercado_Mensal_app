@@ -13,7 +13,7 @@ import { BarcodeModal } from "./BarcodeModal";
 import { VoiceModal } from "@/components/voz/VoiceModal";
 import { QuickBar } from "./QuickBar";
 import { useListaOfertas } from "@/components/ofertas/useOfertas";
-import { corMercado, corredor, maisBarataPara, nomeMercado, porMercado } from "@/lib/ofertas";
+import { corMercado, corredor, faltaEmCasa, maisBarataPara, nomeMercado, porMercado, resumir } from "@/lib/ofertas";
 
 export function ListView() {
   const { shopping, trip, buyItems, removeItems, addTripItem, showToast, reloadTrip, stock, stockToList } =
@@ -57,6 +57,9 @@ export function ListView() {
   const { melhor, conta } = porMercado(pendentes, ofertas);
   const mercadosComOferta = Object.keys(conta).sort((a, b) => conta[b] - conta[a]);
   const filtro = ondeVou && conta[ondeVou] ? ondeVou : null;
+  // Quanto a lista sai em cada mercado (o mais barato de cada item dentro dele): a
+  // resposta para "onde compensa fazer a compra", na cara, sem abrir a aba Ofertas.
+  const resumoLista = resumir(ofertas, faltaEmCasa(pendentes, []));
   // Fica fora do "Vou no X" so o que esta mais barato em OUTRO mercado; item sem oferta
   // nenhuma se compra em qualquer lugar e continua aparecendo.
   const emOutro = (i: ShopItem) => {
@@ -196,33 +199,48 @@ export function ListView() {
           </div>
         )}
 
-        {/* Onde vou comprar: filtra a lista pelo mercado escolhido. */}
+        {/* Onde compensa: cada mercado com quantos itens da lista e quanto sai la.
+            Tocar filtra a lista por aquele mercado, na ordem dos corredores. */}
         {mercadosComOferta.length > 0 && (
-          <div>
-            <div className="mb-2 text-[12px] font-bold uppercase tracking-wide text-text-3">Onde vai comprar?</div>
-            <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
-              <button
-                onClick={() => setOndeVou(null)}
-                className={`h-11 shrink-0 rounded-full border-2 px-4 text-[14px] font-bold ${
-                  !filtro ? "border-text bg-text text-bg" : "border-border bg-card text-text-2"
-                }`}
-              >
-                Tudo
-              </button>
-              {mercadosComOferta.map((m) => (
-                <button
-                  key={m}
-                  onClick={() => setOndeVou(filtro === m ? null : m)}
-                  className="h-11 shrink-0 rounded-full border-2 px-4 text-[14px] font-bold"
-                  style={
-                    filtro === m
-                      ? { background: corMercado(m), borderColor: corMercado(m), color: "#fff" }
-                      : { borderColor: corMercado(m), color: corMercado(m) }
-                  }
-                >
-                  {nomeMercado(m)} · {conta[m]}
-                </button>
-              ))}
+          <div className="rounded-[18px] border border-border bg-card p-3.5">
+            <div className="text-[12px] font-bold uppercase tracking-wide text-text-3">Onde compensa comprar</div>
+            {resumoLista.mercados[0] && (
+              <div className="mt-1 text-[15px] font-extrabold">
+                🏆 {nomeMercado(resumoLista.mercados[0].mercado)}: {resumoLista.mercados[0].itens} de {pendentes.length} itens
+                em oferta
+              </div>
+            )}
+            <div className="mt-2.5 flex flex-col gap-1.5">
+              {resumoLista.mercados
+                .filter((m) => m.itens > 0)
+                .map((m, i) => {
+                  const on = filtro === m.mercado;
+                  return (
+                    <button
+                      key={m.mercado}
+                      onClick={() => setOndeVou(on ? null : m.mercado)}
+                      aria-pressed={on}
+                      className={`flex items-center gap-3 rounded-[13px] border-2 px-3 py-2 text-left ${on ? "" : "border-border"}`}
+                      style={on ? { borderColor: corMercado(m.mercado), background: `${corMercado(m.mercado)}14` } : undefined}
+                    >
+                      <span
+                        className="shrink-0 rounded-md px-2 py-0.5 text-[12px] font-extrabold text-white"
+                        style={{ background: corMercado(m.mercado) }}
+                      >
+                        {nomeMercado(m.mercado)}
+                      </span>
+                      <span className="flex-1 text-[13px] text-text-2">
+                        {m.itens} {m.itens > 1 ? "itens" : "item"}
+                        {conta[m.mercado] ? ` · ${conta[m.mercado]} mais barato${conta[m.mercado] > 1 ? "s" : ""} aqui` : ""}
+                      </span>
+                      <span className="text-[15px] font-extrabold tabular-nums">{brl(m.total)}</span>
+                      {i === 0 && <span className="text-[16px]" aria-hidden>🏆</span>}
+                    </button>
+                  );
+                })}
+            </div>
+            <div className="mt-2 text-[12px] text-text-3">
+              {filtro ? "Mostrando só o que vale comprar lá." : "Toque num mercado para ver só o que vale comprar lá."}
             </div>
             {filtro && (
               <p className="mt-2 text-[13px] text-text-2">
