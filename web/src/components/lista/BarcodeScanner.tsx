@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { isValidBarcode, onlyDigits } from "@/lib/barcode";
+import { abrirCamera, soltarCamera } from "@/lib/camera";
 
 // Leitura de codigo de barras pela camera. Mesmo desenho do QrScanner da nota:
 // BarcodeDetector nativo quando existe (Chrome/Android, que e o celular no mercado),
@@ -11,23 +12,6 @@ type Detector = { detect: (src: CanvasImageSource) => Promise<{ rawValue: string
 
 // 1D de produto. QR fica de fora de proposito: quem le nota fiscal e o outro fluxo.
 const FORMATOS = ["ean_13", "ean_8", "upc_a", "upc_e", "itf", "code_128"];
-
-// Camera pedida em resolucao alta e foco continuo.
-//
-// Por que existe: com o default do navegador (tipicamente 640x480, foco fixo) as
-// barras finas de um EAN ocupam menos de um pixel cada e o decodificador nunca
-// fecha a leitura. Em uso real no iPhone isso apareceu como "a camera abre, eu
-// encosto no codigo e nao acontece nada" -- nao era o leitor estar quebrado, era
-// o quadro nao ter resolucao para resolver as barras.
-//
-// focusMode nao esta na lib de tipos do TS e nem todo navegador aceita; vai em
-// `advanced`, que por definicao e ignorado por quem nao suporta.
-const VIDEO = {
-  facingMode: "environment",
-  width: { ideal: 1920 },
-  height: { ideal: 1080 },
-  advanced: [{ focusMode: "continuous" }],
-} as unknown as MediaTrackConstraints;
 
 // Alguns aparelhos ignoram focusMode na negociacao inicial mas aceitam depois que
 // a track esta viva. Falhar aqui nao e erro: a leitura segue com o foco que veio.
@@ -73,9 +57,9 @@ export function BarcodeScanner({
   const [recusado, setRecusado] = useState("");
 
   useEffect(() => {
-    let stream: MediaStream | null = null;
     let raf = 0;
-    let parar: (() => void) | null = null;
+    let vivo = true;
+    const el = videoRef.current;
     doneRef.current = false;
 
     function aceitar(bruto: string) {
@@ -96,54 +80,60 @@ export function BarcodeScanner({
           BarcodeDetector?: new (o: object) => Detector;
         }).BarcodeDetector;
 
-        if (BD) {
-          stream = await navigator.mediaDevices.getUserMedia({ video: VIDEO });
-          await pedirFocoContinuo(stream);
-          const video = videoRef.current!;
-          video.srcObject = stream;
-          await video.play();
-          const detector = new BD({ formats: FORMATOS });
+        // A camera vem de lib/camera: a mesma das leituras anteriores, sem o
+        // iPhone perguntar a permissao de novo a cada produto.
+        const stream = await abrirCamera();
+        if (!vivo) return;
+        await pedirFocoContinuo(stream);
+        const video = videoRef.current!;
+        video.srcObject = stream;
+        await video.play();
 
-          const tick = async () => {
-            if (doneRef.current || !videoRef.current) return;
-            const v = videoRef.current;
-            if (v.readyState === v.HAVE_ENOUGH_DATA) {
-              const codes = await detector.detect(v);
-              if (codes[0]?.rawValue) aceitar(codes[0].rawValue);
+        // Nativo (Chrome/Android) ou ZXing (iOS Safari, Firefox), no mesmo laco.
+        // O ZXing nao abre camera aqui: le quadro a quadro do video que ja esta
+        // tocando, para a camera continuar sendo uma so.
+        let ler: (v: HTMLVideoElement) => Promise<string>;
+        let intervalo = 0;
+        if (BD) {
+          const detector = new BD({ formats: FORMATOS });
+          ler = async (v) => (await detector.detect(v))[0]?.rawValue ?? "";
+        } else {
+          const [{ BrowserMultiFormatReader }, zxing] = await Promise.all([
+            import("@zxing/browser"),
+            import("@zxing/library"),
+          ]);
+          const hints = new Map();
+          hints.set(zxing.DecodeHintType.POSSIBLE_FORMATS, [
+            zxing.BarcodeFormat.EAN_13,
+            zxing.BarcodeFormat.EAN_8,
+            zxing.BarcodeFormat.UPC_A,
+            zxing.BarcodeFormat.UPC_E,
+            zxing.BarcodeFormat.ITF,
+            zxing.BarcodeFormat.CODE_128,
+          ]);
+          const reader = new BrowserMultiFormatReader(hints);
+          ler = async (v) => {
+            try {
+              return reader.decode(v).getText();
+            } catch {
+              return ""; // quadro sem codigo
             }
-            if (!doneRef.current) raf = requestAnimationFrame(tick);
           };
-          raf = requestAnimationFrame(tick);
-          return;
+          intervalo = 120; // decodificar em JS e pesado: nao precisa ser todo quadro
         }
 
-        // Fallback (iOS Safari, Firefox): ZXing cuida da propria camera.
-        const [{ BrowserMultiFormatReader }, zxing] = await Promise.all([
-          import("@zxing/browser"),
-          import("@zxing/library"),
-        ]);
-        const hints = new Map();
-        hints.set(zxing.DecodeHintType.POSSIBLE_FORMATS, [
-          zxing.BarcodeFormat.EAN_13,
-          zxing.BarcodeFormat.EAN_8,
-          zxing.BarcodeFormat.UPC_A,
-          zxing.BarcodeFormat.UPC_E,
-          zxing.BarcodeFormat.ITF,
-          zxing.BarcodeFormat.CODE_128,
-        ]);
-        const reader = new BrowserMultiFormatReader(hints);
-        const controls = await reader.decodeFromConstraints(
-          { video: VIDEO },
-          videoRef.current!,
-          (res) => {
-            if (!doneRef.current && res) aceitar(res.getText());
-          },
-        );
-        // O ZXing abre a propria camera; o foco so da para pedir depois disso.
-        await pedirFocoContinuo(
-          (videoRef.current?.srcObject as MediaStream | null) ?? null,
-        );
-        parar = () => controls.stop();
+        let ultimo = 0;
+        const tick = async (agora: number) => {
+          if (doneRef.current || !videoRef.current) return;
+          const v = videoRef.current;
+          if (v.readyState === v.HAVE_ENOUGH_DATA && agora - ultimo >= intervalo) {
+            ultimo = agora;
+            const valor = await ler(v);
+            if (valor && !doneRef.current) aceitar(valor);
+          }
+          if (!doneRef.current) raf = requestAnimationFrame(tick);
+        };
+        raf = requestAnimationFrame(tick);
       } catch {
         cbRef.current.onError("camera_indisponivel");
       }
@@ -151,10 +141,11 @@ export function BarcodeScanner({
     start();
 
     return () => {
+      vivo = false;
       doneRef.current = true;
       cancelAnimationFrame(raf);
-      parar?.();
-      stream?.getTracks().forEach((t) => t.stop());
+      if (el) el.srcObject = null;
+      soltarCamera();
     };
   }, []);
 

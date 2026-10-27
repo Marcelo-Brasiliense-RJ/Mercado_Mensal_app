@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { isRjQrUrl } from "@/lib/nfce";
+import { abrirCamera, soltarCamera } from "@/lib/camera";
 
 // Leitura de QR pela camera. BarcodeDetector existe em Chrome/Android; iOS Safari
 // cai no fallback jsQR. Ao ler um QR de NFC-e do RJ, chama onResult com a URL.
@@ -18,15 +19,16 @@ export function QrScanner({
   const doneRef = useRef(false);
 
   useEffect(() => {
-    let stream: MediaStream | null = null;
     let raf = 0;
+    let vivo = true;
+    const el = videoRef.current;
     let detector: Detector | null = null;
 
     async function start() {
       try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "environment" },
-        });
+        // Mesma camera do leitor de codigo de barras (lib/camera): sem pedir permissao de novo.
+        const stream = await abrirCamera();
+        if (!vivo) return;
         const video = videoRef.current!;
         video.srcObject = stream;
         await video.play();
@@ -48,8 +50,11 @@ export function QrScanner({
               const codes = await detector.detect(v);
               value = codes[0]?.rawValue ?? "";
             } else if (jsQR) {
-              canvas.width = v.videoWidth;
-              canvas.height = v.videoHeight;
+              // A camera vem em alta (por causa do codigo de barras); para o QR,
+              // 1280 de largura basta e o jsQR fica bem mais rapido.
+              const k = Math.min(1, 1280 / v.videoWidth);
+              canvas.width = Math.round(v.videoWidth * k);
+              canvas.height = Math.round(v.videoHeight * k);
               const ctx = canvas.getContext("2d")!;
               ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
               const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -71,9 +76,11 @@ export function QrScanner({
     start();
 
     return () => {
+      vivo = false;
       doneRef.current = true;
       cancelAnimationFrame(raf);
-      stream?.getTracks().forEach((t) => t.stop());
+      if (el) el.srcObject = null;
+      soltarCamera();
     };
   }, [onResult, onError]);
 

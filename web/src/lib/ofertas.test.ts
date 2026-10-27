@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { casaBusca, casaItem, corredor, maisBarato, melhorQue, porMercado, porUnidade, precoSubiu, prazo, resumir, type ItemFalta, type Oferta } from "./ofertas";
+import { casaBusca, casaItem, corredor, desejosDa, maisBarato, melhorQue, nomeBonito, ofertasDo, porMercado, porUnidade, precoSubiu, prazo, resumir, termoDe, type ItemFalta, type Oferta } from "./ofertas";
 
 let id = 0;
 const of = (o: Partial<Oferta>): Oferta => ({
@@ -126,5 +126,29 @@ describe("porMercado e corredor", () => {
   it("hortifruti antes de limpeza; desconhecido no fim", () => {
     expect(corredor("Hortifruti")).toBeLessThan(corredor("Limpeza"));
     expect(corredor("xyz")).toBeGreaterThan(corredor("Outros"));
+  });
+});
+
+describe("de olho", () => {
+  const ofertas = [
+    of({ produto: "Acém Bovino Resfriado", tamanho: "kg", preco_por: 24.9, mercado: "guanabara" }),
+    of({ produto: "Acém em Bife", preco_por: 22.5, mercado: "mundial" }),
+    of({ produto: "Sabonete Acém", preco_por: 2 }),
+  ];
+  it("termo da oferta: duas palavras, sem 'em' nem tamanho", () => {
+    expect(termoDe(ofertas[1])).toBe("acem bife");
+    expect(termoDe(of({ produto: "Azeite Extra Virgem Andorinha 500ml" }))).toBe("azeite extra");
+  });
+  it("nome bonito copia a grafia do encarte", () => {
+    expect(nomeBonito("acem", ofertas)).toBe("Acém");
+    expect(nomeBonito("palmito", ofertas)).toBe("Palmito");
+    expect(nomeBonito("acem", [of({ produto: "Paleta, Peito ou Acém Bovino" })])).toBe("Acém");
+  });
+  it("ofertas do desejo, mais barata primeiro, e estrela do card", () => {
+    const d = { id: 1, termo: "acem", nome: "Acém", tem_foto: false };
+    expect(ofertasDo(d, ofertas).map((o) => o.mercado)).toEqual(["mundial", "guanabara"]);
+    expect(desejosDa(ofertas[2], [d])).toEqual([]);
+    expect(desejosDa(ofertas[0], [d])).toEqual([d]);
+    expect(desejosDa(of({ produto: "Paleta, Peito ou Acém Bovino" }), [d])).toEqual([d]);
   });
 });

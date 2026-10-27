@@ -4,6 +4,8 @@ import { useMemo, useState } from "react";
 import { brl } from "@/lib/format";
 import { useStore } from "@/lib/store";
 import { useOfertas } from "./useOfertas";
+import { DeOlho, Estrela } from "./DeOlho";
+import { Foto, PorUnidade, Selo } from "./pecas";
 import { ScreenHeader } from "@/components/layout/ScreenHeader";
 import { Modal } from "@/components/ui/Modal";
 import { SearchIcon, TagIcon } from "@/components/ui/icons";
@@ -14,7 +16,6 @@ import {
   maisBarato,
   nomeCompleto,
   nomeMercado,
-  porUnidade,
   prazo,
   resumir,
   type Oferta,
@@ -113,6 +114,9 @@ export function OfertasView() {
         </section>
       ) : (
         <>
+          {/* 0. O que a pessoa marcou para pegar em promocao */}
+          <DeOlho ofertas={dados.ofertas} onComparar={(titulo, opcoes) => setAberto({ titulo, opcoes })} />
+
           {/* 1. A resposta */}
           {melhor && resumo.comOferta > 0 ? (
             <section
@@ -291,48 +295,6 @@ function Aviso({ titulo, texto }: { titulo: string; texto: string }) {
   );
 }
 
-function Selo({ mercado }: { mercado: string }) {
-  return (
-    <span
-      className="inline-block shrink-0 rounded-md px-2 py-0.5 text-[11px] font-extrabold text-white"
-      style={{ background: corMercado(mercado) }}
-    >
-      {nomeMercado(mercado)}
-    </span>
-  );
-}
-
-const ICONE: Record<string, string> = {
-  Mercearia: "🥫", Bebidas: "🥤", Carnes: "🥩", "Frios e Laticínios": "🧀", Hortifruti: "🥦", Padaria: "🍞",
-  Congelados: "🧊", "Doces e Biscoitos": "🍪", Limpeza: "🧽", "Perfumaria e Higiene": "🧴", Bebê: "🍼", Pet: "🐾",
-};
-
-function Foto({ o, className = "" }: { o: Oferta; className?: string }) {
-  const [falhou, setFalhou] = useState(false);
-  if (!o.tem_foto || falhou) {
-    return (
-      <div className={`grid shrink-0 place-items-center bg-card-2 text-[30px] ${className}`} aria-hidden>
-        {ICONE[o.categoria] ?? "🛒"}
-      </div>
-    );
-  }
-  return (
-    // eslint-disable-next-line @next/next/no-img-element -- miniatura de 3 KB servida pela nossa rota
-    <img
-      src={`/api/oferta-foto?id=${o.id}`}
-      alt=""
-      loading="lazy"
-      onError={() => setFalhou(true)}
-      className={`shrink-0 bg-white object-contain ${className}`}
-    />
-  );
-}
-
-function PorUnidade({ o }: { o: Oferta }) {
-  const u = porUnidade(o);
-  return u ? <div className="text-[11px] text-text-2">{brl(u.valor)}/{u.u}</div> : null;
-}
-
 function CardOferta({
   o,
   rotulo,
@@ -364,7 +326,10 @@ function CardOferta({
         {off > 0 && <span className="rounded-md bg-white px-1.5 py-0.5 text-[12px] text-[#0F6B3E]">-{off}%</span>}
       </div>
       <div className="flex flex-1 flex-col gap-1.5 p-3">
-        <Foto o={o} className="h-24 w-full rounded-xl" />
+        <div className="relative">
+          <Foto o={o} className="h-24 w-full rounded-xl" />
+          <Estrela o={o} />
+        </div>
         {rotulo && (
           <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-[0.06em] text-brand">
             <span>{rotulo}</span>

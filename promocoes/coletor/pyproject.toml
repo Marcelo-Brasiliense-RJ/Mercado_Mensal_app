@@ -8,6 +8,7 @@ dependencies = [
     "pydantic>=2.7",
     "pypdfium2>=4.30",
     "pillow>=10",
+    "pywebpush>=2.0",
 ]
 
 [project.scripts]

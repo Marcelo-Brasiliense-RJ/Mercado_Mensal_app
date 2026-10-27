@@ -214,3 +214,55 @@ export function porMercado<T extends { name: string }>(itens: T[], ofertas: Ofer
   }
   return { melhor, conta };
 }
+
+// ============ De olho (0039) ============
+export type Desejo = { id: number; termo: string; nome: string; tem_foto: boolean };
+
+const PEQUENAS = new Set(["de", "da", "do", "em", "com", "e", "c/", "s/", "para", "tipo"]);
+
+// O que vigiar a partir de uma oferta: as duas primeiras palavras do produto ("Acém em
+// Bife" -> "acem bife"). Curto o bastante para pegar o mesmo produto no encarte de outro
+// mercado, que escreve diferente, e longo o bastante para nao virar "qualquer acem".
+export function termoDe(o: Oferta): string {
+  return padrao(o.produto)
+    .split(/\s+/)
+    .filter((p) => p && !PEQUENAS.has(p) && !/^\d/.test(p))
+    .slice(0, 2)
+    .join(" ");
+}
+
+// Encarte junta produtos num preco so: "Paleta, Peito ou Acém Bovino". Cada pedaco conta
+// como inicio de nome, entao quem vigia "acem" acha essa oferta (e "leite" continua sem
+// pegar "Sabonete Leite de Cabra").
+const pedacos = (produto: string) => produto.split(/,|\s+ou\s+|\s+e\s+|\//i).map((p) => p.trim()).filter(Boolean);
+
+export function casaDesejo(o: Oferta, termo: string): boolean {
+  const nome = padrao(nomeCompleto(o));
+  const [primeira, ...resto] = padrao(termo).split(/\s+/).filter(Boolean);
+  return (
+    !!primeira &&
+    pedacos(o.produto).some((p) => padrao(p).startsWith(primeira)) &&
+    resto.every((p) => nome.includes(p))
+  );
+}
+
+// Nome com a grafia do encarte: "acem" vira "Acém" quando ha oferta com essa palavra.
+export function nomeBonito(termo: string, ofertas: Oferta[]): string {
+  const t = termo.trim();
+  const n = t.split(/\s+/).length;
+  for (const o of ofertas) {
+    if (!casaDesejo(o, t)) continue;
+    for (const p of pedacos(o.produto)) {
+      const pedaco = p.split(/\s+/).slice(0, n).join(" ");
+      if (padrao(pedaco) === padrao(t)) return pedaco.charAt(0).toUpperCase() + pedaco.slice(1);
+    }
+  }
+  return t.charAt(0).toUpperCase() + t.slice(1);
+}
+
+// As ofertas de um desejo, mais barata primeiro.
+export const ofertasDo = (d: Desejo, ofertas: Oferta[]) =>
+  ofertas.filter((o) => casaDesejo(o, d.termo)).sort(maisBarato);
+
+// Desejos que esta oferta atende (a estrela do card acende).
+export const desejosDa = (o: Oferta, desejos: Desejo[]) => desejos.filter((d) => casaDesejo(o, d.termo));
