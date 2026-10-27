@@ -266,3 +266,31 @@ export const ofertasDo = (d: Desejo, ofertas: Oferta[]) =>
 
 // Desejos que esta oferta atende (a estrela do card acende).
 export const desejosDa = (o: Oferta, desejos: Desejo[]) => desejos.filter((d) => casaDesejo(o, d.termo));
+
+// O que falta em casa, montado na hora com o que o app ja tem carregado: lista de
+// compras pendente + Repor do estoque (mesmo corte da 0037: nivel normal definido e
+// abaixo da metade). Antes vinha da RPC junto com as ofertas e ficava 10 min em cache:
+// tirar item da lista nao mudava a conta da aba Ofertas.
+export function faltaEmCasa(
+  shopping: { name: string; unit: string; desired_quantity: number; estimated_price: number | null; status: string }[],
+  stock: { name: string; unit: string; current: number; normal: number; priceLast: number | null }[],
+): ItemFalta[] {
+  const preco = new Map(stock.map((s) => [s.name.trim().toLowerCase(), s.priceLast]));
+  const vistos = new Set<string>();
+  const out: ItemFalta[] = [];
+  for (const i of shopping) {
+    const nome = i.name.trim().toLowerCase();
+    if (i.status !== "pending" || !nome || vistos.has(nome)) continue;
+    vistos.add(nome);
+    out.push({ nome, unidade: i.unit, origem: "lista", quantidade: i.desired_quantity,
+      ultimo_preco: preco.get(nome) ?? null, ultima_marca: null });
+  }
+  for (const s of stock) {
+    const nome = s.name.trim().toLowerCase();
+    if (!(s.normal > 0 && s.current < s.normal * 0.5) || vistos.has(nome)) continue;
+    vistos.add(nome);
+    out.push({ nome, unidade: s.unit, origem: "repor", quantidade: Math.max(s.normal - s.current, 0),
+      ultimo_preco: s.priceLast, ultima_marca: null });
+  }
+  return out.sort((a, b) => a.nome.localeCompare(b.nome));
+}

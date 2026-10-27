@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { casaBusca, casaItem, corredor, desejosDa, maisBarato, melhorQue, nomeBonito, ofertasDo, porMercado, porUnidade, precoSubiu, prazo, resumir, termoDe, type ItemFalta, type Oferta } from "./ofertas";
+import { casaBusca, casaItem, corredor, desejosDa, faltaEmCasa, maisBarato, melhorQue, nomeBonito, ofertasDo, porMercado, porUnidade, precoSubiu, prazo, resumir, termoDe, type ItemFalta, type Oferta } from "./ofertas";
 
 let id = 0;
 const of = (o: Partial<Oferta>): Oferta => ({
@@ -150,5 +150,25 @@ describe("de olho", () => {
     expect(desejosDa(ofertas[2], [d])).toEqual([]);
     expect(desejosDa(ofertas[0], [d])).toEqual([d]);
     expect(desejosDa(of({ produto: "Paleta, Peito ou Acém Bovino" }), [d])).toEqual([d]);
+  });
+});
+
+describe("faltaEmCasa", () => {
+  it("lista pendente + repor, sem repetir e sem o que saiu da lista", () => {
+    const r = faltaEmCasa(
+      [
+        { name: "Leite", unit: "L", desired_quantity: 6, estimated_price: null, status: "pending" },
+        { name: "sabao", unit: "un", desired_quantity: 1, estimated_price: null, status: "bought" },
+        { name: "azeite", unit: "un", desired_quantity: 1, estimated_price: null, status: "removed" },
+      ],
+      [
+        { name: "leite", unit: "L", current: 1, normal: 12, priceLast: 4.5 },
+        { name: "arroz", unit: "kg", current: 1, normal: 5, priceLast: 18.5 },
+        { name: "feijao", unit: "kg", current: 2, normal: 2, priceLast: null },
+        { name: "cafe", unit: "un", current: 0, normal: 0, priceLast: null },
+      ],
+    );
+    expect(r.map((x) => `${x.nome}:${x.origem}`)).toEqual(["arroz:repor", "leite:lista"]);
+    expect(r[1].ultimo_preco).toBe(4.5);
   });
 });

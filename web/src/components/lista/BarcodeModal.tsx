@@ -11,6 +11,7 @@ import { brl } from "@/lib/format";
 import { unitFor, findByName } from "@/lib/defaults";
 import { isTypedBarcode, onlyDigits, prettyBarcode } from "@/lib/barcode";
 import { BarcodeScanner } from "./BarcodeScanner";
+import { DestinoSwitch, type Destino } from "@/components/ui/Destino";
 
 // Ler o codigo, dizer a quantidade, pronto: o item cai no carrinho.
 //
@@ -21,6 +22,10 @@ import { BarcodeScanner } from "./BarcodeScanner";
 //
 // O leitor nao fecha depois de cada item: fecha o ciclo e volta a ler, porque no
 // mercado se pega um produto atras do outro.
+//
+// Destino pela tela: aberto do Estoque, o codigo SOMA em casa (ou da baixa, "Usei"),
+// sem preco e sem carrinho; aberto da Lista, vai para o carrinho. A chave no topo
+// troca na hora.
 
 const UNITS = ["un", "kg", "g", "L", "ml", "pct", "cx", "dz"];
 const field = "h-12 w-full rounded-[13px] border border-border bg-card-2 px-3.5 text-[15px]";
@@ -28,8 +33,18 @@ const labelCls = "mb-1.5 block text-xs font-bold text-text-2";
 
 type Fase = "ler" | "confirmar";
 
-export function BarcodeModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { findBarcode, addTripItemByBarcode, showToast, trip, stock } = useStore();
+export function BarcodeModal({
+  open,
+  onClose,
+  destinoPadrao = "carrinho",
+}: {
+  open: boolean;
+  onClose: () => void;
+  destinoPadrao?: "estoque" | "carrinho";
+}) {
+  const { findBarcode, addTripItemByBarcode, addStockByBarcode, baixaStock, showToast, trip, stock } = useStore();
+  const [destino, setDestino] = useState<Destino>(destinoPadrao);
+  const emCasa = destino === "estoque";
 
   const [fase, setFase] = useState<Fase>("ler");
   const [codigo, setCodigo] = useState("");
@@ -123,6 +138,7 @@ export function BarcodeModal({ open, onClose }: { open: boolean; onClose: () => 
     voltarALer();
     setLidos([]);
     setSemCamera(false);
+    setDestino(destinoPadrao);
   }
 
   function buscarDigitado() {
@@ -131,8 +147,38 @@ export function BarcodeModal({ open, onClose }: { open: boolean; onClose: () => 
     resolver(code);
   }
 
+  async function guardar() {
+    setBusy(true);
+    const r = await addStockByBarcode({
+      code: codigo,
+      name: nome.trim(),
+      qty: Number(qtd.replace(",", ".")) || 1,
+      unit: unidade,
+    });
+    setBusy(false);
+    if (!r.ok) return showToast(r.erro);
+    setLidos((l) => [`+${qtd} ${nome.trim()}`, ...l]);
+    showToast(`${nome.trim()}: +${qtd} ${unidade} no estoque`, { desfazer: true });
+    voltarALer();
+  }
+
+  // Dar baixa lendo a embalagem: "usei" tira do estoque o que ja existe em casa.
+  async function usei() {
+    const item = findByName(nome, stock);
+    if (!item) return showToast("Esse produto ainda não está no estoque.");
+    setBusy(true);
+    const q = Number(qtd.replace(",", ".")) || 1;
+    const r = await baixaStock(item.id, q);
+    setBusy(false);
+    if (!r.ok) return showToast(r.erro);
+    setLidos((l) => [`-${qtd} ${nome.trim()}`, ...l]);
+    showToast(`${nome.trim()}: usei ${qtd} ${item.unit}`, { desfazer: true });
+    voltarALer();
+  }
+
   async function pegar() {
     if (!nome.trim()) return showToast("Diga o nome do produto.");
+    if (emCasa) return guardar();
     setBusy(true);
     const r = await addTripItemByBarcode({
       code: codigo,
@@ -165,16 +211,18 @@ export function BarcodeModal({ open, onClose }: { open: boolean; onClose: () => 
             Leitor de código
           </div>
           <div className="text-[19px] font-extrabold">
-            {fase === "ler" ? "Leia o código do produto" : "Quanto você pegou?"}
+            {fase === "ler" ? "Leia o código do produto" : emCasa ? "Quanto tem aí?" : "Quanto você pegou?"}
           </div>
         </div>
-        {trip && (
+        {trip && !emCasa && (
           <div className="shrink-0 text-right">
             <div className="text-[18px] font-extrabold leading-none">{brl(total)}</div>
             <div className="mt-1 text-[12px] text-text-3">no carrinho</div>
           </div>
         )}
       </div>
+
+      <DestinoSwitch valor={destino} opcoes={["estoque", "carrinho"]} onChange={setDestino} />
 
       {fase === "ler" ? (
         <>
@@ -292,6 +340,17 @@ export function BarcodeModal({ open, onClose }: { open: boolean; onClose: () => 
             </div>
           </div>
 
+          {emCasa ? (
+            <p className="mb-5 rounded-[13px] bg-card-2 p-3 text-[13px] text-text-2">
+              {(() => {
+                const item = findByName(nome, stock);
+                return item
+                  ? `Em casa agora: ${item.current} ${item.unit}. "Guardar" soma, "Usei" tira.`
+                  : "Ainda não está no estoque: “Guardar” cria o item.";
+              })()}
+            </p>
+          ) : (
+            <>
           <label className={labelCls}>Quanto custou? (por {unidade})</label>
           <div className="relative mb-1.5">
             <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[18px] font-bold text-text-3">
@@ -322,22 +381,38 @@ export function BarcodeModal({ open, onClose }: { open: boolean; onClose: () => 
             onFeito={voltarALer}
           />
 
+            </>
+          )}
+
           <div className="flex gap-3">
-            <button
-              type="button"
-              onClick={voltarALer}
-              className="h-[56px] flex-1 rounded-[14px] border border-border bg-card text-[15px] font-bold"
-            >
-              Ler outro
-            </button>
+            {emCasa && findByName(nome, stock) ? (
+              <button
+                type="button"
+                onClick={usei}
+                disabled={busy}
+                className="h-[56px] flex-1 rounded-[14px] border-2 border-border bg-card text-[15px] font-bold disabled:opacity-50"
+              >
+                − Usei
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={voltarALer}
+                className="h-[56px] flex-1 rounded-[14px] border border-border bg-card text-[15px] font-bold"
+              >
+                Ler outro
+              </button>
+            )}
             <button
               type="submit"
               disabled={busy || !nome.trim()}
               className="h-[56px] flex-[2] rounded-[14px] bg-brand text-[15px] font-bold text-brand-ink disabled:opacity-50"
             >
               {busy
-                ? "Colocando…"
-                : totalItem > 0
+                ? "Salvando…"
+                : emCasa
+                  ? "+ Guardar no estoque"
+                  : totalItem > 0
                   ? `Colocar · ${brl(totalItem)}`
                   : "Colocar no carrinho"}
             </button>

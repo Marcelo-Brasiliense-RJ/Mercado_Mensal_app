@@ -6,6 +6,7 @@ import { QtyStepper } from "@/components/ui/QtyStepper";
 import { useStore } from "@/lib/store";
 import { createClient } from "@/lib/supabase/client";
 import { unitFor, findByName } from "@/lib/defaults";
+import { DestinoSwitch, type Destino } from "@/components/ui/Destino";
 
 // Primeiro nome do usuario logado (user_metadata.name/full_name ou prefixo do
 // email), so pra personalizar o cabecalho do popup.
@@ -36,7 +37,11 @@ export function AddItemModal({
   open: boolean;
   onClose: () => void;
 }) {
-  const { addShopItem, showToast, stock } = useStore();
+  const { addShopItem, addStock, showToast, stock } = useStore();
+  // Aberto da Lista, vai para a lista; a chave manda direto para o estoque (sem preco:
+  // estoque nao e compra).
+  const [destino, setDestino] = useState<Destino>("lista");
+  const emCasa = destino === "estoque";
   const userName = useUserName();
   const [nome, setNome] = useState("");
   const [qtd, setQtd] = useState("1");
@@ -65,10 +70,17 @@ export function AddItemModal({
     setPreco("");
     setUnidadeManual(false);
     setPrecoManual(false);
+    setDestino("lista");
   }
 
   async function submit() {
     if (!nome.trim()) return;
+    if (emCasa) {
+      const r = await addStock({ name: nome.trim(), qty: Number(qtd.replace(",", ".")) || 1, unit: unidade });
+      if (!r.ok) return showToast(r.erro);
+      showToast(`${nome.trim()} no estoque`, { desfazer: true });
+      return close();
+    }
     const r = await addShopItem({
       name: nome.trim(),
       desired_quantity: Number(qtd.replace(",", ".")) || 1,
@@ -89,8 +101,10 @@ export function AddItemModal({
         {userName && (
           <div className="text-[13px] font-bold text-brand">{userName}</div>
         )}
-        <div className="text-[19px] font-extrabold">Adicionar item</div>
+        <div className="text-[19px] font-extrabold">{emCasa ? "Guardar no estoque" : "Adicionar à lista"}</div>
       </div>
+
+      <DestinoSwitch valor={destino} opcoes={["lista", "estoque"]} onChange={setDestino} />
 
       <label className={labelCls}>Nome</label>
       <input
@@ -133,7 +147,8 @@ export function AddItemModal({
         </div>
       </div>
 
-      <label className={labelCls}>Preço estimado (unidade)</label>
+      {/* Estoque nao e compra: sem preco. */}
+      <label className={`${labelCls} ${emCasa ? "hidden" : ""}`}>Preço estimado (unidade)</label>
       <input
         value={preco}
         onChange={(e) => {
@@ -142,7 +157,7 @@ export function AddItemModal({
         }}
         inputMode="decimal"
         placeholder="R$ 0,00"
-        className={`${field} mb-5`}
+        className={`${field} mb-5 ${emCasa ? "hidden" : ""}`}
       />
 
       <div className="flex gap-3">

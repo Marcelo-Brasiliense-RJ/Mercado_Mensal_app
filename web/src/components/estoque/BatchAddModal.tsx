@@ -5,6 +5,7 @@ import { Modal } from "@/components/ui/Modal";
 import { ItemGrid, type GridItem, type GridField } from "@/components/receipt/ItemGrid";
 import { unitFor, findByName } from "@/lib/defaults";
 import { useStore } from "@/lib/store";
+import { DestinoSwitch, type Destino } from "@/components/ui/Destino";
 
 // Cadastrar a despensa inteira numa tela so. Antes eram 8 passos e dois modais
 // empilhados POR ITEM, com o modal fechando a cada um. A grade e a mesma da
@@ -19,7 +20,10 @@ export function BatchAddModal({
   open: boolean;
   onClose: () => void;
 }) {
-  const { addStock, showToast, stock } = useStore();
+  const { addStock, addShopItem, showToast, stock } = useStore();
+  // Aberto do Estoque, vai para o estoque; a chave manda a mesma grade para a lista.
+  const [destino, setDestino] = useState<Destino>("estoque");
+  const paraLista = destino === "lista";
   const [items, setItems] = useState<GridItem[]>([vazia(), vazia(), vazia()]);
   const [saving, setSaving] = useState(false);
 
@@ -45,13 +49,16 @@ export function BatchAddModal({
   // Mesmo aviso do modal de item unico: duplicado so aparecia depois de salvar.
   function avisoDe(nome: string) {
     const jaTem = findByName(nome, stock);
-    return jaTem ? `Você já tem ${jaTem.current} ${jaTem.unit} em casa. Vamos somar.` : null;
+    if (!jaTem) return null;
+    if (paraLista) return jaTem.current > 0 ? `Você já tem ${jaTem.current} ${jaTem.unit} em casa.` : null;
+    return `Você já tem ${jaTem.current} ${jaTem.unit} em casa. Vamos somar.`;
   }
 
   function close() {
     onClose();
     setItems([vazia(), vazia(), vazia()]);
     setSaving(false);
+    setDestino("estoque");
   }
 
   const preenchidos = items.filter((i) => i.nome.trim());
@@ -63,11 +70,18 @@ export function BatchAddModal({
     if (!preenchidos.length) return;
     setSaving(true);
     for (const it of preenchidos) {
-      const r = await addStock({
-        name: it.nome.trim(),
-        qty: Number(it.qtd) || 1,
-        unit: it.unidade,
-      });
+      const r = paraLista
+        ? await addShopItem({
+            name: it.nome.trim(),
+            desired_quantity: Number(it.qtd) || 1,
+            unit: it.unidade,
+            estimated_price: findByName(it.nome, stock)?.priceLast ?? null,
+          })
+        : await addStock({
+            name: it.nome.trim(),
+            qty: Number(it.qtd) || 1,
+            unit: it.unidade,
+          });
       if (!r.ok) {
         setSaving(false);
         return showToast(r.erro);
@@ -75,15 +89,18 @@ export function BatchAddModal({
     }
     showToast(
       preenchidos.length === 1
-        ? `${preenchidos[0].nome.trim()} adicionado ao estoque`
-        : `${preenchidos.length} itens adicionados ao estoque`,
+        ? `${preenchidos[0].nome.trim()} ${paraLista ? "na lista" : "adicionado ao estoque"}`
+        : `${preenchidos.length} itens ${paraLista ? "na lista" : "adicionados ao estoque"}`,
     );
     close();
   }
 
   return (
     <Modal open={open} onClose={close}>
-      <div className="mb-1 text-[20px] font-extrabold">Adicionar ao estoque</div>
+      <div className="mb-3 text-[20px] font-extrabold">
+        {paraLista ? "Pôr na lista" : "Adicionar ao estoque"}
+      </div>
+      <DestinoSwitch valor={destino} opcoes={["estoque", "lista"]} onChange={setDestino} />
       <p className="mb-3.5 text-[14px] leading-relaxed text-text-2">
         Escreva um item por linha. A unidade vem do nome e as linhas em branco são
         ignoradas.

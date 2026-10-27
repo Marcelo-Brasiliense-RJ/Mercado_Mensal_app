@@ -6,12 +6,16 @@ import { useStore } from "@/lib/store";
 import { useOfertas } from "./useOfertas";
 import { DeOlho, Estrela } from "./DeOlho";
 import { Foto, PorUnidade, Selo } from "./pecas";
+import { Grupo, useRecolhidos } from "@/components/ui/Grupo";
+import { ICONE } from "@/lib/categorias";
 import { ScreenHeader } from "@/components/layout/ScreenHeader";
 import { Modal } from "@/components/ui/Modal";
 import { SearchIcon, TagIcon } from "@/components/ui/icons";
 import {
   casaBusca,
   corMercado,
+  corredor,
+  faltaEmCasa,
   desconto,
   maisBarato,
   nomeCompleto,
@@ -26,7 +30,7 @@ import {
 // 3. um unico campo de busca. Nada para preencher: a lista vem de Repor + lista de compras.
 export function OfertasView() {
   const estado = useOfertas();
-  const { shopping, addShopItem, showToast } = useStore();
+  const { shopping, stock, addShopItem, showToast } = useStore();
   const [busca, setBusca] = useState("");
   const [aberto, setAberto] = useState<{ titulo: string; opcoes: Oferta[] } | null>(null);
   const [postos, setPostos] = useState<Set<string>>(new Set());
@@ -48,7 +52,11 @@ export function OfertasView() {
   }
 
   const dados = estado.fase === "ok" ? estado.dados : null;
-  const resumo = useMemo(() => (dados ? resumir(dados.ofertas, dados.lista) : null), [dados]);
+  // O que falta vem do que o app ja tem na mao (lista + estoque), nao do cache das
+  // ofertas: tirar item da lista muda a conta na hora.
+  const lista = useMemo(() => faltaEmCasa(shopping, stock), [shopping, stock]);
+  const resumo = useMemo(() => (dados ? resumir(dados.ofertas, lista) : null), [dados, lista]);
+  const [verItens, setVerItens] = useState(false);
   const achadosBusca = useMemo(() => {
     if (!dados || busca.trim().length < 2) return null;
     return dados.ofertas.filter((o) => casaBusca(o, busca)).sort(maisBarato);
@@ -135,6 +143,18 @@ export function OfertasView() {
                   Pegando o mais barato de cada um: {brl(resumo.melhorTotal)} em {resumo.lojasMelhor} mercados.
                 </div>
               )}
+              <button
+                onClick={() => setVerItens((v) => !v)}
+                aria-expanded={verItens}
+                className="mt-3 text-[14px] font-bold underline underline-offset-2"
+              >
+                {verItens ? "Esconder os itens" : `Ver quais são os ${melhor.itens} itens`}
+              </button>
+              {verItens && (
+                <div className="mt-3 rounded-2xl bg-white/95 p-1 text-text">
+                  <ItensDoMercado mercado={melhor.mercado} itens={comOferta} />
+                </div>
+              )}
               {(() => {
                 // O que esta em Repor e tem oferta nesse mercado, e ainda nao esta na lista.
                 const levar = comOferta
@@ -162,7 +182,7 @@ export function OfertasView() {
             </section>
           ) : (
             <Aviso
-              titulo={dados.lista.length ? "O que falta em casa não está em oferta" : "Nada faltando em casa"}
+              titulo={lista.length ? "O que falta em casa não está em oferta" : "Nada faltando em casa"}
               texto="Veja abaixo os maiores descontos da semana."
             />
           )}
@@ -194,26 +214,13 @@ export function OfertasView() {
             </section>
           )}
 
-          {/* 3. Onde comprar */}
+          {/* 3. Onde comprar: cada mercado abre e mostra os itens dele */}
           {resumo.comOferta > 0 && (
             <section className="flex flex-col gap-2">
               <Titulo>Quanto sai em cada mercado</Titulo>
+              <p className="-mt-1 text-[13px] text-text-2">Toque num mercado para ver os itens.</p>
               {resumo.mercados.map((m) => (
-                <div key={m.mercado} className="flex items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3">
-                  <Selo mercado={m.mercado} />
-                  <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-card-2">
-                    <div
-                      className="h-full rounded-full"
-                      style={{ width: `${(m.itens / resumo.comOferta) * 100}%`, background: corMercado(m.mercado) }}
-                    />
-                  </div>
-                  <div className="text-right tabular-nums">
-                    <div className="text-[15px] font-extrabold">{m.itens ? brl(m.total) : "—"}</div>
-                    <div className="text-[12px] text-text-2">
-                      {m.itens}/{resumo.comOferta} itens
-                    </div>
-                  </div>
-                </div>
+                <LinhaMercado key={m.mercado} m={m} total={resumo.comOferta} itens={comOferta} />
               ))}
             </section>
           )}
@@ -229,6 +236,13 @@ export function OfertasView() {
               </Grade>
             </section>
           )}
+
+          {/* 5. Todo o encarte, por categoria */}
+          <TodasOfertas
+            ofertas={dados.ofertas}
+            naLista={naLista}
+            onLista={(o) => porNaLista(o.produto, o)}
+          />
         </>
       )}
 
@@ -375,5 +389,167 @@ function CardOferta({
         </div>
       </div>
     </article>
+  );
+}
+
+type ItemComOfertas = { item: { nome: string }; opcoes: Oferta[] };
+
+// Os itens que faltam em casa vistos de um mercado: quanto custa cada um la, se la e
+// o mais barato, e o que esse mercado nao tem.
+function ItensDoMercado({ mercado, itens }: { mercado: string; itens: ItemComOfertas[] }) {
+  const tem = itens
+    .map(({ item, opcoes }) => ({ item, o: opcoes.find((o) => o.mercado === mercado), melhor: opcoes[0] }))
+    .filter((x): x is { item: { nome: string }; o: Oferta; melhor: Oferta } => !!x.o);
+  const naoTem = itens.filter(({ opcoes }) => !opcoes.some((o) => o.mercado === mercado));
+  return (
+    <div className="flex flex-col divide-y divide-border">
+      {tem.map(({ item, o, melhor }) => {
+        // "mais barato" so quando e mesmo; o aviso do outro mercado so quando la custa menos.
+        const ganha = melhor.mercado === mercado;
+        const outroMenor = !ganha && melhor.preco_por < o.preco_por;
+        return (
+          <div key={item.nome} className="flex items-center gap-2.5 px-2 py-2">
+            <Foto o={o} className="h-11 w-11 rounded-lg" />
+            <div className="min-w-0 flex-1">
+              <div className="text-[11px] font-extrabold uppercase tracking-[0.05em] text-brand">{item.nome}</div>
+              <div className="truncate text-[13px] font-semibold">{nomeCompleto(o)}</div>
+              {outroMenor && (
+                <div className="text-[11px] text-text-2">
+                  No {nomeMercado(melhor.mercado)} sai {brl(melhor.preco_por)}
+                </div>
+              )}
+            </div>
+            <div className="text-right">
+              <div className={`text-[15px] font-extrabold tabular-nums ${ganha ? "text-pos" : ""}`}>{brl(o.preco_por)}</div>
+              {ganha && <div className="text-[10px] font-bold text-pos">mais barato</div>}
+            </div>
+          </div>
+        );
+      })}
+      {naoTem.length > 0 && (
+        <div className="px-2 py-2 text-[12px] text-text-2">
+          <b>Não tem em oferta aqui:</b> {naoTem.map((x) => x.item.nome).join(", ")}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LinhaMercado({
+  m,
+  total,
+  itens,
+}: {
+  m: { mercado: string; itens: number; total: number };
+  total: number;
+  itens: ItemComOfertas[];
+}) {
+  const [aberto, setAberto] = useState(false);
+  return (
+    <div className="overflow-hidden rounded-2xl border border-border bg-card">
+      <button
+        onClick={() => setAberto((v) => !v)}
+        aria-expanded={aberto}
+        className="flex w-full items-center gap-3 px-4 py-3 text-left"
+      >
+        <Selo mercado={m.mercado} />
+        <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-card-2">
+          <div
+            className="h-full rounded-full"
+            style={{ width: `${(m.itens / total) * 100}%`, background: corMercado(m.mercado) }}
+          />
+        </div>
+        <div className="text-right tabular-nums">
+          <div className="text-[15px] font-extrabold">{m.itens ? brl(m.total) : "—"}</div>
+          <div className="text-[12px] text-text-2">
+            {m.itens}/{total} itens
+          </div>
+        </div>
+        <span className={`text-[18px] text-text-3 transition-transform ${aberto ? "rotate-180" : ""}`} aria-hidden>
+          ⌄
+        </span>
+      </button>
+      {aberto && (
+        <div className="border-t border-border">
+          <ItensDoMercado mercado={m.mercado} itens={itens} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Encarte inteiro, por categoria, como no prototipo. Fechado por padrao: sao milhares
+// de ofertas, e quem abre uma categoria ve a mais barata primeiro.
+function TodasOfertas({
+  ofertas,
+  naLista,
+  onLista,
+}: {
+  ofertas: Oferta[];
+  naLista: (nome: string) => boolean;
+  onLista: (o: Oferta) => void;
+}) {
+  const [mercado, setMercado] = useState<string | null>(null);
+  const [mostrar, setMostrar] = useState<Record<string, number>>({});
+  const { aberto, alternar } = useRecolhidos("ofertas_abertas", "fechado");
+  const mercados = useMemo(() => [...new Set(ofertas.map((o) => o.mercado))], [ofertas]);
+  const grupos = useMemo(() => {
+    const g: Record<string, Oferta[]> = {};
+    for (const o of ofertas) if (!mercado || o.mercado === mercado) (g[o.categoria] ??= []).push(o);
+    for (const k in g) g[k].sort((a, b) => desconto(b) - desconto(a) || maisBarato(a, b));
+    return Object.entries(g).sort((a, b) => corredor(a[0]) - corredor(b[0]));
+  }, [ofertas, mercado]);
+  const n = grupos.reduce((t, [, os]) => t + os.length, 0);
+
+  return (
+    <section className="flex flex-col gap-3">
+      <Titulo>Todas as ofertas dos encartes</Titulo>
+      <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+        {[null, ...mercados].map((m) => (
+          <button
+            key={m ?? "todos"}
+            onClick={() => setMercado(m)}
+            className={`h-10 shrink-0 rounded-full border-2 px-3.5 text-[13px] font-bold ${
+              mercado === m ? "border-transparent text-white" : "border-border bg-card text-text-2"
+            }`}
+            style={mercado === m ? { background: m ? corMercado(m) : "var(--brand)" } : undefined}
+          >
+            {m ? nomeMercado(m) : "Todos"}
+          </button>
+        ))}
+      </div>
+      <p className="-mt-1 text-[13px] text-text-2">
+        {n} ofertas{mercado ? ` no ${nomeMercado(mercado)}` : ""}. Toque numa categoria para abrir.
+      </p>
+      {grupos.map(([cat, os]) => {
+        const limite = mostrar[cat] ?? 12;
+        const maior = Math.max(0, ...os.map(desconto));
+        return (
+          <Grupo
+            key={cat}
+            titulo={cat}
+            icone={ICONE[cat] ?? "🛒"}
+            info={`${os.length} ofertas`}
+            destaque={maior >= 15 ? `até -${maior}%` : undefined}
+            aberto={aberto(cat)}
+            onAlternar={() => alternar(cat)}
+          >
+            <Grade>
+              {os.slice(0, limite).map((o) => (
+                <CardOferta key={o.id} o={o} naLista={naLista(o.produto)} onLista={() => onLista(o)} />
+              ))}
+            </Grade>
+            {os.length > limite && (
+              <button
+                onClick={() => setMostrar((s) => ({ ...s, [cat]: limite + 24 }))}
+                className="h-12 rounded-2xl bg-card-2 text-[14px] font-bold"
+              >
+                Ver mais {Math.min(24, os.length - limite)} de {os.length - limite}
+              </button>
+            )}
+          </Grupo>
+        );
+      })}
+    </section>
   );
 }

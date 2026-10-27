@@ -57,16 +57,6 @@ export type BarcodeInfo = {
   salvaVinculo: boolean;
 };
 
-// Uma compra ja registrada no mes, como a aba Economia lista para editar.
-export type Compra = {
-  id: string;
-  name: string;
-  qty: number;
-  unit: string;
-  price: number;
-  total: number;
-  at: string;
-};
 
 // Slugs devolvidos pelas RPCs (grep "'erro'," em supabase/migrations).
 const ERROS: Record<string, string> = {
@@ -138,6 +128,7 @@ type Store = Data & {
   }) => Promise<RpcResult>;
   cancelTrip: () => Promise<RpcResult>;
   findBarcode: (code: string) => Promise<BarcodeInfo | null>;
+  addStockByBarcode: (item: { code: string; name?: string; qty: number; unit?: string }) => Promise<RpcResult>;
   addTripItemByBarcode: (item: {
     code: string;
     name?: string;
@@ -160,7 +151,6 @@ type Store = Data & {
   buyItems: (ids: string[]) => Promise<RpcResult>;
   removeItems: (ids: string[]) => Promise<RpcResult>;
   setBudget: (total: number) => Promise<RpcResult>;
-  loadCompras: () => Promise<Compra[]>;
   updateCompra: (id: string, patch: { qty?: number; price?: number }) => Promise<RpcResult>;
   deleteCompra: (id: string) => Promise<RpcResult>;
   addCompra: (c: { name: string; qty: number; price: number; unit: string }) => Promise<RpcResult>;
@@ -388,6 +378,36 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
 
   // Uma chamada so: poe no carrinho e amarra o codigo ao item. O vinculo so e
   // gravado se o carrinho aceitar (ver 0035), entao aqui nao ha o que desfazer.
+  // Codigo lido na tela de Estoque: soma em casa e guarda o vinculo (0041). Sem a
+  // 0041 no banco, soma pelo caminho normal, so sem amarrar o codigo.
+  const addStockByBarcode = useCallback(
+    async (item: { code: string; name?: string; qty: number; unit?: string }) => {
+      const { data, error } = await createClient().rpc("mercado_barcode_estoque_web", {
+        p_code: item.code,
+        p_name: item.name ?? null,
+        p_qty: item.qty,
+        p_unit: item.unit ?? null,
+      });
+      if (rpcAusente(error)) {
+        const r = await callRpc("mercado_stock_add_web", {
+          p_name: item.name ?? "",
+          p_qty: item.qty,
+          p_unit: item.unit ?? "un",
+        });
+        if (r.ok) await reloadData();
+        return r;
+      }
+      if (error) return { ok: false as const, erro: "Não deu para salvar. Tente de novo." };
+      const res = data as { ok?: boolean; erro?: string } | null;
+      if (res && res.ok === false) {
+        return { ok: false as const, erro: ERROS[res.erro ?? ""] ?? "Não deu para salvar. Tente de novo." };
+      }
+      await reloadData();
+      return { ok: true as const };
+    },
+    [reloadData],
+  );
+
   const addTripItemByBarcode = useCallback(
     async (item: {
       code: string;
@@ -547,13 +567,8 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
     return r;
   }, []);
 
-  // Compras ja registradas do mes. Editar mexe em duas coisas, o gasto e o estoque,
-  // e quem cuida disso e a 0033; aqui so recarregamos tudo depois de cada escrita.
-  const loadCompras = useCallback(async () => {
-    const { data } = await createClient().rpc("mercado_compras_web");
-    return (data as Compra[] | null) ?? [];
-  }, []);
-
+  // Editar compra mexe em duas coisas, o gasto e o estoque, e quem cuida disso e a
+  // 0033; aqui so recarregamos tudo depois de cada escrita.
   const updateCompra = useCallback(
     async (id: string, patch: { qty?: number; price?: number }) => {
       const r = await callRpc("mercado_compra_update_web", {
@@ -642,6 +657,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       addTripItem,
       cancelTrip,
       findBarcode,
+      addStockByBarcode,
       addTripItemByBarcode,
       updateTripItem,
       finalizeTrip,
@@ -652,7 +668,6 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       buyItems,
       removeItems,
       setBudget,
-      loadCompras,
       updateCompra,
       deleteCompra,
       addCompra,
@@ -682,6 +697,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       addTripItem,
       cancelTrip,
       findBarcode,
+      addStockByBarcode,
       addTripItemByBarcode,
       updateTripItem,
       finalizeTrip,
@@ -692,7 +708,6 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       buyItems,
       removeItems,
       setBudget,
-      loadCompras,
       updateCompra,
       deleteCompra,
       addCompra,
