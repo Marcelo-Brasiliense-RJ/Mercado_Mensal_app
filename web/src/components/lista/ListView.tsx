@@ -12,6 +12,8 @@ import { CartPanel } from "./CartPanel";
 import { BarcodeModal } from "./BarcodeModal";
 import { VoiceModal } from "@/components/voz/VoiceModal";
 import { QuickBar } from "./QuickBar";
+import { useListaOfertas } from "@/components/ofertas/useOfertas";
+import { corMercado, maisBarataPara, nomeMercado } from "@/lib/ofertas";
 
 export function ListView() {
   const { shopping, trip, buyItems, removeItems, addTripItem, showToast, reloadTrip } =
@@ -22,6 +24,8 @@ export function ListView() {
   const [q, setQ] = useState("");
   const [action, setAction] = useState<ShopItem | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  // Selo "em oferta" em cada item: ao montar a lista ja se ve onde comprar.
+  const ofertas = useListaOfertas();
 
   // Modo "No mercado" ao vivo: enquanto esta tela esta aberta, verifica a cada
   // 4s se ha compra aberta (ou novos itens) vinda do Telegram.
@@ -191,6 +195,23 @@ export function ListView() {
                     {i.desired_quantity} {i.unit} · {brl(price)}
                     {price > 0 && ` = ${brl(i.desired_quantity * price)}`}
                   </div>
+                  {!bought &&
+                    (() => {
+                      const o = maisBarataPara(ofertas, i.name);
+                      return (
+                        o && (
+                          <div
+                            title={`Em oferta no ${nomeMercado(o.mercado)}`}
+                            className="mt-1 inline-flex max-w-full items-center gap-1.5 rounded-md px-2 py-0.5 text-[12px] font-bold text-white"
+                            style={{ background: corMercado(o.mercado) }}
+                          >
+                            <span className="truncate">
+                              🏷 {nomeMercado(o.mercado)} · {brl(o.preco_por)}
+                            </span>
+                          </div>
+                        )
+                      );
+                    })()}
                 </button>
                 {jaTenho && (
                   <span className="shrink-0 rounded-full bg-pos-soft px-2.5 py-[3px] text-[12px] font-bold text-pos">

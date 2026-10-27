@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { AvisoMaisBarato } from "@/components/ofertas/AvisoMaisBarato";
 import { Modal } from "@/components/ui/Modal";
 import { QtyStepper } from "@/components/ui/QtyStepper";
 import { BarcodeIcon } from "@/components/ui/icons";
@@ -310,6 +311,14 @@ export function BarcodeModal({ open, onClose }: { open: boolean; onClose: () => 
           <p className="mb-5 text-[12px] text-text-3">
             Em branco, usamos o preço da última compra desse item.
           </p>
+
+          <AvisoMaisBarato
+            nome={nome}
+            preco={preco.trim() === "" ? null : Number(preco.replace(",", ".")) || null}
+            unidade={unidade}
+            qtd={Number(qtd.replace(",", ".")) || 1}
+            onFeito={voltarALer}
+          />
 
           <div className="flex gap-3">
             <button

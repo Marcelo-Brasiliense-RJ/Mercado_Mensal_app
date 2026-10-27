@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { useMemo, useState } from "react";
 import { brl } from "@/lib/format";
+import { useStore } from "@/lib/store";
+import { useOfertas } from "./useOfertas";
 import { ScreenHeader } from "@/components/layout/ScreenHeader";
 import { Modal } from "@/components/ui/Modal";
 import { SearchIcon, TagIcon } from "@/components/ui/icons";
@@ -16,36 +17,34 @@ import {
   porUnidade,
   prazo,
   resumir,
-  type ItemFalta,
   type Oferta,
 } from "@/lib/ofertas";
-
-type Dados = { ofertas: Oferta[]; lista: ItemFalta[]; atualizado_em: string | null };
-type Estado = { fase: "carregando" } | { fase: "desligado" } | { fase: "erro" } | { fase: "ok"; dados: Dados };
 
 // Aba Ofertas. Pensada para ser entendida num relance, com as maos ocupadas:
 // 1. a resposta primeiro ("va no Guanabara"), 2. o que falta em casa, mais barato,
 // 3. um unico campo de busca. Nada para preencher: a lista vem de Repor + lista de compras.
 export function OfertasView() {
-  const [estado, setEstado] = useState<Estado>({ fase: "carregando" });
+  const estado = useOfertas();
+  const { shopping, addShopItem, showToast } = useStore();
   const [busca, setBusca] = useState("");
   const [aberto, setAberto] = useState<{ titulo: string; opcoes: Oferta[] } | null>(null);
+  const [postos, setPostos] = useState<Set<string>>(new Set());
+  const [guardando, setGuardando] = useState(false);
+  const naLista = (nome: string) =>
+    postos.has(nome.toLowerCase()) ||
+    shopping.some((i) => i.status === "pending" && i.name.toLowerCase() === nome.toLowerCase());
 
-  useEffect(() => {
-    let vivo = true;
-    createClient()
-      .rpc("mercado_ofertas_web")
-      .then(({ data, error }) => {
-        if (!vivo) return;
-        // PGRST202: migration 0038 ainda nao aplicada. Nao e erro para a pessoa.
-        if (error) return setEstado({ fase: error.code === "PGRST202" ? "desligado" : "erro" });
-        const d = data as (Dados & { ok: boolean }) | null;
-        setEstado(d?.ok ? { fase: "ok", dados: d } : { fase: "erro" });
-      });
-    return () => {
-      vivo = false;
-    };
-  }, []);
+  // Um toque: o item vai para a lista com o preco da oferta (a pessoa ve na Lista onde comprar).
+  async function porNaLista(nome: string, o: Oferta, silencioso = false) {
+    const r = await addShopItem({ name: nome.toLowerCase(), desired_quantity: 1, unit: "un", estimated_price: o.preco_por });
+    if (!r.ok) {
+      showToast(r.erro);
+      return false;
+    }
+    setPostos((s) => new Set(s).add(nome.toLowerCase()));
+    if (!silencioso) showToast(`${nome} na lista: ${brl(o.preco_por)} no ${nomeMercado(o.mercado)}`);
+    return true;
+  }
 
   const dados = estado.fase === "ok" ? estado.dados : null;
   const resumo = useMemo(() => (dados ? resumir(dados.ofertas, dados.lista) : null), [dados]);
@@ -108,7 +107,7 @@ export function OfertasView() {
           </Titulo>
           <Grade>
             {achadosBusca.slice(0, 40).map((o) => (
-              <CardOferta key={o.id} o={o} />
+              <CardOferta key={o.id} o={o} naLista={naLista(o.produto)} onLista={() => porNaLista(o.produto, o)} />
             ))}
           </Grade>
         </section>
@@ -132,6 +131,30 @@ export function OfertasView() {
                   Pegando o mais barato de cada um: {brl(resumo.melhorTotal)} em {resumo.lojasMelhor} mercados.
                 </div>
               )}
+              {(() => {
+                // O que esta em Repor e tem oferta nesse mercado, e ainda nao esta na lista.
+                const levar = comOferta
+                  .filter(({ item }) => !naLista(item.nome))
+                  .map(({ item, opcoes }) => ({ item, o: opcoes.find((o) => o.mercado === melhor.mercado) }))
+                  .filter((x): x is { item: typeof x.item; o: Oferta } => !!x.o);
+                if (!levar.length) return null;
+                return (
+                  <button
+                    onClick={async () => {
+                      setGuardando(true);
+                      let n = 0;
+                      for (const { item, o } of levar) if (await porNaLista(item.nome, o, true)) n++;
+                      setGuardando(false);
+                      showToast(`${n} ${n > 1 ? "itens" : "item"} na lista para o ${nomeMercado(melhor.mercado)}`);
+                    }}
+                    disabled={guardando}
+                    className="mt-4 h-12 w-full rounded-2xl bg-white text-[15px] font-extrabold disabled:opacity-60"
+                    style={{ color: corMercado(melhor.mercado) }}
+                  >
+                    {guardando ? "Pondo na lista…" : `Pôr ${levar.length} ${levar.length > 1 ? "itens" : "item"} na lista`}
+                  </button>
+                );
+              })()}
             </section>
           ) : (
             <Aviso
@@ -154,6 +177,8 @@ export function OfertasView() {
                     ultimo={item.ultimo_preco}
                     mais={opcoes.length - 1}
                     onMais={() => setAberto({ titulo: item.nome, opcoes })}
+                    naLista={naLista(item.nome)}
+                    onLista={() => porNaLista(item.nome, opcoes[0])}
                   />
                 ))}
               </Grade>
@@ -195,7 +220,7 @@ export function OfertasView() {
               <Titulo>Maiores descontos da semana</Titulo>
               <Grade>
                 {resumo.achados.map((o) => (
-                  <CardOferta key={o.id} o={o} />
+                  <CardOferta key={o.id} o={o} naLista={naLista(o.produto)} onLista={() => porNaLista(o.produto, o)} />
                 ))}
               </Grade>
             </section>
@@ -315,6 +340,8 @@ function CardOferta({
   ultimo,
   mais = 0,
   onMais,
+  naLista,
+  onLista,
 }: {
   o: Oferta;
   rotulo?: string;
@@ -322,6 +349,8 @@ function CardOferta({
   ultimo?: number | null;
   mais?: number;
   onMais?: () => void;
+  naLista?: boolean;
+  onLista?: () => void;
 }) {
   const off = desconto(o);
   const p = prazo(o);
@@ -357,11 +386,27 @@ function CardOferta({
         <div className="mt-1 flex flex-col gap-2 border-t border-border pt-2 text-[12px]">
           <span className={p?.urgente ? "font-bold text-warn" : "text-text-2"}>{p?.texto ?? "Preço de hoje"}</span>
           {/* Alvo grande: a pessoa esta com a mao ocupada no mercado */}
-          {mais > 0 && onMais && (
-            <button onClick={onMais} className="h-10 w-full rounded-xl bg-brand-soft text-[13px] font-bold text-brand">
-              Comparar +{mais}
-            </button>
-          )}
+          <div className="flex gap-2">
+            {mais > 0 && onMais && (
+              <button onClick={onMais} className="h-10 flex-1 rounded-xl bg-brand-soft text-[13px] font-bold text-brand">
+                Comparar +{mais}
+              </button>
+            )}
+            {onLista &&
+              (naLista ? (
+                <span className="grid h-10 flex-1 place-items-center rounded-xl bg-pos-soft text-[13px] font-bold text-pos">
+                  ✓ Na lista
+                </span>
+              ) : (
+                <button
+                  onClick={onLista}
+                  aria-label={`Pôr ${o.produto} na lista`}
+                  className="h-10 flex-1 rounded-xl border-2 border-brand text-[13px] font-bold text-brand"
+                >
+                  + Lista
+                </button>
+              ))}
+          </div>
         </div>
       </div>
     </article>

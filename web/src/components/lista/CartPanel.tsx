@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { AvisoMaisBarato } from "@/components/ofertas/AvisoMaisBarato";
 import { brl } from "@/lib/format";
 import { useStore } from "@/lib/store";
 import { QtyStepper } from "@/components/ui/QtyStepper";
@@ -270,6 +271,19 @@ export function CartPanel({ onScan }: { onScan?: () => void }) {
           {conhecido?.priceLast != null
             ? `Em ${unidade}, com o preço da última compra já preenchido.`
             : `Em ${unidade}. Sem preço, usamos o da última compra desse item.`}
+        </div>
+        <div className="mt-3 empty:hidden">
+          <AvisoMaisBarato
+            nome={nome}
+            preco={preco.trim() === "" ? null : Number(preco.replace(",", ".")) || null}
+            unidade={unidade}
+            qtd={Number(qtd.replace(",", ".")) || 1}
+            onFeito={() => {
+              setNome("");
+              setQtd("1");
+              setPreco("");
+            }}
+          />
         </div>
       </form>
 

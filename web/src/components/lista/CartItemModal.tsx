@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Modal } from "@/components/ui/Modal";
+import { AvisoMaisBarato } from "@/components/ofertas/AvisoMaisBarato";
 import { QtyStepper } from "@/components/ui/QtyStepper";
 import { brl } from "@/lib/format";
 import { useStore } from "@/lib/store";
@@ -84,6 +85,15 @@ export function CartItemModal({
           Fica em {brl(q * p)}
         </div>
       )}
+
+      <AvisoMaisBarato
+        nome={item.name}
+        preco={p > 0 ? p : null}
+        unidade={item.unit}
+        qtd={q}
+        noCarrinho={() => removeTripItem(item.id)}
+        onFeito={onClose}
+      />
 
       <button
         type="button"

@@ -151,3 +151,35 @@ export function prazo(o: Oferta, agora = new Date()): { texto: string; urgente: 
   const d = fim.toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit", timeZone: "America/Sao_Paulo" });
   return { texto: `Até ${d.replace(".", "")}`, urgente: false };
 }
+
+// Oferta melhor que o preco que a pessoa esta pagando agora (carrinho) ou espera pagar.
+// Compara por kg/L quando o item e vendido assim e a oferta tem a medida no nome;
+// senao, preco contra preco. So avisa com folga (2% e 10 centavos): aviso que nao
+// muda a decisao so atrapalha no corredor.
+export function melhorQue(
+  ofertas: Oferta[],
+  nome: string,
+  preco: number | null,
+  unidade = "un",
+): { oferta: Oferta; economia: number } | null {
+  if (!nome.trim()) return null;
+  const opcoes = ofertas.filter((o) => casaItem(o, nome)).sort(maisBarato);
+  if (!opcoes.length) return null;
+  if (preco == null || !(preco > 0)) return null;
+  const u = unidade.toLowerCase();
+  const porPeso = u === "kg" || u === "l";
+  for (const o of opcoes) {
+    const pu = porUnidade(o);
+    const valor = porPeso && pu && pu.u.toLowerCase() === u ? pu.valor : porPeso ? null : o.preco_por;
+    if (valor == null) continue;
+    const economia = preco - valor;
+    if (economia >= 0.1 && economia / preco >= 0.02) return { oferta: o, economia };
+    return null; // a melhor comparavel nao ganha: as outras tambem nao
+  }
+  return null;
+}
+
+// O mais barato agora para um item da lista, sem preco de referencia (selo na Lista).
+export function maisBarataPara(ofertas: Oferta[], nome: string): Oferta | null {
+  return ofertas.filter((o) => casaItem(o, nome)).sort(maisBarato)[0] ?? null;
+}

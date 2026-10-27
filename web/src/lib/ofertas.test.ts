@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { casaBusca, casaItem, maisBarato, porUnidade, prazo, resumir, type ItemFalta, type Oferta } from "./ofertas";
+import { casaBusca, casaItem, maisBarato, melhorQue, porUnidade, prazo, resumir, type ItemFalta, type Oferta } from "./ofertas";
 
 let id = 0;
 const of = (o: Partial<Oferta>): Oferta => ({
@@ -72,5 +72,30 @@ describe("prazo", () => {
     expect(prazo(of({ fim: "2026-10-27T23:59:00-03:00" }), agora)?.texto).toBe("Termina amanhã");
     expect(prazo(of({ fim: "2026-10-30T23:59:00-03:00" }), agora)?.urgente).toBe(false);
     expect(prazo(of({ fim: null }), agora)).toBeNull();
+  });
+});
+
+describe("melhorQue (aviso no carrinho)", () => {
+  const ofertas = [
+    of({ produto: "Manteiga com Sal Aviação", tamanho: "200g", preco_por: 12.9, mercado: "guanabara" }),
+    of({ produto: "Manteiga Itambé", tamanho: "200g", preco_por: 14.5, mercado: "mundial" }),
+  ];
+  it("avisa quando outro mercado esta mais barato", () => {
+    const r = melhorQue(ofertas, "manteiga", 16.9);
+    expect(r?.oferta.mercado).toBe("guanabara");
+    expect(r?.economia).toBeCloseTo(4);
+  });
+  it("nao avisa quando o preco do carrinho ja e melhor ou a diferenca e minima", () => {
+    expect(melhorQue(ofertas, "manteiga", 12.0)).toBeNull();
+    expect(melhorQue(ofertas, "manteiga", 12.95)).toBeNull();
+  });
+  it("sem preco ou sem oferta, sem aviso", () => {
+    expect(melhorQue(ofertas, "manteiga", null)).toBeNull();
+    expect(melhorQue(ofertas, "palmito", 10)).toBeNull();
+  });
+  it("item vendido por kg compara por kg", () => {
+    const carne = [of({ produto: "Patinho", tamanho: "500g", preco_por: 20 })]; // R$ 40/kg
+    expect(melhorQue(carne, "patinho", 45, "kg")?.economia).toBeCloseTo(5);
+    expect(melhorQue(carne, "patinho", 35, "kg")).toBeNull();
   });
 });
