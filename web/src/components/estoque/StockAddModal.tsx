@@ -105,7 +105,7 @@ export function StockAddModal({
         </div>
       </div>
 
-      <div className="flex gap-3">
+      <div data-rodape className="flex gap-3">
         <button
           type="button"
           onClick={close}

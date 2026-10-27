@@ -290,7 +290,7 @@ export function ReceiptModal({
             Confira e ajuste antes de adicionar ao estoque. Toque para editar.
           </div>
           <ItemGrid items={items} onPatch={patch} onRemove={remove} />
-          <div className="flex gap-3">
+          <div data-rodape className="flex gap-3">
             <button
               onClick={close}
               className="h-[50px] flex-1 rounded-[14px] border border-border bg-card text-[15px] font-bold"

@@ -384,7 +384,7 @@ export function BarcodeModal({
             </>
           )}
 
-          <div className="flex gap-3">
+          <div data-rodape className="flex gap-3">
             {emCasa && findByName(nome, stock) ? (
               <button
                 type="button"

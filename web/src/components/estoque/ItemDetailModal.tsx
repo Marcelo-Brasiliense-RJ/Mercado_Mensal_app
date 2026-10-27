@@ -359,7 +359,7 @@ export function ItemDetailModal({
         </div>
       )}
 
-      <div className="flex gap-3">
+      <div data-rodape className="flex gap-3">
         <button
           onClick={fechar}
           className="h-[50px] flex-1 rounded-[14px] border border-border bg-card text-[15px] font-bold"

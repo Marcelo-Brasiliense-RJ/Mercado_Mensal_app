@@ -390,7 +390,7 @@ export function VoiceModal({
             </p>
           )}
 
-          <div className="flex gap-3">
+          <div data-rodape className="flex gap-3">
             <button
               type="button"
               onClick={limpar}

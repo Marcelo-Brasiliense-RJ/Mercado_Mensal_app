@@ -98,6 +98,7 @@ export function CartItemModal({
       />
 
       <button
+        data-rodape
         type="button"
         onClick={salvar}
         disabled={busy || !valido}

@@ -160,7 +160,7 @@ export function AddItemModal({
         className={`${field} mb-5 ${emCasa ? "hidden" : ""}`}
       />
 
-      <div className="flex gap-3">
+      <div data-rodape className="flex gap-3">
         <button
           type="button"
           onClick={close}
