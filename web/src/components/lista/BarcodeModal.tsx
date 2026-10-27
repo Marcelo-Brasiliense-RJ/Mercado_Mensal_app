@@ -12,6 +12,7 @@ import { unitFor, findByName } from "@/lib/defaults";
 import { isTypedBarcode, onlyDigits, prettyBarcode } from "@/lib/barcode";
 import { BarcodeScanner } from "./BarcodeScanner";
 import { DestinoSwitch, type Destino } from "@/components/ui/Destino";
+import { useLugar } from "@/lib/lugar";
 
 // Ler o codigo, dizer a quantidade, pronto: o item cai no carrinho.
 //
@@ -43,7 +44,10 @@ export function BarcodeModal({
   destinoPadrao?: "estoque" | "carrinho";
 }) {
   const { findBarcode, addTripItemByBarcode, addStockByBarcode, baixaStock, showToast, trip, stock } = useStore();
-  const [destino, setDestino] = useState<Destino>(destinoPadrao);
+  // Dentro de um mercado conhecido (GPS), o codigo vai para o carrinho de qualquer tela.
+  const { noMercado } = useLugar();
+  const padrao: Destino = noMercado ? "carrinho" : destinoPadrao;
+  const [destino, setDestino] = useState<Destino>(padrao);
   const emCasa = destino === "estoque";
 
   const [fase, setFase] = useState<Fase>("ler");
@@ -138,7 +142,7 @@ export function BarcodeModal({
     voltarALer();
     setLidos([]);
     setSemCamera(false);
-    setDestino(destinoPadrao);
+    setDestino(padrao);
   }
 
   function buscarDigitado() {
@@ -222,6 +226,9 @@ export function BarcodeModal({
         )}
       </div>
 
+      {noMercado && destinoPadrao !== "carrinho" && (
+        <div className="mb-2 text-[12px] font-bold text-brand">📍 Você está num mercado: vai para o carrinho</div>
+      )}
       <DestinoSwitch valor={destino} opcoes={["estoque", "carrinho"]} onChange={setDestino} />
 
       {fase === "ler" ? (

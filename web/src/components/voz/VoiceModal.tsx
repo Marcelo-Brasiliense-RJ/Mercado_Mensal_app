@@ -5,6 +5,7 @@ import { Modal } from "@/components/ui/Modal";
 import { ItemGrid, type GridItem } from "@/components/receipt/ItemGrid";
 import { MicIcon } from "@/components/ui/icons";
 import { DestinoSwitch, nomeDestino } from "@/components/ui/Destino";
+import { useLugar } from "@/lib/lugar";
 import { useStore } from "@/lib/store";
 import { findByName, unitFor } from "@/lib/defaults";
 import {
@@ -61,6 +62,9 @@ export function VoiceModal({
   tela?: "estoque" | "mercado";
 }) {
   const { addShopItem, addTripItem, addStock, showToast, stock } = useStore();
+  // Dentro de um mercado conhecido (GPS), vale como se estivesse na Lista: carrinho.
+  const { noMercado } = useLugar();
+  const telaAgora = noMercado ? "mercado" : tela;
 
   const [fase, setFase] = useState<Fase>("gravar");
   const [segundos, setSegundos] = useState(0);
@@ -182,7 +186,7 @@ export function VoiceModal({
 
   function mostrarResultado(frase: string, intencao: VozIntencao, lidos: VozItem[]) {
     setTexto(frase);
-    setDestino(destinoDaTela(tela, intencao));
+    setDestino(destinoDaTela(telaAgora, intencao));
     setItens(
       lidos.map((i) => ({
         nome: i.nome,
@@ -302,7 +306,8 @@ export function VoiceModal({
       {fase !== "conferir" && fase !== "salvando" ? (
         <>
           <p className="mb-4 text-[13px] leading-relaxed text-text-2">
-            {tela === "estoque"
+            {noMercado && tela === "estoque" && "📍 Você está num mercado: vai para o carrinho. "}
+            {telaAgora === "estoque"
               ? "Fale o que tem em casa: “três leites, dois arroz e um café”. Vai para o estoque; você confere antes de salvar."
               : "Fale normal, como você contaria pra alguém: “comprei arroz vinte reais, dois pacotes, e café doze e noventa”. Você confere antes de salvar."}
           </p>
