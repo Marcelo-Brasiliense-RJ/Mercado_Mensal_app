@@ -21,6 +21,7 @@ def test_casa_desejo_igual_ao_app():
     assert not avisos.casa_desejo(OFERTAS[2], "acem")  # primeira palavra abre o nome
     assert avisos.casa_desejo({"produto": "Paleta, Peito ou Acém Bovino", "marca": "Friboi"}, "acem")
     assert avisos.casa_desejo(OFERTAS[3], "azeite andorinha")
+    assert avisos.casa_desejo({"produto": "Paleta, Peito ou Acém Bovino a Vácuo"}, "paleta, peito")
     assert avisos.casa_desejo({"produto": "Leite Integral", "tamanho": "1 Litro"}, "leite 1l")
 
 
@@ -91,6 +92,23 @@ def test_avisar_envia_criptografado_e_marca(monkeypatch):
     assert corpo["p_mortas"] == ["https://web.push.apple.com/morta"]
 
 
-def test_sem_chave_nao_envia(monkeypatch):
+def test_sem_chave_guarda_preco_e_nao_envia(monkeypatch):
     monkeypatch.delenv("VAPID_PRIVATE_KEY", raising=False)
-    assert "sem VAPID_PRIVATE_KEY" in avisos.avisar()
+    chamadas = []
+
+    def rpc(nome, corpo, *_):
+        chamadas.append((nome, corpo))
+        return {"ofertas": OFERTAS, "inscricoes": [],
+                "desejos": [{"id": 7, "household_id": "h", "termo": "acem", "nome": "Acém", "aparelho": False}]}
+
+    monkeypatch.setattr(avisos.lista_app, "_rpc", rpc)
+    r = avisos.avisar()
+    assert "sem VAPID_PRIVATE_KEY" in r and "1 preços guardados" in r
+    assert chamadas[1] == ("mercado_desejos_precos_h", {"p_vistos": [
+        {"id": 7, "preco": 22.5, "mercado": "mundial", "fim": "2026-10-29T23:59:00-03:00"}]})
+
+
+def test_casa_sem_aparelho_nao_recebe_aviso():
+    p = {"ofertas": OFERTAS, "desejos": [{"id": 1, "household_id": "h", "termo": "acem", "nome": "Acém",
+                                          "aparelho": False, "avisados": []}]}
+    assert avisos.novidades(p) == {}

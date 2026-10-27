@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { casaBusca, casaItem, corredor, desejosDa, faltaEmCasa, maisBarato, melhorQue, nomeBonito, ofertasDo, porMercado, porUnidade, precoSubiu, prazo, resumir, termoDe, type ItemFalta, type Oferta } from "./ofertas";
+import { casaBusca, casaDesejo, casaItem, veredito, corredor, desejosDa, faltaEmCasa, maisBarato, melhorQue, nomeBonito, ofertasDo, porMercado, porUnidade, precoSubiu, prazo, resumir, termoDe, type ItemFalta, type Oferta } from "./ofertas";
 
 let id = 0;
 const of = (o: Partial<Oferta>): Oferta => ({
@@ -170,5 +170,23 @@ describe("faltaEmCasa", () => {
     );
     expect(r.map((x) => `${x.nome}:${x.origem}`)).toEqual(["arroz:repor", "leite:lista"]);
     expect(r[1].ultimo_preco).toBe(4.5);
+  });
+});
+
+describe("veredito do De olho", () => {
+  const d = { id: 1, termo: "acem", nome: "Acém", tem_foto: false };
+  const o = (preco_por: number, preco_de: number | null = null) => of({ produto: "Acém", preco_por, preco_de });
+  it("caro, bom e comum", () => {
+    expect(veredito(o(35), d, 30)?.tom).toBe("caro");
+    expect(veredito(o(25), d, 30)?.texto).toMatch(/a menos que sua última compra/);
+    expect(veredito(o(20, 30), d, null)?.texto).toBe("33% abaixo do preço normal");
+    expect(veredito(o(29.98), { ...d, menor_preco: 29.98, ultimo_visto: "x" }, null)?.texto).toBe("Menor preço já visto");
+    expect(veredito(o(35), { ...d, menor_preco: 29.98 }, null)?.texto).toMatch(/Já esteve por/);
+    expect(veredito(undefined, d, 30)).toBeNull();
+  });
+  it("estrela num encarte com virgula casa a mesma oferta", () => {
+    const x = of({ produto: "Paleta, Peito ou Acém Bovino a Vácuo" });
+    expect(termoDe(x)).toBe("paleta peito");
+    expect(casaDesejo(x, "paleta, peito")).toBe(true);
   });
 });

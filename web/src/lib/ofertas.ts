@@ -216,7 +216,20 @@ export function porMercado<T extends { name: string }>(itens: T[], ofertas: Ofer
 }
 
 // ============ De olho (0039) ============
-export type Desejo = { id: number; termo: string; nome: string; tem_foto: boolean };
+export type Desejo = {
+  id: number;
+  termo: string;
+  nome: string;
+  tem_foto: boolean;
+  // historico guardado pelo monitor (0042): ultima promocao vista e a menor de todas
+  ultimo_preco?: number | null;
+  ultimo_mercado?: string | null;
+  ultimo_fim?: string | null;
+  ultimo_visto?: string | null;
+  menor_preco?: number | null;
+  menor_mercado?: string | null;
+  menor_em?: string | null;
+};
 
 const PEQUENAS = new Set(["de", "da", "do", "em", "com", "e", "c/", "s/", "para", "tipo"]);
 
@@ -225,6 +238,7 @@ const PEQUENAS = new Set(["de", "da", "do", "em", "com", "e", "c/", "s/", "para"
 // mercado, que escreve diferente, e longo o bastante para nao virar "qualquer acem".
 export function termoDe(o: Oferta): string {
   return padrao(o.produto)
+    .replace(/[^a-z0-9 ]/g, " ")
     .split(/\s+/)
     .filter((p) => p && !PEQUENAS.has(p) && !/^\d/.test(p))
     .slice(0, 2)
@@ -238,7 +252,8 @@ const pedacos = (produto: string) => produto.split(/,|\s+ou\s+|\s+e\s+|\//i).map
 
 export function casaDesejo(o: Oferta, termo: string): boolean {
   const nome = padrao(nomeCompleto(o));
-  const [primeira, ...resto] = padrao(termo).split(/\s+/).filter(Boolean);
+  // pontuacao fora: desejo antigo gravado como "paleta, peito" ainda casa
+  const [primeira, ...resto] = padrao(termo).replace(/[^a-z0-9 ]/g, " ").split(/\s+/).filter(Boolean);
   return (
     !!primeira &&
     pedacos(o.produto).some((p) => padrao(p).startsWith(primeira)) &&
@@ -294,3 +309,23 @@ export function faltaEmCasa(
   }
   return out.sort((a, b) => a.nome.localeCompare(b.nome));
 }
+
+// Bate o olho e sabe se esta caro: compara a melhor oferta de agora com o que a casa
+// pagou da ultima vez, com a menor promocao ja vista e com o "de" do encarte.
+export type Veredito = { tom: "bom" | "normal" | "caro"; texto: string };
+
+export function veredito(o: Oferta | undefined, d: Desejo, ultimoPago: number | null): Veredito | null {
+  if (!o) return null;
+  const p = o.preco_por;
+  const menor = d.menor_preco != null ? Number(d.menor_preco) : null;
+  if (ultimoPago && p > ultimoPago * 1.05) return { tom: "caro", texto: `Mais caro que sua última compra (${brlCurto(ultimoPago)})` };
+  if (menor != null && p <= menor + 0.01 && (d.ultimo_visto || ultimoPago)) return { tom: "bom", texto: "Menor preço já visto" };
+  if (ultimoPago && p <= ultimoPago * 0.95)
+    return { tom: "bom", texto: `${brlCurto(ultimoPago - p)} a menos que sua última compra` };
+  const off = desconto(o);
+  if (off >= 15) return { tom: "bom", texto: `${off}% abaixo do preço normal` };
+  if (menor != null && p > menor * 1.1) return { tom: "normal", texto: `Já esteve por ${brlCurto(menor)}` };
+  return { tom: "normal", texto: "Preço comum" };
+}
+
+const brlCurto = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
