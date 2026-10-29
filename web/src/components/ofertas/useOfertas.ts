@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { ehRuim, nomeCompleto } from "@/lib/ofertas";
+import { useEvitar } from "./useEvitar";
 import { createClient } from "@/lib/supabase/client";
 import type { ItemFalta, Oferta } from "@/lib/ofertas";
 
@@ -9,6 +11,7 @@ export type DadosOfertas = {
   lista: ItemFalta[];
   atualizado_em: string | null;
   meus_mercados?: string[] | null; // 0044: null = a casa ainda nao escolheu (ve todos)
+  escondidas?: number; // ofertas de produtos da lista "Não compro" (0045), fora de tudo
 };
 export type EstadoOfertas =
   | { fase: "carregando" }
@@ -65,7 +68,14 @@ export function useOfertas(): EstadoOfertas {
       vivo = false;
     };
   }, [v]);
-  return estado;
+  // Produto marcado como ruim sai daqui, e por isso de toda recomendacao do app
+  // (mais barato, onde compensa, aviso no carrinho), nao so da tela de Ofertas.
+  const evitar = useEvitar();
+  return useMemo(() => {
+    if (estado.fase !== "ok" || !evitar.length) return estado;
+    const boas = estado.dados.ofertas.filter((o) => !ehRuim(nomeCompleto(o), evitar));
+    return { fase: "ok", dados: { ...estado.dados, ofertas: boas, escondidas: estado.dados.ofertas.length - boas.length } };
+  }, [estado, evitar]);
 }
 
 // So as ofertas, ou lista vazia enquanto carrega/sem oferta: para quem so quer avisar.
