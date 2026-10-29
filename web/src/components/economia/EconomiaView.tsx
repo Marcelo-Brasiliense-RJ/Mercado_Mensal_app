@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { brl } from "@/lib/format";
 import { createClient } from "@/lib/supabase/client";
+import { LiveloMes } from "./LiveloMes";
 import { ScreenHeader } from "@/components/layout/ScreenHeader";
 import { useListaOfertas } from "@/components/ofertas/useOfertas";
 import { Selo } from "@/components/ofertas/pecas";
@@ -125,6 +126,7 @@ export function EconomiaView() {
         </div>
 
         <Resumo d={d} anterior={anterior} itens={contas.itens.length} onOrcamento={() => setOrcamentoAberto(true)} />
+        {d.atual && <LiveloMes />}
 
         {vazio ? (
           <p className="px-4 py-6 text-center text-[15px] leading-relaxed text-text-2">

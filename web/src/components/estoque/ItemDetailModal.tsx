@@ -7,6 +7,7 @@ import { categoriaDe } from "@/lib/categorias";
 import { brl, stockRatio } from "@/lib/format";
 import { ConfirmarExclusao } from "./ConfirmarExclusao";
 import { useStore } from "@/lib/store";
+import { marcarFixo, useLivelo } from "@/components/ofertas/useLivelo";
 import type { StockItem } from "@/lib/types";
 
 // Quantidade em pt-BR sem casa decimal inutil: 1,5 kg e 2 un, nunca "1.5" nem "2,0".
@@ -28,6 +29,8 @@ export function ItemDetailModal({
     parSugerido,
     showToast,
   } = useStore();
+  // Fixo do mes (0046): o que a casa compra todo mes; a aba Ofertas compara com a Livelo.
+  const livelo = useLivelo();
   const [excluindo, setExcluindo] = useState(false);
   const [busy, setBusy] = useState(false);
   const [editPar, setEditPar] = useState(false);
@@ -137,6 +140,21 @@ export function ItemDetailModal({
               {repor ? "Repor" : "Em casa"}
             </span>
             {item.category || categoriaDe(item.name)}
+            {livelo && (() => {
+              const fixo = livelo.fixos.includes(item.name.trim().toLowerCase());
+              return (
+                <button
+                  onClick={async () => {
+                    const r = await marcarFixo(item.name, !fixo);
+                    showToast(!r.ok ? r.erro! : fixo ? `${item.name} saiu dos fixos` : `⭐ ${item.name} é fixo do mês`);
+                  }}
+                  aria-pressed={fixo}
+                  className={`rounded-full border px-2 py-[2px] font-bold ${fixo ? "border-warn bg-warn-soft text-warn" : "border-border"}`}
+                >
+                  {fixo ? "⭐ Fixo do mês" : "☆ Fixo do mês?"}
+                </button>
+              );
+            })()}
           </div>
         </div>
       </div>

@@ -4,10 +4,11 @@ import { useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Foto } from "@/components/ofertas/pecas";
 import { brl } from "@/lib/format";
-import { corMercado, nomeMercado, prazo, type Oferta } from "@/lib/ofertas";
+import { COR_LIVELO, corMercado, ehLivelo, nomeMercado, prazo, type Oferta } from "@/lib/ofertas";
 import { atualizarLugar, posicaoAtual } from "@/lib/lugar";
 import { localizarLoja } from "@/lib/lojas";
 import { linkApple, linkGoogle, linkWaze, linksPorNome } from "@/lib/rota";
+import { LINK_LIVELO } from "@/lib/livelo";
 
 // Toque num mercado do "Onde compensa": o que da lista sai em oferta la, com foto,
 // e o caminho ate a loja no app de mapa que a pessoa usa.
@@ -76,11 +77,19 @@ export function MercadoModal({
                   {o.marca || o.tamanho ? " · " : ""}para “{nome}”
                 </div>
                 {p && <div className={`text-[12px] font-bold ${p.urgente ? "text-neg" : "text-text-2"}`}>{p.texto}</div>}
+                {ehLivelo(o.mercado) && o.condicao && (
+                  <div className="text-[12px] font-bold" style={{ color: COR_LIVELO }}>
+                    {o.condicao}
+                  </div>
+                )}
               </div>
               <div className="shrink-0 text-right">
                 <div className="text-[17px] font-extrabold tabular-nums">{brl(o.preco_por)}</div>
-                {naLista != null && naLista > o.preco_por + 0.005 && (
-                  <div className="text-[11px] text-text-3 line-through">{brl(naLista)}</div>
+                {ehLivelo(o.mercado) && o.preco_de ? (
+                  <div className="text-[11px] text-text-3 line-through">{brl(o.preco_de)}</div>
+                ) : (
+                  naLista != null &&
+                  naLista > o.preco_por + 0.005 && <div className="text-[11px] text-text-3 line-through">{brl(naLista)}</div>
                 )}
                 {aqui ? (
                   <div className="text-[11px] font-bold text-pos">mais barato</div>
@@ -94,10 +103,23 @@ export function MercadoModal({
           );
         })}
       </ul>
-      <p className="mt-1.5 text-[11px] text-text-3">Preço de 1 unidade no encarte.</p>
+      <p className="mt-1.5 text-[11px] text-text-3">
+        {ehLivelo(mercado) ? "Preço riscado: o que se paga. Embaixo: já descontando os pontos." : "Preço de 1 unidade no encarte."}
+      </p>
 
       <div data-rodape className="mt-3 flex flex-col gap-2">
-        {!links ? (
+        {ehLivelo(mercado) ? (
+          // Parceiro online: nao tem rota, tem o site da Livelo (so assim a compra pontua).
+          <a
+            href={LINK_LIVELO}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex h-[54px] items-center justify-center rounded-[14px] text-[16px] font-extrabold text-white"
+            style={{ background: COR_LIVELO }}
+          >
+            💗 Comprar pela Livelo
+          </a>
+        ) : !links ? (
           <button
             onClick={rota}
             disabled={buscando}

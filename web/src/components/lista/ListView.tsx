@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { brl } from "@/lib/format";
 import { BarcodeIcon, CheckIcon, MicIcon, PlusIcon, SearchIcon } from "@/components/ui/icons";
 import { ScreenHeader } from "@/components/layout/ScreenHeader";
@@ -17,6 +17,8 @@ import { categoriaDe } from "@/lib/categorias";
 import { RotaModal } from "./RotaModal";
 import { MontarLista } from "./MontarLista";
 import { useListaOfertas } from "@/components/ofertas/useOfertas";
+import { useLivelo } from "@/components/ofertas/useLivelo";
+import { ofertasLivelo } from "@/lib/livelo";
 import { corMercado, corredor, faltaEmCasa, maisBarataPara, nomeMercado, porMercado, resumir } from "@/lib/ofertas";
 import { MercadoModal, type ItemMercado } from "./MercadoModal";
 
@@ -30,7 +32,10 @@ export function ListView() {
   const [action, setAction] = useState<ShopItem | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   // Selo "em oferta" em cada item: ao montar a lista ja se ve onde comprar.
-  const ofertas = useListaOfertas();
+  // Precos da Livelo entram como mais um mercado, ja descontando os pontos (0046).
+  const ofertasMercado = useListaOfertas();
+  const livelo = useLivelo();
+  const ofertas = useMemo(() => (livelo ? [...ofertasMercado, ...ofertasLivelo(livelo)] : ofertasMercado), [ofertasMercado, livelo]);
   // "Vou no Guanabara": mostra so o que vale comprar la, na ordem dos corredores.
   // Lembrado no aparelho: quem vai sempre no mesmo mercado nao escolhe de novo.
   const [ondeVou, setOndeVouState] = useState<string | null>(() => {
