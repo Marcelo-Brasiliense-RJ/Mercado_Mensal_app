@@ -5,6 +5,7 @@ import { Modal } from "@/components/ui/Modal";
 import { AvatarInitial } from "@/components/ui/AvatarInitial";
 import { QtyStepper } from "@/components/ui/QtyStepper";
 import { brl, pct, stockRatio } from "@/lib/format";
+import { ConfirmarExclusao } from "./ConfirmarExclusao";
 import { useStore } from "@/lib/store";
 import type { StockItem } from "@/lib/types";
 
@@ -22,13 +23,13 @@ export function ItemDetailModal({
     addStockToList,
     addStock,
     zerarStock,
-    deleteStock,
     baixaStock,
     setPar,
     parSugerido,
     showToast,
   } = useStore();
   const [parcial, setParcial] = useState(false);
+  const [excluindo, setExcluindo] = useState(false);
   const [qtd, setQtd] = useState("");
   const [busy, setBusy] = useState(false);
   const [editPar, setEditPar] = useState(false);
@@ -375,18 +376,10 @@ export function ItemDetailModal({
         </button>
       </div>
       {/* Excluir mora no fim e pede confirmacao: tira o item do estoque de vez. */}
-      <button
-        onClick={async () => {
-          if (!item || !confirm(`Excluir ${item.name} do estoque?`)) return;
-          const r = await deleteStock([item.id]);
-          if (!r.ok) return showToast(r.erro);
-          showToast(`${item.name} excluído`, { desfazer: true });
-          fechar();
-        }}
-        className="mt-3 h-11 w-full text-[14px] font-bold text-neg underline"
-      >
+      <button onClick={() => setExcluindo(true)} className="mt-3 h-11 w-full text-[14px] font-bold text-neg underline">
         Excluir do estoque
       </button>
+      {excluindo && item && <ConfirmarExclusao itens={[item]} onClose={() => setExcluindo(false)} onFeito={fechar} />}
     </Modal>
   );
 }

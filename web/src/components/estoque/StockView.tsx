@@ -16,6 +16,7 @@ import { BarcodeModal } from "@/components/lista/BarcodeModal";
 import { ItemDetailModal } from "./ItemDetailModal";
 import { BatchAddModal } from "./BatchAddModal";
 import { PrimeirosPassos } from "./PrimeirosPassos";
+import { ConfirmarExclusao } from "./ConfirmarExclusao";
 import { FotoItem } from "@/components/ui/FotoItem";
 
 // Despensa em cards, dois por linha.
@@ -60,9 +61,7 @@ export function StockView() {
     zerarStock,
     baixaStock,
     addStock,
-    deleteStock,
     stockToList,
-    addStockToList,
     showToast,
   } = useStore();
   const [q, setQ] = useState("");
@@ -78,6 +77,8 @@ export function StockView() {
   // falta e, de codigo na mao, nao deveria ter que trocar de aba para registrar.
   const [scanOpen, setScanOpen] = useState(false);
   const [stockAddOpen, setStockAddOpen] = useState(false);
+  // itens a excluir (um pelo card, varios pela selecao): a confirmacao pergunta se vai para o Não compro
+  const [excluir, setExcluir] = useState<StockItem[] | null>(null);
 
   const filtered = stock
     .filter((i) => i.name.toLowerCase().includes(q.toLowerCase()))
@@ -131,14 +132,6 @@ export function StockView() {
     const r = await addStock({ name: item.name, qty: passo, unit: item.unit });
     setAgindo(null);
     showToast(r.ok ? `${item.name}: +${fmtQtd(passo)} ${item.unit}` : r.erro, { desfazer: r.ok });
-  }
-
-  // Um toque, sem popup: mandar para a lista de compras.
-  async function repor(item: StockItem) {
-    setAgindo(item.id);
-    const r = await addStockToList(item);
-    setAgindo(null);
-    showToast(r.ok ? `${item.name} na lista` : r.erro);
   }
 
   async function reporTudo() {
@@ -325,7 +318,7 @@ export function StockView() {
                     onAbrir={() => onItem(i)}
                     onUsei={() => usei(i)}
                     onMais={() => mais(i)}
-                    onRepor={() => repor(i)}
+                    onExcluir={() => setExcluir([i])}
                     oferta={estadoDe(i) !== "tem" ? maisBarataPara(ofertas, i.name) : null}
                     noCarrinho={naLista.has(i.name.trim().toLowerCase())}
                   />
@@ -359,13 +352,7 @@ export function StockView() {
             + Lista ({selected.size})
           </button>
           <button
-            onClick={() =>
-              runBatch(
-                deleteStock,
-                (n) => `${n} item(ns) excluído(s)`,
-                `Excluir ${selected.size} item(ns) do estoque?`,
-              )
-            }
+            onClick={() => setExcluir(stock.filter((i) => selected.has(i.id)))}
             disabled={busy}
             className="h-[50px] min-w-[100px] flex-1 rounded-[14px] border border-neg bg-card text-[14px] font-bold text-neg shadow-[0_8px_24px_var(--shadow-lg)] disabled:opacity-50"
           >
@@ -412,6 +399,7 @@ export function StockView() {
       <VoiceModal open={voiceOpen} onClose={() => setVoiceOpen(false)} tela="estoque" />
       {scanOpen && <BarcodeModal open onClose={() => setScanOpen(false)} destinoPadrao="estoque" />}
       <ItemDetailModal item={detail} onClose={() => setDetailId(null)} />
+      {excluir && <ConfirmarExclusao itens={excluir} onClose={() => setExcluir(null)} onFeito={exitSel} />}
     </>
   );
 }
@@ -424,7 +412,7 @@ function Card({
   onAbrir,
   onUsei,
   onMais,
-  onRepor,
+  onExcluir,
   oferta,
   noCarrinho,
 }: {
@@ -435,7 +423,7 @@ function Card({
   onAbrir: () => void;
   onUsei: () => void;
   onMais: () => void;
-  onRepor: () => void;
+  onExcluir: () => void;
   oferta?: Oferta | null;
   noCarrinho?: boolean;
 }) {
@@ -514,11 +502,11 @@ function Card({
             +{fmtQtd(stepFor(item.unit))}
           </button>
           <button
-            onClick={onRepor}
+            onClick={onExcluir}
             disabled={ocupado}
-            className={`h-12 text-[13px] font-bold text-brand disabled:opacity-40 ${acabou ? "bg-brand/5" : ""}`}
+            className="h-12 text-[13px] font-bold text-neg disabled:opacity-40"
           >
-            {noCarrinho ? "+ Lista" : "Repor"}
+            Excluir
           </button>
         </div>
       )}
