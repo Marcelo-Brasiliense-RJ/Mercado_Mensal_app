@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AvisoMaisBarato } from "@/components/ofertas/AvisoMaisBarato";
 import { AvisoPrecoSubiu } from "@/components/ofertas/AvisoPrecoSubiu";
 import { Modal } from "@/components/ui/Modal";
@@ -18,7 +18,7 @@ import { ehRuim, nomeMercado, termoEvitar } from "@/lib/ofertas";
 import { marcarRuim, useEvitar } from "@/components/ofertas/useEvitar";
 import { precoNoMercado } from "@/lib/precoMercado";
 import { usePrecosVistos } from "@/lib/precosVistos";
-import { reconhecerFoto } from "@/lib/reconhecer";
+import { enfileirarFoto, marcarLeitor, useFilaFotos } from "@/lib/filaFotos";
 
 // Ler o codigo, dizer a quantidade, pronto: o item cai no carrinho.
 //
@@ -39,10 +39,6 @@ const field = "h-12 w-full rounded-[13px] border border-border bg-card-2 px-3.5 
 const labelCls = "mb-1.5 block text-xs font-bold text-text-2";
 
 type Fase = "ler" | "confirmar";
-// Foto mandada para a IA. `fila`: a pessoa ja disse quantidade e preco e seguiu
-// em frente; o item entra sozinho quando o nome chegar.
-type Fila = { emCasa: boolean; qtd: string; preco: string; unidade: string };
-type Trabalho = { fila: Fila | null };
 
 export function BarcodeModal({
   open,
@@ -53,17 +49,7 @@ export function BarcodeModal({
   onClose: () => void;
   destinoPadrao?: "estoque" | "carrinho";
 }) {
-  const {
-    findBarcode,
-    addTripItemByBarcode,
-    addStockByBarcode,
-    addTripItem,
-    addStock,
-    baixaStock,
-    showToast,
-    trip,
-    stock,
-  } = useStore();
+  const { findBarcode, addTripItemByBarcode, addStockByBarcode, baixaStock, showToast, trip, stock } = useStore();
   // Dentro de um mercado conhecido (GPS), o codigo vai para o carrinho de qualquer tela.
   const { noMercado, mercado } = useLugar();
   // No mercado identificado, o preco ja vem DAQUELE mercado: encarte ou ultimo visto la.
@@ -102,104 +88,17 @@ export function BarcodeModal({
   // O que ja entrou nesta sessao de leitura, so pra dar retorno visivel sem
   // precisar fechar o leitor e conferir o carrinho.
   const [lidos, setLidos] = useState<string[]>([]);
-  // Foto do produto quando o codigo nao le (amassado, curvo, sem codigo): a IA diz
-  // o que e. Enquanto pensa, a pessoa ja preenche quantidade e preco.
-  const [reconhecendo, setReconhecendo] = useState(false);
-  const trabalho = useRef<Trabalho | null>(null);
-  const precoDigitado = useRef(false);
+  // Foto do produto quando o codigo nao le (amassado, curvo, sem codigo): vai para a
+  // fila da IA e a pessoa segue lendo. Ao fechar o leitor, cada uma vira um popup
+  // "e isso mesmo?" (FilaFotos, no AppShell).
   const inputFoto = useRef<HTMLInputElement>(null);
-
-  // Nome pelo codigo: vinculo da casa, depois a base publica (o mesmo caminho do leitor).
-  async function porCodigo(code: string): Promise<{ nome: string; unidade: string; marca: string; foto: string | null } | null> {
-    const info = await findBarcode(code);
-    if (info?.encontrado) return { nome: info.nome, unidade: info.unidade || unitFor(info.nome), marca: "", foto: null };
-    try {
-      const r = await fetch(`/api/produto?codigo=${encodeURIComponent(code)}`);
-      const d = (await r.json()) as { ok?: boolean; encontrado?: boolean; nome?: string; unidade?: string | null; marca?: string; foto?: string | null };
-      if (d?.ok && d.encontrado && d.nome)
-        return { nome: d.nome, unidade: d.unidade || unitFor(d.nome), marca: d.marca ?? "", foto: d.foto ?? null };
-    } catch {
-      // base fora do ar: fica o nome da IA
-    }
-    return null;
-  }
-
-  async function onFoto(arquivo: File) {
-    const job: Trabalho = { fila: null };
-    trabalho.current = job;
-    precoDigitado.current = false;
-    setFase("confirmar");
-    setCodigo("");
-    setNome("");
-    setMarca("");
-    setConhecido(false);
-    setEditandoNome(false);
-    setFoto(URL.createObjectURL(arquivo));
-    setQtd("1");
-    setUnidade("un");
-    setPreco("");
-    setOrigemPreco(null);
-    setReconhecendo(true);
-
-    const r = await reconhecerFoto(arquivo);
-    // Se a IA leu o codigo na foto, o nome certo vem das bases; o da IA varia.
-    const achado = r?.codigo ? await porCodigo(r.codigo) : null;
-    const n = (achado?.nome || r?.nome || "").trim();
-    const code = r?.codigo ?? "";
-    const aqui = trabalho.current === job;
-    if (!aqui && !job.fila) return; // a pessoa desistiu desta foto
-
-    if (!n) {
-      if (aqui) {
-        setReconhecendo(false);
-        setEditandoNome(true);
-      }
-      return showToast("Não reconheci a foto. Escreva o nome ou tente outra foto.");
-    }
-
-    if (job.fila) return salvarFila(job.fila, n, code, achado?.unidade);
-
-    setReconhecendo(false);
-    setNome(n);
-    setCodigo(code);
-    setMarca(achado?.marca || r?.marca || "");
-    if (achado?.foto) setFoto(achado.foto);
-    const u = achado?.unidade ?? findByName(n, stock)?.unit ?? unitFor(n);
-    setUnidade(u);
-    if (!precoDigitado.current) {
-      const s = precoNoMercado(n, code, noMercado ? mercado : null, ofertas, vistos, nomeMercado);
-      const ultimo = findByName(n, stock)?.priceLast;
-      if (s) {
-        setPreco(String(s.preco));
-        setOrigemPreco(s.texto);
-      } else if (ultimo != null) setPreco(String(ultimo));
-    }
-  }
-
-  // Item da fila: entra com o que a pessoa ja tinha preenchido, mesmo com o leitor fechado.
-  async function salvarFila(f: Fila, n: string, code: string, unidadeBase?: string) {
-    const q = Number(f.qtd.replace(",", ".")) || 1;
-    const unit = f.unidade !== "un" || !unidadeBase ? f.unidade : unidadeBase;
-    const price = f.preco.trim() === "" ? null : Number(f.preco.replace(",", ".")) || 0;
-    const r = f.emCasa
-      ? code
-        ? await addStockByBarcode({ code, name: n, qty: q, unit })
-        : await addStock({ name: n, qty: q, unit })
-      : code
-        ? await addTripItemByBarcode({ code, name: n, price, qty: q, unit })
-        : await addTripItem({ name: n, price, qty: q, unit });
-    if (!r.ok) return showToast(`${n}: ${r.erro}`);
-    setLidos((l) => [`📷 ${n}`, ...l]);
-    showToast(`✓ ${n} ${f.emCasa ? "no estoque" : "no carrinho"}`);
-  }
-
-  // Ainda reconhecendo: guarda o que foi preenchido e libera para o proximo produto.
-  function enfileirar() {
-    if (!trabalho.current) return;
-    trabalho.current.fila = { emCasa, qtd, preco, unidade };
-    showToast("📷 Entra sozinho assim que eu reconhecer");
-    voltarALer();
-  }
+  const { fila } = useFilaFotos();
+  const naFila = fila.filter((x) => x.estado === "esperando" || x.estado === "reconhecendo").length;
+  const prontas = fila.filter((x) => x.estado === "pronto" || x.estado === "falhou").length;
+  useEffect(() => {
+    marcarLeitor(open);
+    return () => marcarLeitor(false);
+  }, [open]);
 
   async function resolver(code: string) {
     {
@@ -263,8 +162,6 @@ export function BarcodeModal({
   }
 
   function voltarALer() {
-    trabalho.current = null;
-    setReconhecendo(false);
     setFase("ler");
     setCodigo("");
     setNome("");
@@ -321,7 +218,6 @@ export function BarcodeModal({
   }
 
   async function pegar() {
-    if (reconhecendo) return enfileirar();
     if (!nome.trim()) return showToast("Diga o nome do produto.");
     if (emCasa) return guardar();
     setBusy(true);
@@ -421,16 +317,23 @@ export function BarcodeModal({
             onChange={(e) => {
               const f = e.target.files?.[0];
               e.target.value = "";
-              if (f) void onFoto(f);
+              if (!f) return;
+              void enfileirarFoto(f, emCasa ? "estoque" : "carrinho");
+              showToast("📷 Foto na fila. Pode ler o próximo.");
             }}
           />
           <button
             type="button"
             onClick={() => inputFoto.current?.click()}
-            className="mb-4 h-[50px] w-full rounded-[14px] border-2 border-dashed border-brand text-[15px] font-bold text-brand"
+            className="mb-1.5 h-[50px] w-full rounded-[14px] border-2 border-dashed border-brand text-[15px] font-bold text-brand"
           >
-            📷 Não consegui ler? Tire uma foto do produto
+            📷 Não leu? Tire uma foto do produto
           </button>
+          <p className="mb-4 text-center text-[12px] text-text-3">
+            {naFila || prontas
+              ? `${naFila ? `${naFila} reconhecendo` : ""}${naFila && prontas ? " · " : ""}${prontas ? `${prontas} pronta${prontas > 1 ? "s" : ""}` : ""}. Você confere ao fechar o leitor.`
+              : "A IA reconhece em fila e você confere depois, sem esperar."}
+          </p>
 
           {lidos.length > 0 && (
             <div className="mb-4 rounded-[13px] border border-border bg-card-2 p-3">
@@ -467,20 +370,13 @@ export function BarcodeModal({
                 // eslint-disable-next-line @next/next/no-img-element -- foto da loja, so referencia visual
                 <img src={foto} alt="" className="h-16 w-16 shrink-0 rounded-xl bg-white object-contain" />
               )}
-              <div className="min-w-0 text-[20px] font-extrabold leading-tight">
-                {reconhecendo ? (
-                  <span className="animate-pulse">🔎 Reconhecendo o produto…</span>
-                ) : (
-                  nome || "Produto novo"
-                )}
-              </div>
+              <div className="min-w-0 text-[20px] font-extrabold leading-tight">{nome || "Produto novo"}</div>
             </div>
             <div className="mt-1 text-[12px] text-text-3">
-              {reconhecendo
-                ? "Já pode dizer a quantidade e o preço."
-                : `${marca ? `${marca} · ` : ""}${prettyBarcode(codigo)}`}
+              {marca ? `${marca} · ` : ""}
+              {prettyBarcode(codigo)}
             </div>
-            {reconhecendo ? null : !editandoNome ? (
+            {!editandoNome ? (
               <button
                 type="button"
                 onClick={() => setEditandoNome(true)}
@@ -562,7 +458,6 @@ export function BarcodeModal({
               onChange={(e) => {
                 setPreco(e.target.value);
                 setOrigemPreco(null);
-                precoDigitado.current = true;
               }}
               inputMode="decimal"
               placeholder="0,00"
@@ -614,16 +509,12 @@ export function BarcodeModal({
             )}
             <button
               type="submit"
-              disabled={busy || (!nome.trim() && !reconhecendo)}
+              disabled={busy || !nome.trim()}
               className="h-[56px] flex-[2] rounded-[14px] bg-brand text-[15px] font-bold text-brand-ink disabled:opacity-50"
             >
               {busy
                 ? "Salvando…"
-                : reconhecendo
-                  ? emCasa
-                    ? "Guardar quando reconhecer"
-                    : "Colocar quando reconhecer"
-                  : emCasa
+                : emCasa
                   ? "+ Guardar no estoque"
                   : totalItem > 0
                   ? `Colocar · ${brl(totalItem)}`

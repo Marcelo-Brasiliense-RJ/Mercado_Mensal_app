@@ -40,8 +40,13 @@ export async function POST(req: Request) {
   if (!user) return NextResponse.json({ ok: false, erro: "nao_autenticado" }, { status: 401 });
 
   let image: unknown;
+  // "Pedir pra rever": a pessoa disse que nao e o nome que veio. Vai com o modelo mais
+  // forte na frente e avisando o que ja foi descartado.
+  let nao = "";
   try {
-    image = (await req.json())?.image;
+    const b = await req.json();
+    image = b?.image;
+    if (typeof b?.nao === "string") nao = b.nao.slice(0, 120).trim();
   } catch {
     /* corpo invalido cai no check abaixo */
   }
@@ -53,10 +58,17 @@ export async function POST(req: Request) {
   if (!ks.length) return NextResponse.json({ ok: false, erro: "ia_indisponivel" }, { status: 503 });
 
   const corpo = JSON.stringify({
-    contents: [{ parts: [{ inline_data: { mime_type: m[1], data: m[2] } }, { text: PERGUNTA }] }],
+    contents: [
+      {
+        parts: [
+          { inline_data: { mime_type: m[1], data: m[2] } },
+          { text: nao ? `${PERGUNTA} Atenção: NÃO é "${nao}"; olhe o rótulo de novo com cuidado.` : PERGUNTA },
+        ],
+      },
+    ],
     generationConfig: { responseMimeType: "application/json", responseSchema: ESQUEMA, temperature: 0 },
   });
-  for (const modelo of MODELOS) {
+  for (const modelo of nao ? [...MODELOS].reverse() : MODELOS) {
     for (const k of ks) {
       try {
         const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`, {
