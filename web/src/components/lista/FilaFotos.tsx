@@ -16,7 +16,7 @@ const UNITS = ["un", "kg", "g", "L", "ml", "pct", "cx", "dz"];
 
 export function FilaFotos() {
   const { fila, leitorAberto } = useFilaFotos();
-  const trabalhando = fila.filter((x) => x.estado === "esperando" || x.estado === "reconhecendo").length;
+  const trabalhando = fila.filter((x) => x.estado === "preparando" || x.estado === "esperando" || x.estado === "reconhecendo").length;
   const prontos = fila.filter((x) => x.estado === "pronto" || x.estado === "falhou");
   // "Depois": fecha os popups ate a pessoa tocar no aviso (ou o app abrir de novo).
   const [depois, setDepois] = useState(false);
@@ -140,7 +140,9 @@ function Conferir({ x, resta, onDepois }: { x: FotoFila; resta: number; onDepois
             />
           ) : (
             <>
-              <div className="text-[12px] font-bold text-text-3">🤖 A IA reconheceu</div>
+              <div className="text-[12px] font-bold text-text-3">
+                {x.fonte === "codigo" ? "📦 Lido pelo código na foto" : "🤖 A IA reconheceu"}
+              </div>
               <div className="text-[18px] font-extrabold leading-tight">{nome}</div>
               {x.marca && <div className="text-[12px] text-text-3">{x.marca}</div>}
             </>

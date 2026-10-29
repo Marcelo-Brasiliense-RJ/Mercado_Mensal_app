@@ -44,10 +44,12 @@ export async function POST(req: Request) {
   // "Pedir pra rever": a pessoa disse que nao e o nome que veio. Vai com o modelo mais
   // forte na frente e avisando o que ja foi descartado.
   let nao = "";
+  let forte = false; // a rapida nao soube: modelo mais forte na frente
   try {
     const b = await req.json();
     image = b?.image;
     if (typeof b?.nao === "string") nao = b.nao.slice(0, 120).trim();
+    forte = b?.forte === true;
   } catch {
     /* corpo invalido cai no check abaixo */
   }
@@ -69,7 +71,7 @@ export async function POST(req: Request) {
     ],
     generationConfig: { responseMimeType: "application/json", responseSchema: ESQUEMA, temperature: 0 },
   });
-  for (const modelo of nao ? [...MODELOS].reverse() : MODELOS) {
+  for (const modelo of nao || forte ? [...MODELOS].reverse() : MODELOS) {
     for (const k of ks) {
       try {
         const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`, {

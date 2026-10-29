@@ -93,7 +93,7 @@ export function BarcodeModal({
   // "e isso mesmo?" (FilaFotos, no AppShell).
   const inputFoto = useRef<HTMLInputElement>(null);
   const { fila } = useFilaFotos();
-  const naFila = fila.filter((x) => x.estado === "esperando" || x.estado === "reconhecendo").length;
+  const naFila = fila.filter((x) => x.estado === "preparando" || x.estado === "esperando" || x.estado === "reconhecendo").length;
   const prontas = fila.filter((x) => x.estado === "pronto" || x.estado === "falhou").length;
   useEffect(() => {
     marcarLeitor(open);
