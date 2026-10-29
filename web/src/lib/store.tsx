@@ -111,6 +111,8 @@ type Store = Data & {
   dataReady: boolean;
   // +1/-1 no card aparece na hora, antes do banco responder
   mexerLocal: (id: string, delta: number) => void;
+  // Categoria escolhida pela casa (0048); "" volta ao palpite pelo nome.
+  setCategoria: (id: string, categoria: string) => Promise<RpcResult>;
   toast: string | null;
   // O aviso de baixo oferece "Desfazer" (so depois de escrita que o banco registra em mercado_events).
   toastDesfazer: boolean;
@@ -228,6 +230,12 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       })),
     [],
   );
+
+  const setCategoria = useCallback(async (id: string, categoria: string) => {
+    // muda na tela na hora; o banco grava por tras
+    setData((d) => ({ ...d, stock: d.stock.map((s) => (s.id === id ? { ...s, category: categoria } : s)) }));
+    return callRpc("mercado_stock_categoria_web", { p_id: id, p_categoria: categoria || null });
+  }, []);
 
   // Lista muda na tela na hora (uma ida ao banco so) e o resto recarrega por tras.
   // Antes cada toque esperava 4 leituras do banco: "Repor" demorava a aparecer na Lista.
@@ -708,6 +716,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       dataLoading,
       dataReady,
       mexerLocal,
+      setCategoria,
       toast,
       toastDesfazer,
       desfazer,
@@ -750,6 +759,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       dataLoading,
       dataReady,
       mexerLocal,
+      setCategoria,
       toast,
       toastDesfazer,
       desfazer,

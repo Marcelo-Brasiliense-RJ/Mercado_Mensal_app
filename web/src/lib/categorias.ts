@@ -18,7 +18,10 @@ const EXPRESSAO: [string, string][] = [
   ["agua sanitaria", "Limpeza"], ["saco de lixo", "Limpeza"], ["papel toalha", "Limpeza"],
   ["peito de peru", "Frios e Laticínios"], ["batata palha", "Doces e Biscoitos"],
   ["batata chips", "Doces e Biscoitos"], ["barra de cereal", "Doces e Biscoitos"],
-  ["papel aluminio", "Utilidades"], ["lenco umedecido", "Bebê"], ["toalha umedecida", "Perfumaria e Higiene"], ["areia sanitaria", "Pet"],
+  ["papel aluminio", "Utilidades"], ["papel manteiga", "Utilidades"], ["filme plastico", "Utilidades"],
+  ["filtro de cafe", "Utilidades"], ["pao de queijo", "Congelados"], ["batata frita", "Congelados"],
+  ["leite de coco", "Mercearia"], ["agua oxigenada", "Perfumaria e Higiene"], ["alcool em gel", "Perfumaria e Higiene"],
+  ["alcool gel", "Perfumaria e Higiene"], ["pasta de dente", "Perfumaria e Higiene"], ["lenco umedecido", "Bebê"], ["toalha umedecida", "Perfumaria e Higiene"], ["areia sanitaria", "Pet"],
 ];
 
 const PALAVRAS: Record<string, string[]> = {
@@ -40,7 +43,9 @@ const PALAVRAS: Record<string, string[]> = {
     "cafe", "milho", "extrato", "molho", "maionese", "ketchup", "mostarda", "atum", "sardinha", "ervilha", "aveia",
     "granola", "cereal", "achocolatado", "fuba", "tempero", "caldo", "alga", "palmito", "azeitona", "gelatina",
     "fermento", "amido", "polvilho", "tapioca", "mel", "geleia", "cha", "pipoca", "lentilha", "grao", "massa",
-    "creme", "pure", "canjica", "sopa", "neston", "nescau", "cuscuz", "trigo", "condimento", "oregano", "pimenta"],
+    "creme", "pure", "canjica", "sopa", "neston", "nescau", "cuscuz", "trigo", "condimento", "oregano", "pimenta",
+    "adocante", "sucralose", "stevia", "xilitol", "capsula", "coco", "castanha", "passas", "whey", "proteina",
+    "chia", "linhaca", "quinoa", "sazon", "colorau", "cominho", "louro", "canela", "baunilha", "essencia"],
   "Doces e Biscoitos": ["biscoito", "bolacha", "cookie", "cookies", "wafer", "salgadinho", "chocolate", "bala",
     "pacoca", "doce", "chips", "amendoim", "pirulito", "chiclete", "bombom", "oreo", "trakinas", "goiabada",
     "brigadeiro", "marshmallow"],
@@ -48,12 +53,17 @@ const PALAVRAS: Record<string, string[]> = {
     "isotonico", "xarope", "espumante", "vodka", "cachaca", "whisky", "kombucha"],
   Limpeza: ["detergente", "sabao", "amaciante", "desinfetante", "alvejante", "esponja", "limpador", "multiuso",
     "lustra", "cloro", "pinho", "lava", "veja", "vassoura", "rodo", "inseticida", "removedor", "tira",
-    "sanitario", "sanitaria", "saponaceo", "difusor", "bloco", "pedra", "lustra"],
+    "sanitario", "sanitaria", "saponaceo", "difusor", "bloco", "pedra", "lustra", "alcool", "pano", "luva",
+    "flanela", "palha", "odorizador", "desodorizador", "aromatizador", "naftalina", "limpa", "lixeira"],
   "Perfumaria e Higiene": ["shampoo", "xampu", "condicionador", "sabonete", "escova", "desodorante", "absorvente",
-    "cotonete", "aparelho", "protetor", "hidratante", "creme", "barbear", "algodao", "enxaguante"],
+    "cotonete", "aparelho", "protetor", "hidratante", "creme", "barbear", "algodao", "enxaguante",
+    "antisseptico", "enxaguatorio", "listerine", "colgate", "sorriso", "oral", "talco", "repelente", "acetona",
+    "esmalte", "tintura", "pomada", "curativo", "band", "gilete", "lamina", "pente", "lenco", "perfume", "colonia",
+    "gel", "fixador", "mascara", "batom", "remedio", "vitamina", "dipirona", "paracetamol", "termometro"],
   Bebê: ["fralda", "fraldas", "papinha", "mamadeira"],
   Pet: ["racao", "petisco", "areia"],
-  Utilidades: ["pilha", "lampada", "guardanapo", "filme", "copo", "vela", "fosforo", "isqueiro", "prato", "talher"],
+  Utilidades: ["pilha", "lampada", "guardanapo", "filme", "copo", "vela", "fosforo", "isqueiro", "prato", "talher",
+    "palito", "saco", "sacola", "pote", "forma", "filtro", "carvao", "fita", "pregador", "extensao"],
 };
 
 const POR_PALAVRA = new Map<string, string>();

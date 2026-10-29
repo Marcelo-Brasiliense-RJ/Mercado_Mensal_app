@@ -16,6 +16,12 @@ describe("categoriaDe", () => {
     ["leite fermentado activia", "Frios e Laticínios"],
     ["Feijão Preto", "Mercearia"],
     ["detergente", "Limpeza"],
+    // os que caiam em Outros no estoque de verdade
+    ["adoçante dietético líquido adocyl", "Mercearia"],
+    ["álcool tradicional limpa fácil barbarex 1l", "Limpeza"],
+    ["antisséptico bucal listerine cool mint", "Perfumaria e Higiene"],
+    ["álcool em gel 70", "Perfumaria e Higiene"],
+    ["pão de queijo forno de minas", "Congelados"],
   ])("%s -> %s", (nome, cat) => expect(categoriaDe(nome)).toBe(cat));
 
   it("sem regra: usa a categoria do encarte, senao Outros", () => {
