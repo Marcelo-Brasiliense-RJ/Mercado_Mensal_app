@@ -30,12 +30,15 @@ export const MERCADOS: Record<string, { nome: string; cor: string }> = {
   supermarket: { nome: "Supermarket", cor: "#157A45" },
   superbom: { nome: "Superbom", cor: "#B0600E" },
   economia: { nome: "Rede Economia", cor: "#7340B8" },
+  carrefour: { nome: "Carrefour", cor: "#1D4F91" },
 };
 // Parceiro da Livelo entra nas comparacoes como mais um mercado ("livelo:CRM"); o nome
 // vem da tabela de pontos (useLivelo preenche ao carregar).
 export const NOMES_LIVELO: Record<string, string> = {};
 export const COR_LIVELO = "#E6007E";
 export const ehLivelo = (m: string) => m.startsWith("livelo:");
+// Compra que pontua na Livelo: parceiro com preco digitado ou o Carrefour (loja online, 0047).
+export const pontuaNaLivelo = (m: string) => ehLivelo(m) || m === "carrefour";
 export const nomeMercado = (m: string) =>
   ehLivelo(m) ? `${NOMES_LIVELO[m.slice(7)] ?? m.slice(7)} · Livelo` : (MERCADOS[m]?.nome ?? m);
 export const corMercado = (m: string) => (ehLivelo(m) ? COR_LIVELO : (MERCADOS[m]?.cor ?? "#6B5E55"));

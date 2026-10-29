@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { comparar, liquido, ofertasLivelo, ptsCertos, type Livelo, type Paridade } from "./livelo";
+import { comPontos, comparar, liquido, ofertasLivelo, ptsCertos, type Livelo, type Paridade } from "./livelo";
 import type { Oferta } from "./ofertas";
 
 const par = (p: Partial<Paridade>): Paridade => ({
@@ -48,5 +48,17 @@ describe("livelo", () => {
     expect(o).toMatchObject({ mercado: "livelo:CRM", produto: "cafe pilao", preco_de: 19.2 });
     expect(o.preco_por).toBeCloseTo(19.2 - 77 * 0.03, 2); // 77 pts inteiros
     expect(o.condicao).toBe("+77 pts Livelo");
+  });
+
+  it("Carrefour pela Livelo: compara com os pontos e não precisa digitar preço", () => {
+    const cf: Oferta = { ...oferta(19.2), id: 2, mercado: "carrefour", produto: "Café Pilão 500g" };
+    const c = comparar("cafe pilao", [oferta(18.9), cf], casa({ precos: [] }));
+    expect(c.mercado?.mercado).toBe("guanabara");
+    expect(c.livelo?.oferta?.mercado).toBe("carrefour");
+    expect(c.vence).toBe("livelo");
+    const p = comPontos(cf, casa());
+    expect(p.preco_de).toBe(19.2);
+    expect(p.preco_por).toBeCloseTo(19.2 - 77 * 0.03, 2);
+    expect(comPontos(cf, casa({ parceiros: [] }))).toBe(cf);
   });
 });

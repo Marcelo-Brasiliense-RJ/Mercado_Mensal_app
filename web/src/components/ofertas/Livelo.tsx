@@ -11,13 +11,14 @@ import {
   LINK_LIVELO,
   linkBusca,
   nomeParceiro,
+  parceiroCarrefour,
   precoVelho,
   ptsCertos,
   ptsMax,
   type Livelo as LiveloT,
   type Paridade,
 } from "@/lib/livelo";
-import { Selo } from "./pecas";
+import { Foto, Selo } from "./pecas";
 import { marcarFixo, registrarCompraLivelo, salvarConfigLivelo, salvarPrecoLivelo, useLivelo } from "./useLivelo";
 
 // Secao Livelo da aba Ofertas, a vista (nao escondida em configuracao): os parceiros com
@@ -25,8 +26,19 @@ import { marcarFixo, registrarCompraLivelo, salvarConfigLivelo, salvarPrecoLivel
 // dizendo se compensa mais no encarte ou pela Livelo.
 export function LiveloSecao({ ofertas }: { ofertas: Oferta[] }) {
   const l = useLivelo();
+  const { showToast } = useStore();
   const [config, setConfig] = useState(false);
+  const [ligando, setLigando] = useState(false);
   if (!l) return null;
+
+  // Um toque: Carrefour Mercado, ponto a R$ 0,03. Ajustar fica em "Parceiros".
+  async function ligar() {
+    if (!l!.paridades.some((p) => p.codigo === "CRM")) return setConfig(true);
+    setLigando(true);
+    const r = await salvarConfigLivelo(l!.valor_ponto || 0.03, false, ["CRM"]);
+    setLigando(false);
+    showToast(r.ok ? "💗 Livelo ligada com o Carrefour" : r.erro!);
+  }
 
   const meus = l.parceiros.map((c) => l.paridades.find((p) => p.codigo === c)).filter(Boolean) as Paridade[];
 
@@ -50,13 +62,19 @@ export function LiveloSecao({ ofertas }: { ofertas: Oferta[] }) {
             Comprar pela Livelo (Carrefour, Extra…) rende pontos. Escolha os parceiros e o app compara com os
             encartes, já descontando os pontos.
           </p>
-          <button
-            onClick={() => setConfig(true)}
-            className="mt-3 h-11 rounded-xl px-4 text-[14px] font-bold text-white"
-            style={{ background: COR_LIVELO }}
-          >
-            Escolher parceiros
-          </button>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              onClick={ligar}
+              disabled={ligando}
+              className="h-11 rounded-xl px-4 text-[14px] font-bold text-white disabled:opacity-60"
+              style={{ background: COR_LIVELO }}
+            >
+              {ligando ? "Ligando…" : "Ligar com o Carrefour"}
+            </button>
+            <button onClick={() => setConfig(true)} className="h-11 rounded-xl border-2 border-border px-4 text-[14px] font-bold">
+              Outros parceiros
+            </button>
+          </div>
         </div>
       ) : (
         <>
@@ -65,11 +83,90 @@ export function LiveloSecao({ ofertas }: { ofertas: Oferta[] }) {
               <ParceiroLinha key={p.codigo} p={p} clube={l.clube} />
             ))}
           </div>
+          <DaLista l={l} ofertas={ofertas} />
           <Fixos l={l} ofertas={ofertas} />
         </>
       )}
       {config && <ConfigLivelo l={l} onClose={() => setConfig(false)} />}
     </section>
+  );
+}
+
+// O que da lista tem no Carrefour (o coletor busca no site de 3 em 3 horas), cada um
+// com o preco ja descontando os pontos e o melhor encarte do lado.
+function DaLista({ l, ofertas }: { l: LiveloT; ofertas: Oferta[] }) {
+  const { shopping } = useStore();
+  const [todos, setTodos] = useState(false);
+  if (!parceiroCarrefour(l)) return null;
+  const nomes = [...new Set(shopping.filter((i) => i.status === "pending").map((i) => i.name.trim().toLowerCase()))];
+  const linhas = nomes
+    .map((n) => ({ n, c: comparar(n, ofertas, l) }))
+    .filter((x) => x.c.livelo?.oferta)
+    .sort((a, b) => (a.c.vence === "livelo" ? 0 : 1) - (b.c.vence === "livelo" ? 0 : 1) || b.c.diferenca - a.c.diferenca);
+  const temCarrefour = ofertas.some((o) => o.mercado === "carrefour");
+  const ganha = linhas.filter((x) => x.c.vence === "livelo").length;
+
+  return (
+    <div className="rounded-[18px] border border-border bg-card p-3">
+      <div className="text-[15px] font-extrabold">🛒 Carrefour pela Livelo · da sua lista</div>
+      {!linhas.length ? (
+        <p className="mt-1 text-[13px] text-text-2">
+          {temCarrefour
+            ? "Nada da sua lista no Carrefour agora."
+            : "Os preços do Carrefour chegam na próxima rodada do monitor (de 3 em 3 horas)."}
+        </p>
+      ) : (
+        <>
+          <p className="mt-0.5 text-[13px] text-text-2">
+            {linhas.length} {linhas.length > 1 ? "itens" : "item"} lá
+            {ganha ? ` · ${ganha} ${ganha > 1 ? "compensam" : "compensa"} pela Livelo` : " · nenhum compensa mais que o encarte"}
+          </p>
+          <ul className="mt-2 flex flex-col gap-1.5">
+            {(todos ? linhas : linhas.slice(0, 6)).map(({ n, c }) => (
+              <li key={n} className="flex items-center gap-2.5 rounded-[12px] bg-card-2 p-2">
+                <Foto o={c.livelo!.oferta} className="h-12 w-12 shrink-0 rounded-lg" />
+                <div className="min-w-0 flex-1">
+                  <div className="text-[13px] font-bold leading-tight">{c.livelo!.oferta!.produto}</div>
+                  <div className="text-[11px] text-text-3">para “{n}”</div>
+                  <div className="text-[11px] font-bold" style={{ color: COR_LIVELO }}>
+                    +{c.livelo!.pts} pts · {brl(c.livelo!.preco)} no caixa
+                  </div>
+                </div>
+                <div className="shrink-0 text-right">
+                  <div className={`text-[15px] font-extrabold tabular-nums ${c.vence === "livelo" ? "text-pos" : ""}`}>
+                    {brl(c.livelo!.liquido)}
+                  </div>
+                  {c.mercado ? (
+                    <div className={`text-[11px] font-bold ${c.vence === "mercado" ? "text-pos" : "text-text-3"}`}>
+                      {nomeMercado(c.mercado.mercado)} {brl(c.mercado.preco_por)}
+                    </div>
+                  ) : (
+                    <div className="text-[11px] text-text-3">sem encarte</div>
+                  )}
+                  <div className={`text-[10px] font-extrabold ${c.vence === "livelo" ? "text-pos" : "text-text-3"}`}>
+                    {c.vence === "livelo" ? "LIVELO GANHA" : "ENCARTE GANHA"}
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+          {linhas.length > 6 && (
+            <button onClick={() => setTodos((t) => !t)} className="mt-2 text-[13px] font-bold text-brand underline">
+              {todos ? "Ver menos" : `Ver os ${linhas.length}`}
+            </button>
+          )}
+          <a
+            href={LINK_LIVELO}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-2.5 flex h-11 items-center justify-center rounded-[12px] text-[14px] font-bold text-white"
+            style={{ background: COR_LIVELO }}
+          >
+            Comprar pela Livelo
+          </a>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -175,9 +272,10 @@ function FixoCard({ item, l, ofertas }: { item: string; l: LiveloT; ofertas: Ofe
   const c = comparar(item, ofertas, l);
   const [parceiro, setParceiro] = useState(c.livelo?.parceiro ?? l.parceiros[0]);
   const [editando, setEditando] = useState(!c.livelo);
+  const doSite = !!c.livelo?.oferta; // preco que o coletor trouxe do site, sem digitar
   const [preco, setPreco] = useState("");
   const busca = linkBusca(parceiro, item);
-  const velho = c.livelo && precoVelho(c.livelo.visto_em);
+  const velho = c.livelo && !doSite && precoVelho(c.livelo.visto_em);
 
   async function salvar() {
     const v = Number(preco.replace(",", "."));
@@ -324,12 +422,14 @@ function FixoCard({ item, l, ofertas }: { item: string; l: LiveloT; ofertas: Ofe
               </button>
             </>
           )}
-          <button
-            onClick={() => setEditando(true)}
-            className="h-11 flex-1 rounded-[12px] border-2 border-border bg-card text-[13px] font-bold"
-          >
-            Preço mudou
-          </button>
+          {!doSite && (
+            <button
+              onClick={() => setEditando(true)}
+              className="h-11 flex-1 rounded-[12px] border-2 border-border bg-card text-[13px] font-bold"
+            >
+              Preço mudou
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -407,7 +507,6 @@ function ConfigLivelo({ l, onClose }: { l: LiveloT; onClose: () => void }) {
       </button>
 
       <button
-        data-rodape
         onClick={salvar}
         disabled={busy || !escolhidos.length}
         className="h-[52px] w-full rounded-[14px] text-[16px] font-extrabold text-white disabled:opacity-50"
