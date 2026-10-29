@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { isValidBarcode, onlyDigits } from "@/lib/barcode";
 import { abrirCamera, soltarCamera } from "@/lib/camera";
+import { criarLeitor, PASSOS } from "@/lib/leituraCodigo";
 
 // Leitura de codigo de barras pela camera. Mesmo desenho do QrScanner da nota:
 // BarcodeDetector nativo quando existe (Chrome/Android, que e o celular no mercado),
@@ -94,51 +95,26 @@ export function BarcodeScanner({
         // tocando, para a camera continuar sendo uma so.
         let ler: (v: HTMLVideoElement) => Promise<string>;
         let intervalo = 0;
+        // Leitura com realce contra reflexo (lib/leituraCodigo), revezando angulos
+        // e realces quadro a quadro.
+        let volta = 0;
+        const zxing = BD ? null : await criarLeitor();
         if (BD) {
           const detector = new BD({ formats: FORMATOS });
-          ler = async (v) => (await detector.detect(v))[0]?.rawValue ?? "";
-        } else {
-          const [{ BrowserMultiFormatReader }, zxing] = await Promise.all([
-            import("@zxing/browser"),
-            import("@zxing/library"),
-          ]);
-          const hints = new Map();
-          hints.set(zxing.DecodeHintType.POSSIBLE_FORMATS, [
-            zxing.BarcodeFormat.EAN_13,
-            zxing.BarcodeFormat.EAN_8,
-            zxing.BarcodeFormat.UPC_A,
-            zxing.BarcodeFormat.UPC_E,
-            zxing.BarcodeFormat.ITF,
-            zxing.BarcodeFormat.CODE_128,
-          ]);
-          const reader = new BrowserMultiFormatReader(hints);
-          // O ZXing le codigo de barras so na horizontal. Para aceitar a embalagem em
-          // qualquer posicao (em pe, de lado, inclinada), cada quadro e lido girado num
-          // angulo diferente, de 30 em 30 graus (cada leitura tolera uns 15 de cada lado).
-          // Deitado e em pe primeiro, que e como quase todo mundo segura. Uma volta
-          // inteira leva ~0,6 s, sem pesar como o TRY_HARDER.
-          const ANGULOS = [0, 90, 30, 120, 60, 150];
-          const tela = document.createElement("canvas");
-          let volta = 0;
+          // O nativo (Android) tambem perde codigo com reflexo: a cada 4 quadros sem
+          // leitura, uma tentativa com realce pelo ZXing (carregado so quando precisa).
+          let reforco: Awaited<ReturnType<typeof criarLeitor>> | null = null;
+          let vazios = 0;
           ler = async (v) => {
-            const k = Math.min(1, 1600 / Math.max(v.videoWidth, v.videoHeight));
-            const w = Math.round(v.videoWidth * k);
-            const h = Math.round(v.videoHeight * k);
-            const rad = (ANGULOS[volta++ % ANGULOS.length] * Math.PI) / 180;
-            const cw = Math.round(Math.abs(w * Math.cos(rad)) + Math.abs(h * Math.sin(rad)));
-            const ch = Math.round(Math.abs(w * Math.sin(rad)) + Math.abs(h * Math.cos(rad)));
-            tela.width = cw;
-            tela.height = ch;
-            const ctx = tela.getContext("2d", { willReadFrequently: true })!;
-            ctx.setTransform(1, 0, 0, 1, cw / 2, ch / 2);
-            ctx.rotate(rad);
-            ctx.drawImage(v, -w / 2, -h / 2, w, h);
-            try {
-              return reader.decodeFromCanvas(tela).getText();
-            } catch {
-              return ""; // quadro sem codigo neste angulo
-            }
+            const nativo = (await detector.detect(v))[0]?.rawValue ?? "";
+            if (nativo) return nativo;
+            if (++vazios % 4) return "";
+            reforco ??= await criarLeitor();
+            const realces = PASSOS.filter((p) => p.realce);
+            return reforco(v, v.videoWidth, v.videoHeight, realces[volta++ % realces.length]);
           };
+        } else {
+          ler = async (v) => zxing!(v, v.videoWidth, v.videoHeight, PASSOS[volta++ % PASSOS.length]);
           intervalo = 100; // decodificar em JS e pesado: nao precisa ser todo quadro
         }
 
