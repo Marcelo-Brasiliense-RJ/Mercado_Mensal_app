@@ -11,10 +11,11 @@ export const runtime = "nodejs";
 
 const MODELOS = ["gemini-2.5-flash-lite", "gemini-flash-lite-latest", "gemini-2.5-flash", "gemini-3.5-flash"];
 const PERGUNTA =
-  "Foto de um produto de supermercado. Diga qual é. nome: como está no rótulo, em português, " +
+  "Foto de um produto de supermercado, muitas vezes na mão, torta ou de lado. Leia o nome " +
+  "escrito na FRENTE da embalagem e diga qual é. nome: como está no rótulo, em português, " +
   "com tipo, marca, variante e tamanho (ex.: 'Detergente Líquido Ypê Neutro 500ml'). " +
   "codigo: os números do código de barras se estiverem legíveis na foto, senão vazio. " +
-  "Se não for produto de mercado ou não der para ler, nome vazio.";
+  "Se der para ler só parte, dê o melhor palpite. Nome vazio só se não for produto de mercado.";
 const ESQUEMA = {
   type: "OBJECT",
   properties: {

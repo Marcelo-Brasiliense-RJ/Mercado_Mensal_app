@@ -22,6 +22,7 @@ export type FotoFila = {
   foto?: string | null; // foto da loja, quando o codigo acha o produto numa base
   nao?: string; // nome recusado ("pedir pra rever")
   tentativas?: number;
+  motivo?: "sem_ia" | "ia_falhou"; // por que falhou, quando nao foi so "nao reconheci"
 };
 
 const CHAVE = "fila_fotos";
@@ -67,15 +68,19 @@ async function processar() {
       if (!x) break;
       trocar(x.id, { estado: "reconhecendo" });
       const r = await reconhecerImagem(x.img, x.nao);
+      if (r === "sem_ia") {
+        trocar(x.id, { estado: "falhou", motivo: "sem_ia" });
+        continue;
+      }
       if (r === undefined) {
         // rede ou cota: tenta de novo daqui a pouco, ate 3 vezes
         const t = (x.tentativas ?? 0) + 1;
-        trocar(x.id, t >= 3 ? { estado: "falhou", tentativas: t } : { estado: "esperando", tentativas: t });
+        trocar(x.id, t >= 3 ? { estado: "falhou", tentativas: t, motivo: "ia_falhou" } : { estado: "esperando", tentativas: t });
         if (t < 3) await new Promise((ok) => setTimeout(ok, 4000));
         continue;
       }
       if (!r) {
-        trocar(x.id, { estado: "falhou" });
+        trocar(x.id, { estado: "falhou", motivo: undefined });
         continue;
       }
       // Codigo lido na foto: o nome certo vem da base publica (o da IA varia de foto para foto).
@@ -113,7 +118,7 @@ export async function enfileirarFoto(arquivo: File, destino: Destino) {
 export function reverFoto(id: string) {
   const x = fila.find((y) => y.id === id);
   if (!x) return;
-  trocar(id, { estado: "esperando", nao: x.nome || x.nao, nome: undefined, codigo: undefined, foto: null, tentativas: 0 });
+  trocar(id, { estado: "esperando", nao: x.nome || x.nao, nome: undefined, codigo: undefined, foto: null, tentativas: 0, motivo: undefined });
   void processar();
 }
 

@@ -27,7 +27,7 @@ export function FilaFotos() {
     <>
       {/* No leitor o proprio leitor mostra a fila; com popup aberto, o popup diz quantas faltam. */}
       {!leitorAberto && !atual && (trabalhando > 0 || prontos.length > 0) && (
-        <div className="pointer-events-none fixed inset-x-0 top-[max(64px,calc(env(safe-area-inset-top)+56px))] z-30 flex justify-center px-4">
+        <div className="pointer-events-none fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+160px)] z-30 lg:bottom-8 flex justify-center px-4">
           <button
             type="button"
             disabled={!clicavel}
@@ -101,8 +101,27 @@ function Conferir({ x, resta, onDepois }: { x: FotoFila; resta: number; onDepois
           📷 Foto reconhecida{resta > 0 ? ` · mais ${resta} na fila` : ""}
         </div>
         <div className="text-[20px] font-extrabold">
-          {passo === "dados" ? (emCasa ? "Quanto tem?" : "Quanto pegou e quanto pagou?") : falhou ? "Não reconheci este" : "É isso mesmo?"}
+          {passo === "dados"
+            ? emCasa
+              ? "Quanto tem?"
+              : "Quanto pegou e quanto pagou?"
+            : falhou
+              ? x.motivo === "sem_ia"
+                ? "A IA está desligada"
+                : x.motivo === "ia_falhou"
+                  ? "A IA não respondeu"
+                  : "Não reconheci este"
+              : "É isso mesmo?"}
         </div>
+        {passo === "conferir" && falhou && (
+          <div className="mt-0.5 text-[13px] text-text-2">
+            {x.motivo === "sem_ia"
+              ? "Falta a chave da IA no servidor. Escreva o nome por enquanto."
+              : x.motivo === "ia_falhou"
+                ? "Sem internet ou limite da IA. Escreva o nome ou peça pra tentar de novo."
+                : "Escreva o nome que está na frente da embalagem."}
+          </div>
+        )}
       </div>
 
       <div className="mb-4 flex items-center gap-3 rounded-[16px] border-[1.5px] border-brand bg-brand/5 p-3">
@@ -153,7 +172,7 @@ function Conferir({ x, resta, onDepois }: { x: FotoFila; resta: number; onDepois
               }}
               className={`h-12 rounded-[14px] border-2 border-border bg-card text-[14px] font-bold ${editando ? "col-span-2" : ""}`}
             >
-              🔄 Pedir pra rever
+              🔄 {x.motivo ? "Tentar de novo" : "Pedir pra rever"}
             </button>
           </div>
           <button
