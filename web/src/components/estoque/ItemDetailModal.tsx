@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
-import { AvatarInitial } from "@/components/ui/AvatarInitial";
+import { FotoItem } from "@/components/ui/FotoItem";
+import { categoriaDe } from "@/lib/categorias";
 import { QtyStepper } from "@/components/ui/QtyStepper";
 import { brl, pct, stockRatio } from "@/lib/format";
 import { ConfirmarExclusao } from "./ConfirmarExclusao";
@@ -147,19 +148,20 @@ export function ItemDetailModal({
 
   return (
     <Modal open={!!item} onClose={fechar}>
-      <div className="mb-5 flex items-center gap-3.5">
-        <AvatarInitial name={item.name} size={52} />
-        <div className="flex-1">
-          <div className="text-[20px] font-extrabold">{item.name}</div>
-          <div className="text-[13px] text-text-2">{item.category}</div>
+      {/* Foto grande no topo: reconhecer o produto antes de ler o nome */}
+      <div className="mb-5 flex items-center gap-4 pr-12">
+        <FotoItem nome={item.name} className="h-24 w-24 rounded-2xl border border-border" />
+        <div className="min-w-0 flex-1">
+          <div className="text-[22px] font-extrabold capitalize leading-tight">{item.name}</div>
+          <div className="mt-0.5 text-[13px] text-text-2">{item.category || categoriaDe(item.name)}</div>
+          <span
+            className={`mt-1.5 inline-block rounded-full px-2.5 py-[5px] text-xs font-bold ${
+              repor ? "bg-warn-soft text-warn" : "bg-pos-soft text-pos"
+            }`}
+          >
+            {repor ? "Repor" : "Em casa"}
+          </span>
         </div>
-        <span
-          className={`rounded-full px-2.5 py-[5px] text-xs font-bold ${
-            repor ? "bg-warn-soft text-warn" : "bg-pos-soft text-pos"
-          }`}
-        >
-          {repor ? "Repor" : "Em casa"}
-        </span>
       </div>
 
       <div className="mb-3.5 rounded-[16px] bg-card-2 p-4">
