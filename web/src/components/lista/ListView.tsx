@@ -13,6 +13,7 @@ import { BarcodeModal } from "./BarcodeModal";
 import { VoiceModal } from "@/components/voz/VoiceModal";
 import { QuickBar } from "./QuickBar";
 import { FotoItem } from "@/components/ui/FotoItem";
+import { RotaModal } from "./RotaModal";
 import { useListaOfertas } from "@/components/ofertas/useOfertas";
 import { corMercado, corredor, faltaEmCasa, maisBarataPara, nomeMercado, porMercado, resumir } from "@/lib/ofertas";
 
@@ -61,6 +62,7 @@ export function ListView() {
   // Quanto a lista sai em cada mercado (o mais barato de cada item dentro dele): a
   // resposta para "onde compensa fazer a compra", na cara, sem abrir a aba Ofertas.
   const resumoLista = resumir(ofertas, faltaEmCasa(pendentes, []));
+  const [rotaAberta, setRotaAberta] = useState(false);
   // Fica fora do "Vou no X" so o que esta mais barato em OUTRO mercado; item sem oferta
   // nenhuma se compra em qualquer lugar e continua aparecendo.
   const emOutro = (i: ShopItem) => {
@@ -243,6 +245,12 @@ export function ListView() {
             <div className="mt-2 text-[12px] text-text-3">
               {filtro ? "Mostrando só o que vale comprar lá." : "Toque num mercado para ver só o que vale comprar lá."}
             </div>
+            <button
+              onClick={() => setRotaAberta(true)}
+              className="mt-3 h-12 w-full rounded-[14px] bg-brand text-[15px] font-bold text-brand-ink"
+            >
+              🗺️ Montar rota da compra
+            </button>
             {filtro && (
               <p className="mt-2 text-[13px] text-text-2">
                 Na ordem dos corredores.
@@ -388,6 +396,7 @@ export function ListView() {
       />
       <AddItemModal open={addManualOpen} onClose={() => setAddManualOpen(false)} />
       {scanOpen && <BarcodeModal open onClose={() => setScanOpen(false)} />}
+      {rotaAberta && <RotaModal onClose={() => setRotaAberta(false)} />}
       <VoiceModal open={voiceOpen} onClose={() => setVoiceOpen(false)} />
       <ListItemActions
         key={action?.id}
