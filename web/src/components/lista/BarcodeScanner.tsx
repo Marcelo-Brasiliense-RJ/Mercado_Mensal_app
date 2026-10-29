@@ -112,14 +112,34 @@ export function BarcodeScanner({
             zxing.BarcodeFormat.CODE_128,
           ]);
           const reader = new BrowserMultiFormatReader(hints);
+          // O ZXing le codigo de barras so na horizontal. Para aceitar a embalagem em
+          // qualquer posicao (em pe, de lado, inclinada), cada quadro e lido girado num
+          // angulo diferente, de 30 em 30 graus (cada leitura tolera uns 15 de cada lado).
+          // Deitado e em pe primeiro, que e como quase todo mundo segura. Uma volta
+          // inteira leva ~0,6 s, sem pesar como o TRY_HARDER.
+          const ANGULOS = [0, 90, 30, 120, 60, 150];
+          const tela = document.createElement("canvas");
+          let volta = 0;
           ler = async (v) => {
+            const k = Math.min(1, 1600 / Math.max(v.videoWidth, v.videoHeight));
+            const w = Math.round(v.videoWidth * k);
+            const h = Math.round(v.videoHeight * k);
+            const rad = (ANGULOS[volta++ % ANGULOS.length] * Math.PI) / 180;
+            const cw = Math.round(Math.abs(w * Math.cos(rad)) + Math.abs(h * Math.sin(rad)));
+            const ch = Math.round(Math.abs(w * Math.sin(rad)) + Math.abs(h * Math.cos(rad)));
+            tela.width = cw;
+            tela.height = ch;
+            const ctx = tela.getContext("2d", { willReadFrequently: true })!;
+            ctx.setTransform(1, 0, 0, 1, cw / 2, ch / 2);
+            ctx.rotate(rad);
+            ctx.drawImage(v, -w / 2, -h / 2, w, h);
             try {
-              return reader.decode(v).getText();
+              return reader.decodeFromCanvas(tela).getText();
             } catch {
-              return ""; // quadro sem codigo
+              return ""; // quadro sem codigo neste angulo
             }
           };
-          intervalo = 120; // decodificar em JS e pesado: nao precisa ser todo quadro
+          intervalo = 100; // decodificar em JS e pesado: nao precisa ser todo quadro
         }
 
         let ultimo = 0;
@@ -152,15 +172,14 @@ export function BarcodeScanner({
   return (
     <div className="relative mx-auto h-[220px] w-full overflow-hidden rounded-[14px] border border-border bg-black">
       <video ref={videoRef} muted playsInline className="h-full w-full object-cover" />
-      {/* Mira deitada: codigo de barras e largo e baixo, e a faixa ensina onde mirar. */}
-      <div className="pointer-events-none absolute inset-x-6 top-1/2 h-[86px] -translate-y-1/2 rounded-[10px] border-2 border-white/70" />
-      <div className="pointer-events-none absolute inset-x-6 top-1/2 h-[2px] -translate-y-1/2 bg-brand/80" />
+      {/* Mira quadrada: o codigo pode estar deitado, em pe ou inclinado. */}
+      <div className="pointer-events-none absolute left-1/2 top-1/2 h-[150px] w-[150px] -translate-x-1/2 -translate-y-1/2 rounded-[14px] border-2 border-white/80" />
       <div className="pointer-events-none absolute inset-x-0 bottom-2 px-3 text-center text-[12px] font-bold text-white/90">
         {!lendo
           ? "Código lido"
           : recusado
             ? `Quase: ${recusado}. Chegue mais perto.`
-            : "Encoste no código, bem de perto"}
+            : "Aponte para o código, em qualquer posição"}
       </div>
     </div>
   );
