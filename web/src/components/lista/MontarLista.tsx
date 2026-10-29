@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { brl } from "@/lib/format";
 import { useStore } from "@/lib/store";
 import { SearchIcon } from "@/components/ui/icons";
@@ -17,10 +17,12 @@ import type { StockItem } from "@/lib/types";
 // Antes era um popup por item, digitando nome, quantidade e preco: lento e chato.
 type Aba = "acabando" | "casa" | "oferta";
 
+// Quanto levar: o que falta para a casa ter o de sempre ("normal", aprendido por familia).
 const falta = (s: StockItem) => Math.max(1, Math.round(s.normal - s.current));
+const num = (n: number) => Number(n.toFixed(2)).toLocaleString("pt-BR");
 
 export function MontarLista({ onClose }: { onClose: () => void }) {
-  const { stock, shopping, addShopItem, removeItems, showToast } = useStore();
+  const { stock, shopping, addShopItem, removeItems, updateShopItem, setPar, showToast } = useStore();
   const ofertas = useListaOfertas();
   const acabandoTodos = stock.filter((s) => s.current <= 0 || (s.normal > 0 && s.current < s.normal * 0.5));
   const [aba, setAba] = useState<Aba>(acabandoTodos.length ? "acabando" : "casa");
@@ -33,6 +35,32 @@ export function MontarLista({ onClose }: { onClose: () => void }) {
     for (const i of shopping) if (i.status === "pending") m.set(i.name.trim().toLowerCase(), i.id);
     return m;
   }, [shopping]);
+  const qtdNaLista = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const i of shopping) if (i.status === "pending") m.set(i.name.trim().toLowerCase(), i.desired_quantity);
+    return m;
+  }, [shopping]);
+  // Quantidade mexida no ladrilho: aparece na hora e vai ao banco quando a pessoa para de tocar.
+  const [qtdLocal, setQtdLocal] = useState<Record<string, number>>({});
+  const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+
+  function mudarQtd(s: StockItem, delta: number) {
+    const k = s.name.trim().toLowerCase();
+    const id = naLista.get(k);
+    if (!id || id.startsWith("local-")) return;
+    const atual = qtdLocal[k] ?? qtdNaLista.get(k) ?? falta(s);
+    const passo = s.unit === "kg" || s.unit === "L" ? 0.5 : 1;
+    const nova = Math.max(passo, Number((atual + delta * passo).toFixed(2)));
+    setQtdLocal((q) => ({ ...q, [k]: nova }));
+    clearTimeout(timers.current[k]);
+    timers.current[k] = setTimeout(async () => {
+      const r = await updateShopItem(id, { qty: nova });
+      if (!r.ok) return showToast(r.erro);
+      // Aprende o de sempre: com o que tem em casa mais o que vai levar. Proximo mes ja vem certo.
+      const sempre = Number((Math.max(0, s.current) + nova).toFixed(2));
+      if (sempre !== s.normal) await setPar(s.id, sempre);
+    }, 700);
+  }
 
   const b = padrao(busca.trim());
   const filtra = (nome: string) => !b || padrao(nome).includes(b);
@@ -140,16 +168,26 @@ export function MontarLista({ onClose }: { onClose: () => void }) {
             {(aba === "acabando" ? acabando : casa).map((s) => {
               const k = s.name.trim().toLowerCase();
               const on = naLista.has(k);
+              const leva = falta(s);
+              const tem = s.current <= 0 ? "acabou" : `tem ${num(s.current)}`;
               return (
                 <Ladrilho
                   key={s.id}
                   on={on}
                   ocupado={ocupado === k}
-                  onClick={() => alternar(s.name, falta(s), s.unit, s.priceLast)}
+                  onClick={() => {
+                    setQtdLocal((q) => {
+                      const n = { ...q };
+                      delete n[k];
+                      return n;
+                    });
+                    void alternar(s.name, leva, s.unit, s.priceLast);
+                  }}
                   foto={<FotoItem nome={s.name} className="h-16 w-16 rounded-lg" />}
                   nome={s.name}
-                  sub={on ? "na lista" : s.current <= 0 ? "acabou" : `tem ${Number(s.current.toFixed(2)).toLocaleString("pt-BR")} ${s.unit}`}
+                  sub={on ? tem : `${tem} · leva ${num(leva)}`}
                   alerta={!on && s.current <= 0}
+                  qtd={on ? { valor: qtdLocal[k] ?? qtdNaLista.get(k) ?? leva, unidade: s.unit, mudar: (d) => mudarQtd(s, d) } : undefined}
                 />
               );
             })}
@@ -201,6 +239,7 @@ function Ladrilho({
   alerta,
   faixa,
   etiqueta,
+  qtd,
 }: {
   on: boolean;
   ocupado: boolean;
@@ -211,15 +250,18 @@ function Ladrilho({
   alerta?: boolean;
   faixa?: string;
   etiqueta?: string;
+  // Na lista: quanto levar, com - e + para acertar sem abrir nada.
+  qtd?: { valor: number; unidade: string; mudar: (delta: number) => void };
 }) {
   return (
+    <div className="relative flex flex-col">
     <button
       onClick={onClick}
       disabled={ocupado}
       aria-pressed={on}
-      className={`relative flex flex-col items-center gap-1 overflow-hidden rounded-2xl border-2 bg-card px-1.5 pb-2 pt-2 text-center transition-transform active:scale-95 disabled:opacity-60 ${
+      className={`relative flex flex-1 flex-col items-center gap-1 overflow-hidden border-2 bg-card px-1.5 pt-2 text-center transition-transform active:scale-95 disabled:opacity-60 ${
         on ? "border-pos bg-pos-soft" : "border-border"
-      }`}
+      } ${qtd ? "rounded-t-2xl border-b-0 pb-1" : "rounded-2xl pb-2"}`}
     >
       {etiqueta && (
         <span className="absolute inset-x-0 top-0 truncate px-1 text-[10px] font-extrabold leading-4 text-white" style={{ background: faixa }}>
@@ -235,5 +277,19 @@ function Ladrilho({
         </span>
       )}
     </button>
+    {qtd && (
+      <div className="flex items-center justify-between rounded-b-2xl border-2 border-t-0 border-pos bg-pos-soft px-1 pb-1.5">
+        <button onClick={() => qtd.mudar(-1)} aria-label="Menos" className="grid h-9 w-9 place-items-center rounded-full bg-card text-[18px] font-extrabold text-pos">
+          −
+        </button>
+        <span className="text-[14px] font-extrabold tabular-nums text-pos">
+          {num(qtd.valor)} <span className="text-[11px]">{qtd.unidade}</span>
+        </span>
+        <button onClick={() => qtd.mudar(1)} aria-label="Mais" className="grid h-9 w-9 place-items-center rounded-full bg-card text-[18px] font-extrabold text-pos">
+          +
+        </button>
+      </div>
+    )}
+    </div>
   );
 }
