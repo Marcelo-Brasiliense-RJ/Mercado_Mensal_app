@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { brl } from "@/lib/format";
 import { BarcodeIcon, CheckIcon, MicIcon, PlusIcon, SearchIcon } from "@/components/ui/icons";
 import { ScreenHeader } from "@/components/layout/ScreenHeader";
@@ -17,6 +17,8 @@ import { categoriaDe } from "@/lib/categorias";
 import { RotaModal } from "./RotaModal";
 import { MontarLista } from "./MontarLista";
 import { useListaOfertas } from "@/components/ofertas/useOfertas";
+import { useLivelo } from "@/components/ofertas/useLivelo";
+import { ofertasLivelo } from "@/lib/livelo";
 import { corMercado, corredor, faltaEmCasa, maisBarataPara, nomeMercado, porMercado, resumir } from "@/lib/ofertas";
 import { MercadoModal, type ItemMercado } from "./MercadoModal";
 
@@ -30,7 +32,10 @@ export function ListView() {
   const [action, setAction] = useState<ShopItem | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   // Selo "em oferta" em cada item: ao montar a lista ja se ve onde comprar.
-  const ofertas = useListaOfertas();
+  // Precos da Livelo entram como mais um mercado, ja descontando os pontos (0046).
+  const ofertasMercado = useListaOfertas();
+  const livelo = useLivelo();
+  const ofertas = useMemo(() => (livelo ? [...ofertasMercado, ...ofertasLivelo(livelo)] : ofertasMercado), [ofertasMercado, livelo]);
   // "Vou no Guanabara": mostra so o que vale comprar la, na ordem dos corredores.
   // Lembrado no aparelho: quem vai sempre no mesmo mercado nao escolhe de novo.
   const [ondeVou, setOndeVouState] = useState<string | null>(() => {
@@ -289,6 +294,11 @@ export function ListView() {
             <div className="mt-2 text-[12px] text-text-3">
               {filtro ? "Mostrando só o que vale comprar lá." : "Toque num mercado para ver os produtos e ir até lá."}
             </div>
+            {resumoLista.itens.some((x) => !x.opcoes.length) && (
+              <div className="mt-1 text-[12px] text-text-3">
+                Sem oferta esta semana: {resumoLista.itens.filter((x) => !x.opcoes.length).map((x) => x.item.nome).join(", ")}.
+              </div>
+            )}
             <button
               onClick={() => setRotaAberta(true)}
               className="mt-3 h-12 w-full rounded-[14px] bg-brand text-[15px] font-bold text-brand-ink"
@@ -376,6 +386,11 @@ export function ListView() {
                 >
                   <div className={`font-bold ${bought ? "text-text-3 line-through" : ""}`}>
                     {i.name}
+                    {livelo?.fixos.includes(i.name.trim().toLowerCase()) && (
+                      <span className="ml-1 text-[13px]" title="Fixo do mês">
+                        ⭐
+                      </span>
+                    )}
                     {jaTenho && (
                       <span className="mt-0.5 block w-fit rounded-full bg-pos-soft px-2 py-[1px] text-[11px] font-bold text-pos">
                         já tem em casa

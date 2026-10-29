@@ -9,6 +9,7 @@ import { brl } from "@/lib/format";
 import { casaItem, maisBarato, nomeCompleto, porUnidade, prazo, type Oferta } from "@/lib/ofertas";
 import { useListaOfertas } from "@/components/ofertas/useOfertas";
 import { Foto, Selo } from "@/components/ofertas/pecas";
+import { BotaoFixo } from "@/components/ofertas/BotaoFixo";
 
 const UNITS = ["un", "kg", "g", "L", "ml", "pct", "cx", "dz"];
 const field =
@@ -89,8 +90,9 @@ export function ListItemActions({
   return (
     <Modal open={!!item} onClose={onClose} maxWidth={420}>
       <div className="mb-1 pr-12 text-[20px] font-extrabold capitalize">{item.name}</div>
-      <div className="mb-4 text-[13px] text-text-2">
+      <div className="mb-4 flex flex-wrap items-center gap-2 text-[13px] text-text-2">
         {emEstoque ? `🏠 Em casa: ${emEstoque.current} ${emEstoque.unit}` : "🏠 Não tem em casa"}
+        <BotaoFixo nome={item.name} />
       </div>
 
       {porMercado.length > 0 ? (

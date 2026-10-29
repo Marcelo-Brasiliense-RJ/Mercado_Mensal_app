@@ -31,8 +31,14 @@ export const MERCADOS: Record<string, { nome: string; cor: string }> = {
   superbom: { nome: "Superbom", cor: "#B0600E" },
   economia: { nome: "Rede Economia", cor: "#7340B8" },
 };
-export const nomeMercado = (m: string) => MERCADOS[m]?.nome ?? m;
-export const corMercado = (m: string) => MERCADOS[m]?.cor ?? "#6B5E55";
+// Parceiro da Livelo entra nas comparacoes como mais um mercado ("livelo:CRM"); o nome
+// vem da tabela de pontos (useLivelo preenche ao carregar).
+export const NOMES_LIVELO: Record<string, string> = {};
+export const COR_LIVELO = "#E6007E";
+export const ehLivelo = (m: string) => m.startsWith("livelo:");
+export const nomeMercado = (m: string) =>
+  ehLivelo(m) ? `${NOMES_LIVELO[m.slice(7)] ?? m.slice(7)} · Livelo` : (MERCADOS[m]?.nome ?? m);
+export const corMercado = (m: string) => (ehLivelo(m) ? COR_LIVELO : (MERCADOS[m]?.cor ?? "#6B5E55"));
 
 const semAcento = (s: string) =>
   s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();

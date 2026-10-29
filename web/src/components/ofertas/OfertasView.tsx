@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { brl } from "@/lib/format";
 import { useStore } from "@/lib/store";
@@ -7,6 +8,7 @@ import { useOfertas } from "./useOfertas";
 import { DeOlho, Estrela } from "./DeOlho";
 import { MercadosDaCasa } from "./MeusMercados";
 import { NaoCompro, Polegar } from "./NaoCompro";
+import { LiveloSecao } from "./Livelo";
 import { Foto, PorUnidade, Selo } from "./pecas";
 import { Grupo, useRecolhidos } from "@/components/ui/Grupo";
 import { ICONE } from "@/lib/categorias";
@@ -27,16 +29,14 @@ import {
   type Oferta,
 } from "@/lib/ofertas";
 
-// Aba Ofertas. Pensada para ser entendida num relance, com as maos ocupadas:
-// 1. a resposta primeiro ("va no Guanabara"), 2. o que falta em casa, mais barato,
-// 3. um unico campo de busca. Nada para preencher: a lista vem de Repor + lista de compras.
+// Aba Ofertas: o que esta em promocao (De olho, Nao compro, maiores descontos, todas).
+// A conta da lista (onde compensa, quanto sai em cada mercado) fica na aba Lista.
 export function OfertasView() {
   const estado = useOfertas();
   const { shopping, stock, addShopItem, showToast } = useStore();
   const [busca, setBusca] = useState("");
   const [aberto, setAberto] = useState<{ titulo: string; opcoes: Oferta[] } | null>(null);
   const [postos, setPostos] = useState<Set<string>>(new Set());
-  const [guardando, setGuardando] = useState(false);
   const naLista = (nome: string) =>
     postos.has(nome.toLowerCase()) ||
     shopping.some((i) => i.status === "pending" && i.name.toLowerCase() === nome.toLowerCase());
@@ -58,7 +58,6 @@ export function OfertasView() {
   // ofertas: tirar item da lista muda a conta na hora.
   const lista = useMemo(() => faltaEmCasa(shopping, stock), [shopping, stock]);
   const resumo = useMemo(() => (dados ? resumir(dados.ofertas, lista) : null), [dados, lista]);
-  const [verItens, setVerItens] = useState(false);
   const achadosBusca = useMemo(() => {
     if (!dados || busca.trim().length < 2) return null;
     return dados.ofertas.filter((o) => casaBusca(o, busca)).sort(maisBarato);
@@ -87,13 +86,10 @@ export function OfertasView() {
     return <Aviso titulo="Nenhuma oferta valendo agora" texto="Os encartes novos entram assim que os mercados publicarem." />;
   }
 
-  const melhor = resumo.mercados[0];
-  const semOferta = resumo.itens.filter((x) => !x.opcoes.length);
-  const comOferta = resumo.itens.filter((x) => x.opcoes.length);
 
   return (
     <div className="flex flex-col gap-6">
-      <ScreenHeader title="Ofertas" subtitle="O que falta em casa, no mercado mais barato" />
+      <ScreenHeader title="Ofertas" subtitle="Promoções dos seus mercados" />
       <MercadosDaCasa />
 
       {/* Busca: o unico campo da tela */}
@@ -127,106 +123,28 @@ export function OfertasView() {
         <>
           {/* 0. O que a pessoa marcou para pegar em promocao */}
           <DeOlho ofertas={dados.ofertas} onComparar={(titulo, opcoes) => setAberto({ titulo, opcoes })} />
+          <LiveloSecao ofertas={dados.ofertas} />
           <NaoCompro ofertas={dados.ofertas} escondidas={dados.escondidas} />
 
-          {/* 1. A resposta */}
-          {melhor && resumo.comOferta > 0 ? (
-            <section
-              className="rounded-[20px] p-5 text-white shadow-[0_2px_10px_var(--shadow)]"
-              style={{ background: corMercado(melhor.mercado) }}
+          {/* A conta da lista (onde vale ir, quanto sai em cada mercado) mora na Lista,
+              junto dos itens: aqui fica so o atalho. */}
+          {resumo.comOferta > 0 && resumo.mercados[0] && (
+            <Link
+              href="/app/lista"
+              className="flex items-center gap-3 rounded-[18px] border-2 p-4"
+              style={{ borderColor: corMercado(resumo.mercados[0].mercado) }}
             >
-              <div className="text-[13px] font-bold uppercase tracking-[0.08em] opacity-85">Esta semana, vá no</div>
-              <div className="mt-1 text-[34px] font-extrabold leading-none tracking-[-0.02em]">
-                {nomeMercado(melhor.mercado)}
-              </div>
-              <div className="mt-3 text-[16px] font-semibold">
-                Tem {melhor.itens} de {resumo.comOferta} itens que faltam em casa · {brl(melhor.total)}
-              </div>
-              {resumo.lojasMelhor > 1 && (
-                <div className="mt-1 text-[13px] opacity-85">
-                  Pegando o mais barato de cada um: {brl(resumo.melhorTotal)} em {resumo.lojasMelhor} mercados.
-                </div>
-              )}
-              <button
-                onClick={() => setVerItens((v) => !v)}
-                aria-expanded={verItens}
-                className="mt-3 text-[14px] font-bold underline underline-offset-2"
-              >
-                {verItens ? "Esconder os itens" : `Ver quais são os ${melhor.itens} itens`}
-              </button>
-              {verItens && (
-                <div className="mt-3 rounded-2xl bg-white/95 p-1 text-text">
-                  <ItensDoMercado mercado={melhor.mercado} itens={comOferta} />
-                </div>
-              )}
-              {(() => {
-                // O que esta em Repor e tem oferta nesse mercado, e ainda nao esta na lista.
-                const levar = comOferta
-                  .filter(({ item }) => !naLista(item.nome))
-                  .map(({ item, opcoes }) => ({ item, o: opcoes.find((o) => o.mercado === melhor.mercado) }))
-                  .filter((x): x is { item: typeof x.item; o: Oferta } => !!x.o);
-                if (!levar.length) return null;
-                return (
-                  <button
-                    onClick={async () => {
-                      setGuardando(true);
-                      let n = 0;
-                      for (const { item, o } of levar) if (await porNaLista(item.nome, o, true)) n++;
-                      setGuardando(false);
-                      showToast(`${n} ${n > 1 ? "itens" : "item"} na lista para o ${nomeMercado(melhor.mercado)}`);
-                    }}
-                    disabled={guardando}
-                    className="mt-4 h-12 w-full rounded-2xl bg-white text-[15px] font-extrabold disabled:opacity-60"
-                    style={{ color: corMercado(melhor.mercado) }}
-                  >
-                    {guardando ? "Pondo na lista…" : `Pôr ${levar.length} ${levar.length > 1 ? "itens" : "item"} na lista`}
-                  </button>
-                );
-              })()}
-            </section>
-          ) : (
-            <Aviso
-              titulo={lista.length ? "O que falta em casa não está em oferta" : "Nada faltando em casa"}
-              texto="Veja abaixo os maiores descontos da semana."
-            />
-          )}
-
-          {/* 2. O que falta, mais barato */}
-          {comOferta.length > 0 && (
-            <section className="flex flex-col gap-3">
-              <Titulo>O que falta em casa, mais barato</Titulo>
-              <Grade>
-                {comOferta.map(({ item, opcoes }) => (
-                  <CardOferta
-                    key={item.nome}
-                    o={opcoes[0]}
-                    rotulo={item.nome}
-                    origem={item.origem}
-                    ultimo={item.ultimo_preco}
-                    mais={opcoes.length - 1}
-                    onMais={() => setAberto({ titulo: item.nome, opcoes })}
-                    naLista={naLista(item.nome)}
-                    onLista={() => porNaLista(item.nome, opcoes[0])}
-                  />
-                ))}
-              </Grade>
-              {semOferta.length > 0 && (
-                <p className="text-[13px] text-text-2">
-                  Sem oferta esta semana: {semOferta.map((x) => x.item.nome).join(", ")}.
-                </p>
-              )}
-            </section>
-          )}
-
-          {/* 3. Onde comprar: cada mercado abre e mostra os itens dele */}
-          {resumo.comOferta > 0 && (
-            <section className="flex flex-col gap-2">
-              <Titulo>Quanto sai em cada mercado</Titulo>
-              <p className="-mt-1 text-[13px] text-text-2">Toque num mercado para ver os itens.</p>
-              {resumo.mercados.map((m) => (
-                <LinhaMercado key={m.mercado} m={m} total={resumo.comOferta} itens={comOferta} />
-              ))}
-            </section>
+              <span className="text-[24px]" aria-hidden>🛒</span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[15px] font-extrabold">
+                  Sua lista: {resumo.comOferta} de {lista.length} em oferta
+                </span>
+                <span className="block text-[13px] text-text-2">
+                  Mais barato no {nomeMercado(resumo.mercados[0].mercado)}. Veja onde compensa na Lista.
+                </span>
+              </span>
+              <span className="text-[22px] text-text-3" aria-hidden>›</span>
+            </Link>
           )}
 
           {/* 4. Achados */}
@@ -394,92 +312,6 @@ function CardOferta({
         </div>
       </div>
     </article>
-  );
-}
-
-type ItemComOfertas = { item: { nome: string }; opcoes: Oferta[] };
-
-// Os itens que faltam em casa vistos de um mercado: quanto custa cada um la, se la e
-// o mais barato, e o que esse mercado nao tem.
-function ItensDoMercado({ mercado, itens }: { mercado: string; itens: ItemComOfertas[] }) {
-  const tem = itens
-    .map(({ item, opcoes }) => ({ item, o: opcoes.find((o) => o.mercado === mercado), melhor: opcoes[0] }))
-    .filter((x): x is { item: { nome: string }; o: Oferta; melhor: Oferta } => !!x.o);
-  const naoTem = itens.filter(({ opcoes }) => !opcoes.some((o) => o.mercado === mercado));
-  return (
-    <div className="flex flex-col divide-y divide-border">
-      {tem.map(({ item, o, melhor }) => {
-        // "mais barato" so quando e mesmo; o aviso do outro mercado so quando la custa menos.
-        const ganha = melhor.mercado === mercado;
-        const outroMenor = !ganha && melhor.preco_por < o.preco_por;
-        return (
-          <div key={item.nome} className="flex items-center gap-2.5 px-2 py-2">
-            <Foto o={o} className="h-11 w-11 rounded-lg" />
-            <div className="min-w-0 flex-1">
-              <div className="text-[11px] font-extrabold uppercase tracking-[0.05em] text-brand">{item.nome}</div>
-              <div className="truncate text-[13px] font-semibold">{nomeCompleto(o)}</div>
-              {outroMenor && (
-                <div className="text-[11px] text-text-2">
-                  No {nomeMercado(melhor.mercado)} sai {brl(melhor.preco_por)}
-                </div>
-              )}
-            </div>
-            <div className="text-right">
-              <div className={`text-[15px] font-extrabold tabular-nums ${ganha ? "text-pos" : ""}`}>{brl(o.preco_por)}</div>
-              {ganha && <div className="text-[10px] font-bold text-pos">mais barato</div>}
-            </div>
-          </div>
-        );
-      })}
-      {naoTem.length > 0 && (
-        <div className="px-2 py-2 text-[12px] text-text-2">
-          <b>Não tem em oferta aqui:</b> {naoTem.map((x) => x.item.nome).join(", ")}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function LinhaMercado({
-  m,
-  total,
-  itens,
-}: {
-  m: { mercado: string; itens: number; total: number };
-  total: number;
-  itens: ItemComOfertas[];
-}) {
-  const [aberto, setAberto] = useState(false);
-  return (
-    <div className="overflow-hidden rounded-2xl border border-border bg-card">
-      <button
-        onClick={() => setAberto((v) => !v)}
-        aria-expanded={aberto}
-        className="flex w-full items-center gap-3 px-4 py-3 text-left"
-      >
-        <Selo mercado={m.mercado} />
-        <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-card-2">
-          <div
-            className="h-full rounded-full"
-            style={{ width: `${(m.itens / total) * 100}%`, background: corMercado(m.mercado) }}
-          />
-        </div>
-        <div className="text-right tabular-nums">
-          <div className="text-[15px] font-extrabold">{m.itens ? brl(m.total) : "—"}</div>
-          <div className="text-[12px] text-text-2">
-            {m.itens}/{total} itens
-          </div>
-        </div>
-        <span className={`text-[18px] text-text-3 transition-transform ${aberto ? "rotate-180" : ""}`} aria-hidden>
-          ⌄
-        </span>
-      </button>
-      {aberto && (
-        <div className="border-t border-border">
-          <ItensDoMercado mercado={m.mercado} itens={itens} />
-        </div>
-      )}
-    </div>
   );
 }
 
