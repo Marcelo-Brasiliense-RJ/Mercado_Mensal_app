@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { FilaFotos } from "@/components/lista/FilaFotos";
 import { usePathname } from "next/navigation";
 import { Sidebar } from "./Sidebar";
 import { TabBar } from "./TabBar";
@@ -88,6 +89,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </div>
 
       <ReceiptModal open={receiptOpen} onClose={closeReceipt} />
+      <FilaFotos />
     </div>
   );
 }

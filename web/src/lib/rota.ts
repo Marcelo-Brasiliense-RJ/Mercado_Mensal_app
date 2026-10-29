@@ -84,3 +84,16 @@ export function linkGoogle(origem: Ponto | null, paradas: Ponto[]): string {
 
 // Waze so leva a um destino por vez.
 export const linkWaze = (p: Ponto) => `https://waze.com/ul?ll=${ll(p)}&navigate=yes`;
+
+// Mapas do iPhone (Apple): rota de carro ate o ponto.
+export const linkApple = (p: Ponto) => `https://maps.apple.com/?daddr=${ll(p)}&dirflg=d`;
+
+// Sem a loja no mapa: cada app procura pelo nome, perto de onde a pessoa esta.
+export function linksPorNome(nome: string) {
+  const q = encodeURIComponent(`Supermercado ${nome}`);
+  return {
+    waze: `https://waze.com/ul?q=${q}&navigate=yes`,
+    google: `https://www.google.com/maps/search/?api=1&query=${q}`,
+    apple: `https://maps.apple.com/?q=${q}`,
+  };
+}

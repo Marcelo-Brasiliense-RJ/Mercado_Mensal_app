@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
-import { AvatarInitial } from "@/components/ui/AvatarInitial";
+import { FotoItem } from "@/components/ui/FotoItem";
+import { categoriaDe } from "@/lib/categorias";
 import { QtyStepper } from "@/components/ui/QtyStepper";
 import { brl, pct, stockRatio } from "@/lib/format";
+import { ConfirmarExclusao } from "./ConfirmarExclusao";
 import { useStore } from "@/lib/store";
 import type { StockItem } from "@/lib/types";
 
@@ -22,13 +24,13 @@ export function ItemDetailModal({
     addStockToList,
     addStock,
     zerarStock,
-    deleteStock,
     baixaStock,
     setPar,
     parSugerido,
     showToast,
   } = useStore();
   const [parcial, setParcial] = useState(false);
+  const [excluindo, setExcluindo] = useState(false);
   const [qtd, setQtd] = useState("");
   const [busy, setBusy] = useState(false);
   const [editPar, setEditPar] = useState(false);
@@ -146,19 +148,20 @@ export function ItemDetailModal({
 
   return (
     <Modal open={!!item} onClose={fechar}>
-      <div className="mb-5 flex items-center gap-3.5">
-        <AvatarInitial name={item.name} size={52} />
-        <div className="flex-1">
-          <div className="text-[20px] font-extrabold">{item.name}</div>
-          <div className="text-[13px] text-text-2">{item.category}</div>
+      {/* Foto grande no topo: reconhecer o produto antes de ler o nome */}
+      <div className="mb-5 flex items-center gap-4 pr-12">
+        <FotoItem nome={item.name} className="h-24 w-24 rounded-2xl border border-border" />
+        <div className="min-w-0 flex-1">
+          <div className="text-[22px] font-extrabold capitalize leading-tight">{item.name}</div>
+          <div className="mt-0.5 text-[13px] text-text-2">{item.category || categoriaDe(item.name)}</div>
+          <span
+            className={`mt-1.5 inline-block rounded-full px-2.5 py-[5px] text-xs font-bold ${
+              repor ? "bg-warn-soft text-warn" : "bg-pos-soft text-pos"
+            }`}
+          >
+            {repor ? "Repor" : "Em casa"}
+          </span>
         </div>
-        <span
-          className={`rounded-full px-2.5 py-[5px] text-xs font-bold ${
-            repor ? "bg-warn-soft text-warn" : "bg-pos-soft text-pos"
-          }`}
-        >
-          {repor ? "Repor" : "Em casa"}
-        </span>
       </div>
 
       <div className="mb-3.5 rounded-[16px] bg-card-2 p-4">
@@ -375,18 +378,10 @@ export function ItemDetailModal({
         </button>
       </div>
       {/* Excluir mora no fim e pede confirmacao: tira o item do estoque de vez. */}
-      <button
-        onClick={async () => {
-          if (!item || !confirm(`Excluir ${item.name} do estoque?`)) return;
-          const r = await deleteStock([item.id]);
-          if (!r.ok) return showToast(r.erro);
-          showToast(`${item.name} excluído`, { desfazer: true });
-          fechar();
-        }}
-        className="mt-3 h-11 w-full text-[14px] font-bold text-neg underline"
-      >
+      <button onClick={() => setExcluindo(true)} className="mt-3 h-11 w-full text-[14px] font-bold text-neg underline">
         Excluir do estoque
       </button>
+      {excluindo && item && <ConfirmarExclusao itens={[item]} onClose={() => setExcluindo(false)} onFeito={fechar} />}
     </Modal>
   );
 }

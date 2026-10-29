@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AvisoMaisBarato } from "@/components/ofertas/AvisoMaisBarato";
 import { AvisoPrecoSubiu } from "@/components/ofertas/AvisoPrecoSubiu";
 import { Modal } from "@/components/ui/Modal";
@@ -18,6 +18,7 @@ import { ehRuim, nomeMercado, termoEvitar } from "@/lib/ofertas";
 import { marcarRuim, useEvitar } from "@/components/ofertas/useEvitar";
 import { precoNoMercado } from "@/lib/precoMercado";
 import { usePrecosVistos } from "@/lib/precosVistos";
+import { enfileirarFoto, marcarLeitor, useFilaFotos } from "@/lib/filaFotos";
 
 // Ler o codigo, dizer a quantidade, pronto: o item cai no carrinho.
 //
@@ -87,6 +88,17 @@ export function BarcodeModal({
   // O que ja entrou nesta sessao de leitura, so pra dar retorno visivel sem
   // precisar fechar o leitor e conferir o carrinho.
   const [lidos, setLidos] = useState<string[]>([]);
+  // Foto do produto quando o codigo nao le (amassado, curvo, sem codigo): vai para a
+  // fila da IA e a pessoa segue lendo. Ao fechar o leitor, cada uma vira um popup
+  // "e isso mesmo?" (FilaFotos, no AppShell).
+  const inputFoto = useRef<HTMLInputElement>(null);
+  const { fila } = useFilaFotos();
+  const naFila = fila.filter((x) => x.estado === "esperando" || x.estado === "reconhecendo").length;
+  const prontas = fila.filter((x) => x.estado === "pronto" || x.estado === "falhou").length;
+  useEffect(() => {
+    marcarLeitor(open);
+    return () => marcarLeitor(false);
+  }, [open]);
 
   async function resolver(code: string) {
     {
@@ -294,6 +306,34 @@ export function BarcodeModal({
               Buscar
             </button>
           </form>
+
+          <input
+            ref={inputFoto}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+            aria-label="Foto do produto"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              e.target.value = "";
+              if (!f) return;
+              void enfileirarFoto(f, emCasa ? "estoque" : "carrinho");
+              showToast("📷 Foto na fila. Pode ler o próximo.");
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => inputFoto.current?.click()}
+            className="mb-1.5 h-[50px] w-full rounded-[14px] border-2 border-dashed border-brand text-[15px] font-bold text-brand"
+          >
+            📷 Não leu? Tire uma foto do produto
+          </button>
+          <p className="mb-4 text-center text-[12px] text-text-3">
+            {naFila || prontas
+              ? `${naFila ? `${naFila} reconhecendo` : ""}${naFila && prontas ? " · " : ""}${prontas ? `${prontas} pronta${prontas > 1 ? "s" : ""}` : ""}. Você confere ao fechar o leitor.`
+              : "A IA reconhece em fila e você confere depois, sem esperar."}
+          </p>
 
           {lidos.length > 0 && (
             <div className="mb-4 rounded-[13px] border border-border bg-card-2 p-3">

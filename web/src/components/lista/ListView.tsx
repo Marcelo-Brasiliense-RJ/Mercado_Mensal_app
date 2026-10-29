@@ -13,10 +13,12 @@ import { BarcodeModal } from "./BarcodeModal";
 import { VoiceModal } from "@/components/voz/VoiceModal";
 import { QuickBar } from "./QuickBar";
 import { FotoItem } from "@/components/ui/FotoItem";
+import { categoriaDe } from "@/lib/categorias";
 import { RotaModal } from "./RotaModal";
 import { MontarLista } from "./MontarLista";
 import { useListaOfertas } from "@/components/ofertas/useOfertas";
 import { corMercado, corredor, faltaEmCasa, maisBarataPara, nomeMercado, porMercado, resumir } from "@/lib/ofertas";
+import { MercadoModal, type ItemMercado } from "./MercadoModal";
 
 export function ListView() {
   const { shopping, trip, buyItems, removeItems, addTripItem, showToast, reloadTrip, stock, stockToList } =
@@ -65,6 +67,15 @@ export function ListView() {
   const resumoLista = resumir(ofertas, faltaEmCasa(pendentes, []));
   const [rotaAberta, setRotaAberta] = useState(false);
   const [montar, setMontar] = useState(false);
+  const [mercadoAberto, setMercadoAberto] = useState<string | null>(null);
+  // Produtos do encarte que entram na conta do mercado aberto.
+  const itensDoMercado = (m: string): ItemMercado[] =>
+    resumoLista.itens.flatMap((x) => {
+      const o = x.opcoes.find((y) => y.mercado === m);
+      if (!o) return [];
+      const naLista = shopping.find((s) => s.status === "pending" && s.name.trim().toLowerCase() === x.item.nome)?.estimated_price ?? null;
+      return [{ nome: x.item.nome, oferta: o, naLista, melhor: x.opcoes[0] }];
+    });
   // Fica fora do "Vou no X" so o que esta mais barato em OUTRO mercado; item sem oferta
   // nenhuma se compra em qualquer lugar e continua aparecendo.
   const emOutro = (i: ShopItem) => {
@@ -78,7 +89,11 @@ export function ListView() {
     .sort(
       (a, b) =>
         (a.status === "bought" ? 1 : 0) - (b.status === "bought" ? 1 : 0) ||
-        (filtro ? corredor(melhor.get(a)?.categoria) - corredor(melhor.get(b)?.categoria) : 0),
+        (filtro
+          ? corredor(melhor.get(a)?.categoria) - corredor(melhor.get(b)?.categoria)
+          : trip // no mercado: na ordem dos corredores, para nao voltar ao mesmo corredor
+            ? corredor(categoriaDe(a.name)) - corredor(categoriaDe(b.name))
+            : 0),
     );
   const escondidos = filtro ? pendentes.filter(emOutro).length : 0;
 
@@ -185,7 +200,9 @@ export function ListView() {
           </div>
         </div>
 
-        {/* Montar a lista como numa vitrine: um toque por produto, com foto. */}
+        {/* Montar a lista como numa vitrine: um toque por produto, com foto.
+            Dentro do mercado (carrinho aberto) some: ali a tela e de pegar, nao de planejar. */}
+        {!trip && (
         <button
           onClick={() => setMontar(true)}
           className="flex w-full items-center gap-3 rounded-[18px] bg-brand px-4 py-3.5 text-left text-brand-ink shadow-[0_4px_14px_var(--shadow)]"
@@ -197,6 +214,7 @@ export function ListView() {
           </span>
           <span className="text-[22px]" aria-hidden>›</span>
         </button>
+        )}
 
         {/* Lista do mes num toque: o app ja sabe o que falta para completar a casa. */}
         {!trip && doMes.length > 0 && (
@@ -219,7 +237,7 @@ export function ListView() {
 
         {/* Onde compensa: cada mercado com quantos itens da lista e quanto sai la.
             Tocar filtra a lista por aquele mercado, na ordem dos corredores. */}
-        {mercadosComOferta.length > 0 && (
+        {!trip && mercadosComOferta.length > 0 && (
           <div className="rounded-[18px] border border-border bg-card p-3.5">
             <div className="text-[12px] font-bold uppercase tracking-wide text-text-3">Onde compensa comprar</div>
             {resumoLista.mercados[0] && (
@@ -236,9 +254,9 @@ export function ListView() {
                   return (
                     <button
                       key={m.mercado}
-                      onClick={() => setOndeVou(on ? null : m.mercado)}
+                      onClick={() => setMercadoAberto(m.mercado)}
                       aria-pressed={on}
-                      className={`flex items-center gap-3 rounded-[13px] border-2 px-3 py-2 text-left ${on ? "" : "border-border"}`}
+                      className={`flex w-full items-center gap-3 rounded-[13px] border-2 px-3 py-2 text-left ${on ? "" : "border-border"}`}
                       style={on ? { borderColor: corMercado(m.mercado), background: `${corMercado(m.mercado)}14` } : undefined}
                     >
                       <span
@@ -253,12 +271,15 @@ export function ListView() {
                       </span>
                       <span className="text-[15px] font-extrabold tabular-nums">{brl(m.total)}</span>
                       {i === 0 && <span className="text-[16px]" aria-hidden>🏆</span>}
+                      <span className="text-[18px] text-text-3" aria-hidden>
+                        ›
+                      </span>
                     </button>
                   );
                 })}
             </div>
             <div className="mt-2 text-[12px] text-text-3">
-              {filtro ? "Mostrando só o que vale comprar lá." : "Toque num mercado para ver só o que vale comprar lá."}
+              {filtro ? "Mostrando só o que vale comprar lá." : "Toque num mercado para ver os produtos e ir até lá."}
             </div>
             <button
               onClick={() => setRotaAberta(true)}
@@ -283,6 +304,14 @@ export function ListView() {
           </div>
         )}
 
+        {trip && pendentes.length > 0 && (
+          <div className="flex items-baseline justify-between px-1">
+            <h2 className="text-[18px] font-extrabold">📝 Falta pegar</h2>
+            <span className="text-[13px] font-bold text-text-2">
+              {pendentes.length} {pendentes.length > 1 ? "itens" : "item"} · na ordem dos corredores
+            </span>
+          </div>
+        )}
         {shopping.filter((i) => i.status !== "removed").length > 0 && (
           <div className="relative">
             <SearchIcon
@@ -317,11 +346,12 @@ export function ListView() {
                   bought ? "opacity-60" : ""
                 }`}
               >
+                {/* No mercado o "Peguei" faz o papel da caixinha: ela sai e o nome ganha espaco. */}
                 <button
                   onClick={() => !bought && comprar(i.id)}
                   disabled={bought || busy === i.id}
                   aria-label={bought ? "Comprado" : "Marcar como comprado"}
-                  className={`grid h-[26px] w-[26px] shrink-0 place-items-center rounded-lg border-2 ${
+                  className={`${trip && !bought ? "hidden" : "grid"} h-[26px] w-[26px] shrink-0 place-items-center rounded-lg border-2 ${
                     bought
                       ? "border-brand bg-brand text-brand-ink"
                       : "border-border text-transparent"
@@ -338,10 +368,15 @@ export function ListView() {
                 >
                   <div className={`font-bold ${bought ? "text-text-3 line-through" : ""}`}>
                     {i.name}
+                    {jaTenho && (
+                      <span className="mt-0.5 block w-fit rounded-full bg-pos-soft px-2 py-[1px] text-[11px] font-bold text-pos">
+                        já tem em casa
+                      </span>
+                    )}
                   </div>
-                  <div className="text-[13px] text-text-3">
-                    {i.desired_quantity} {i.unit} · {brl(price)}
-                    {price > 0 && ` = ${brl(i.desired_quantity * price)}`}
+                  <div className="whitespace-nowrap text-[13px] text-text-3">
+                    {i.desired_quantity} {i.unit}
+                    {price > 0 && i.desired_quantity !== 1 && ` × ${brl(price)}`}
                   </div>
                   {!bought &&
                     (() => {
@@ -353,21 +388,26 @@ export function ListView() {
                             className="mt-1 inline-flex max-w-full items-center gap-1.5 rounded-md px-2 py-0.5 text-[12px] font-bold text-white"
                             style={{ background: corMercado(o.mercado) }}
                           >
-                            <span className="truncate">
-                              🏷 {nomeMercado(o.mercado)} · {brl(o.preco_por)}
+                            <span className="whitespace-nowrap">
+                              {nomeMercado(o.mercado)} {brl(o.preco_por)}
                             </span>
                           </div>
                         )
                       );
                     })()}
                 </button>
-                {jaTenho && (
-                  <span className="shrink-0 rounded-full bg-pos-soft px-2.5 py-[3px] text-[12px] font-bold text-pos">
-                    já tenho
-                  </span>
-                )}
                 {/* Com compra aberta, o alvo grande da linha e "Peguei". Sem
                     compra, continua sendo o valor, que e a informacao da lista. */}
+                {/* Valor (ou Peguei) e o X empilhados: o nome e a oferta ganham a largura. */}
+                <div className="flex shrink-0 flex-col items-end">
+                <button
+                  onClick={() => remover(i.id)}
+                  disabled={busy === i.id}
+                  aria-label="Remover"
+                  className="-mr-1.5 -mt-1.5 grid h-8 w-8 place-items-center rounded-lg text-[18px] text-text-3 hover:bg-card-2"
+                >
+                  ×
+                </button>
                 {!bought && trip ? (
                   <button
                     onClick={() => peguei(i)}
@@ -377,20 +417,14 @@ export function ListView() {
                     Peguei
                   </button>
                 ) : (
-                  !jaTenho && (
-                    <span className="shrink-0 text-[16px] font-extrabold">
+                  !jaTenho &&
+                  price > 0 && (
+                    <span className="shrink-0 whitespace-nowrap text-[16px] font-extrabold tabular-nums">
                       {brl(i.desired_quantity * price)}
                     </span>
                   )
                 )}
-                <button
-                  onClick={() => remover(i.id)}
-                  disabled={busy === i.id}
-                  aria-label="Remover"
-                  className="grid h-11 w-11 shrink-0 place-items-center rounded-lg text-[18px] text-text-3 hover:bg-card-2"
-                >
-                  ×
-                </button>
+                </div>
               </li>
             );
           })}
@@ -409,9 +443,18 @@ export function ListView() {
         onScan={() => setScanOpen(true)}
         onManual={() => setAddManualOpen(true)}
       />
-      <AddItemModal open={addManualOpen} onClose={() => setAddManualOpen(false)} />
+      {addManualOpen && <AddItemModal open onClose={() => setAddManualOpen(false)} />}
       {scanOpen && <BarcodeModal open onClose={() => setScanOpen(false)} />}
       {rotaAberta && <RotaModal onClose={() => setRotaAberta(false)} />}
+      {mercadoAberto && (
+        <MercadoModal
+          mercado={mercadoAberto}
+          itens={itensDoMercado(mercadoAberto)}
+          filtrando={filtro === mercadoAberto}
+          onFiltrar={() => setOndeVou(filtro === mercadoAberto ? null : mercadoAberto)}
+          onClose={() => setMercadoAberto(null)}
+        />
+      )}
       {montar && <MontarLista onClose={() => setMontar(false)} />}
       <VoiceModal open={voiceOpen} onClose={() => setVoiceOpen(false)} />
       <ListItemActions
