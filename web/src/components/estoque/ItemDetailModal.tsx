@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { FotoItem } from "@/components/ui/FotoItem";
 import { categoriaDe } from "@/lib/categorias";
-import { QtyStepper } from "@/components/ui/QtyStepper";
 import { brl, stockRatio } from "@/lib/format";
 import { ConfirmarExclusao } from "./ConfirmarExclusao";
 import { useStore } from "@/lib/store";
@@ -29,9 +28,7 @@ export function ItemDetailModal({
     parSugerido,
     showToast,
   } = useStore();
-  const [parcial, setParcial] = useState(false);
   const [excluindo, setExcluindo] = useState(false);
-  const [qtd, setQtd] = useState("");
   const [busy, setBusy] = useState(false);
   const [editPar, setEditPar] = useState(false);
   const [parTxt, setParTxt] = useState("");
@@ -52,8 +49,6 @@ export function ItemDetailModal({
   }, [itemId, parSugerido]);
 
   function fechar() {
-    setParcial(false);
-    setQtd("");
     setEditPar(false);
     setParTxt("");
     onClose();
@@ -108,17 +103,6 @@ export function ItemDetailModal({
   async function usouMetade() {
     const n = +(item!.current / 2).toFixed(3);
     if (n <= 0) return;
-    setBusy(true);
-    const r = await baixaStock(item!.id, n);
-    setBusy(false);
-    if (!r.ok) return showToast(r.erro);
-    showToast(`${item!.name}: baixa de ${n} ${item!.unit}`, { desfazer: true });
-    fechar();
-  }
-
-  async function baixaParcial() {
-    const n = Number(qtd.replace(",", "."));
-    if (!n || n <= 0) return;
     setBusy(true);
     const r = await baixaStock(item!.id, n);
     setBusy(false);
@@ -230,46 +214,23 @@ export function ItemDetailModal({
         </div>
       </div>
 
-      {/* Baixa por consumo: atalhos sem teclado; "Digitar" para o valor exato */}
-      {parcial ? (
-        <div className="mb-2.5 flex items-center gap-2">
-          <div className="min-w-0 flex-1">
-            <QtyStepper value={qtd} onChange={setQtd} unit={item.unit} autoFocus placeholder={item.unit} />
-          </div>
-          <button
-            type="button"
-            onClick={baixaParcial}
-            disabled={busy || !Number(qtd.replace(",", "."))}
-            className="h-12 shrink-0 rounded-[13px] bg-warn px-4 text-[15px] font-bold text-white disabled:opacity-50"
-          >
-            Baixar
-          </button>
-        </div>
-      ) : (
-        <div className="mb-2.5 grid grid-cols-3 gap-2">
-          <button
-            onClick={usouMetade}
-            disabled={busy || item.current <= 0}
-            className="h-11 rounded-[12px] border border-warn bg-card text-[13px] font-bold text-warn disabled:opacity-50"
-          >
-            Usei metade
-          </button>
-          <button
-            onClick={baixaTotal}
-            disabled={busy || item.current <= 0}
-            className="h-11 rounded-[12px] bg-warn text-[13px] font-bold text-white disabled:opacity-50"
-          >
-            Acabou
-          </button>
-          <button
-            onClick={() => setParcial(true)}
-            disabled={busy || item.current <= 0}
-            className="h-11 rounded-[12px] border border-border bg-card text-[13px] font-bold text-text-2 disabled:opacity-50"
-          >
-            Usei…
-          </button>
-        </div>
-      )}
+      {/* Baixa por consumo: dois atalhos, sem teclado */}
+      <div className="mb-2.5 grid grid-cols-2 gap-2">
+        <button
+          onClick={usouMetade}
+          disabled={busy || item.current <= 0}
+          className="h-11 rounded-[12px] border border-warn bg-card text-[13px] font-bold text-warn disabled:opacity-50"
+        >
+          Usei metade
+        </button>
+        <button
+          onClick={baixaTotal}
+          disabled={busy || item.current <= 0}
+          className="h-11 rounded-[12px] bg-warn text-[13px] font-bold text-white disabled:opacity-50"
+        >
+          Acabou
+        </button>
+      </div>
 
       <div data-rodape className="flex gap-2">
         {/* Repor: volta ao normal sem virar compra (desfaz baixa errada). */}
