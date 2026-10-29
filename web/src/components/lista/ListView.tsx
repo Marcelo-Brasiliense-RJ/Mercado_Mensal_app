@@ -18,7 +18,7 @@ import { RotaModal } from "./RotaModal";
 import { MontarLista } from "./MontarLista";
 import { useListaOfertas } from "@/components/ofertas/useOfertas";
 import { useLivelo } from "@/components/ofertas/useLivelo";
-import { ofertasLivelo } from "@/lib/livelo";
+import { comPontos, ofertasLivelo } from "@/lib/livelo";
 import { corMercado, corredor, faltaEmCasa, maisBarataPara, nomeMercado, porMercado, resumir } from "@/lib/ofertas";
 import { MercadoModal, type ItemMercado } from "./MercadoModal";
 
@@ -35,7 +35,10 @@ export function ListView() {
   // Precos da Livelo entram como mais um mercado, ja descontando os pontos (0046).
   const ofertasMercado = useListaOfertas();
   const livelo = useLivelo();
-  const ofertas = useMemo(() => (livelo ? [...ofertasMercado, ...ofertasLivelo(livelo)] : ofertasMercado), [ofertasMercado, livelo]);
+  const ofertas = useMemo(
+    () => (livelo ? [...ofertasMercado.map((o) => comPontos(o, livelo)), ...ofertasLivelo(livelo)] : ofertasMercado),
+    [ofertasMercado, livelo],
+  );
   // "Vou no Guanabara": mostra so o que vale comprar la, na ordem dos corredores.
   // Lembrado no aparelho: quem vai sempre no mesmo mercado nao escolhe de novo.
   const [ondeVou, setOndeVouState] = useState<string | null>(() => {

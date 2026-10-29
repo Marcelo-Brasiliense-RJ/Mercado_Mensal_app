@@ -65,24 +65,57 @@ export function ofertasLivelo(l: Livelo): Oferta[] {
     });
 }
 
+// Carrefour (0047) pela Livelo: o mesmo produto, com o preco ja descontando os pontos
+// (o que se paga fica em preco_de, riscado). Casa sem o Carrefour na Livelo: sem mudanca.
+export const PARCEIROS_CARREFOUR = ["CRM", "CRF"];
+export function parceiroCarrefour(l: Livelo): Paridade | null {
+  const c = PARCEIROS_CARREFOUR.find((x) => l.parceiros.includes(x));
+  return (c && paridadeDe(l, c)) || null;
+}
+export function comPontos(o: Oferta, l: Livelo | null): Oferta {
+  const p = l && o.mercado === "carrefour" ? parceiroCarrefour(l) : null;
+  if (!p || !l) return o;
+  const pts = Math.round(o.preco_por * ptsCertos(p, l.clube));
+  if (!pts) return o;
+  return {
+    ...o,
+    preco_de: o.preco_por, // riscado: o que se paga no caixa
+    preco_por: Math.round((o.preco_por - pts * l.valor_ponto) * 100) / 100,
+    condicao: `+${pts} pts Livelo · ${o.preco_por.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} no caixa`,
+  };
+}
+
 export type Comparacao = {
   mercado: Oferta | null; // melhor encarte
-  livelo: { parceiro: string; preco: number; liquido: number; pts: number; visto_em: string } | null;
+  // oferta: o produto do site do Carrefour, quando o preco veio dele (e nao digitado)
+  livelo: { parceiro: string; preco: number; liquido: number; pts: number; visto_em: string; oferta: Oferta | null } | null;
   vence: "livelo" | "mercado" | null;
   diferenca: number; // quanto o vencedor economiza por unidade
 };
 
 // Fixo do mes: o melhor encarte contra o melhor parceiro da Livelo, ja com os pontos.
 export function comparar(item: string, ofertas: Oferta[], l: Livelo): Comparacao {
-  const mercado = ofertas.filter((o) => casaItem(o, item)).sort(maisBarato)[0] ?? null;
+  const casam = ofertas.filter((o) => casaItem(o, item));
+  const mercado = casam.filter((o) => o.mercado !== "carrefour").sort(maisBarato)[0] ?? null;
   const k = padrao(item);
-  const livelo =
-    l.precos
+  const pc = parceiroCarrefour(l);
+  const candidatos = [
+    ...l.precos
       .filter((x) => padrao(x.item) === k && l.parceiros.includes(x.parceiro))
+      .map((x) => ({ parceiro: x.parceiro, preco: x.preco, visto_em: x.visto_em, oferta: null as Oferta | null })),
+    // preco que o coletor trouxe do site do Carrefour: sem digitar nada
+    ...(pc
+      ? casam
+          .filter((o) => o.mercado === "carrefour")
+          .map((o) => ({ parceiro: pc.codigo, preco: o.preco_por, visto_em: new Date().toISOString(), oferta: o }))
+      : []),
+  ];
+  const livelo =
+    candidatos
       .map((x) => {
         const p = paridadeDe(l, x.parceiro);
         const pts = p ? Math.round(x.preco * ptsCertos(p, l.clube)) : 0;
-        return { parceiro: x.parceiro, preco: x.preco, liquido: x.preco - pts * l.valor_ponto, pts, visto_em: x.visto_em };
+        return { ...x, liquido: x.preco - pts * l.valor_ponto, pts };
       })
       .sort((a, b) => a.liquido - b.liquido)[0] ?? null;
   if (!mercado || !livelo) return { mercado, livelo, vence: livelo ? "livelo" : mercado ? "mercado" : null, diferenca: 0 };

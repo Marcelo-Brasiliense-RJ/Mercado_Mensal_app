@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Foto } from "@/components/ofertas/pecas";
 import { brl } from "@/lib/format";
-import { COR_LIVELO, corMercado, ehLivelo, nomeMercado, prazo, type Oferta } from "@/lib/ofertas";
+import { COR_LIVELO, corMercado, nomeMercado, pontuaNaLivelo, prazo, type Oferta } from "@/lib/ofertas";
 import { atualizarLugar, posicaoAtual } from "@/lib/lugar";
 import { localizarLoja } from "@/lib/lojas";
 import { linkApple, linkGoogle, linkWaze, linksPorNome } from "@/lib/rota";
@@ -77,7 +77,7 @@ export function MercadoModal({
                   {o.marca || o.tamanho ? " · " : ""}para “{nome}”
                 </div>
                 {p && <div className={`text-[12px] font-bold ${p.urgente ? "text-neg" : "text-text-2"}`}>{p.texto}</div>}
-                {ehLivelo(o.mercado) && o.condicao && (
+                {pontuaNaLivelo(o.mercado) && o.condicao && (
                   <div className="text-[12px] font-bold" style={{ color: COR_LIVELO }}>
                     {o.condicao}
                   </div>
@@ -85,7 +85,7 @@ export function MercadoModal({
               </div>
               <div className="shrink-0 text-right">
                 <div className="text-[17px] font-extrabold tabular-nums">{brl(o.preco_por)}</div>
-                {ehLivelo(o.mercado) && o.preco_de ? (
+                {pontuaNaLivelo(o.mercado) && o.preco_de ? (
                   <div className="text-[11px] text-text-3 line-through">{brl(o.preco_de)}</div>
                 ) : (
                   naLista != null &&
@@ -104,11 +104,11 @@ export function MercadoModal({
         })}
       </ul>
       <p className="mt-1.5 text-[11px] text-text-3">
-        {ehLivelo(mercado) ? "Preço riscado: o que se paga. Embaixo: já descontando os pontos." : "Preço de 1 unidade no encarte."}
+        {pontuaNaLivelo(mercado) ? "Preço riscado: o que se paga. Embaixo: já descontando os pontos." : "Preço de 1 unidade no encarte."}
       </p>
 
       <div data-rodape className="mt-3 flex flex-col gap-2">
-        {ehLivelo(mercado) ? (
+        {pontuaNaLivelo(mercado) ? (
           // Parceiro online: nao tem rota, tem o site da Livelo (so assim a compra pontua).
           <a
             href={LINK_LIVELO}

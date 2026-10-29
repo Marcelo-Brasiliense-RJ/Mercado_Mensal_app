@@ -9,7 +9,7 @@ from pathlib import Path
 
 import httpx
 
-from . import avisos, fotos, lista_app, livelo, superbom
+from . import avisos, carrefour, fotos, lista_app, livelo, superbom
 from .coletor import HEADERS, RIO, coletar, resumo
 from .extracao import extrair
 from .fontes import PARSERS
@@ -17,7 +17,7 @@ from .modelos import EncarteBaixado
 from .regras import historico
 
 # Mercados com ofertas em texto no site: coleta direta, sem encarte nem IA.
-DIRETOS = {"superbom": superbom.coletar}
+DIRETOS = {"superbom": superbom.coletar, "carrefour": carrefour.coletar}
 
 
 def coletar_direto(mercado: str, base: Path) -> str:
@@ -30,9 +30,10 @@ def coletar_direto(mercado: str, base: Path) -> str:
     return f"{mercado} | loja: {local} | {len(ofertas)} ofertas | {arq}"
 
 
-NOMES = {"superbom": "Superbom", "mundial": "Mundial", "guanabara": "Guanabara", "supermarket": "Supermarket"}
+NOMES = {"carrefour": "Carrefour", "superbom": "Superbom", "mundial": "Mundial", "guanabara": "Guanabara", "supermarket": "Supermarket"}
 FONTES = {
     "superbom": "Site oficial · loja Curicica (preço em texto, sem IA)",
+    "carrefour": "Loja online (catálogo público) · só os itens das casas com Livelo",
     "mundial": "Encarte em PDF do site · lido por IA (Gemini + Nemotron)",
     "guanabara": "Encarte em imagens do site · lido por IA (Gemini + Nemotron)",
     "supermarket": "Encarte em PDF do site · preço com CPF · lido por IA",

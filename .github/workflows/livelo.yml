@@ -1,5 +1,6 @@
-# Pontos Livelo por real de cada parceiro (migration 0046). As campanhas da Livelo duram
-# um ou dois dias, entao roda de 3 em 3 horas; e leve (uma chamada e uma RPC).
+# Pontos Livelo por real de cada parceiro (0046) e precos do Carrefour Mercado para as
+# casas com Livelo (0047). As campanhas duram um ou dois dias, entao roda de 3 em 3 horas;
+# e leve (uma chamada a Livelo e uma busca no Carrefour por item da lista).
 name: Pontos Livelo
 
 on:
@@ -26,3 +27,12 @@ jobs:
       - name: Atualizar pontos
         working-directory: promocoes/coletor
         run: uv run promocoes livelo
+
+      # Carrefour como mais um mercado: so os itens da lista e os fixos das casas com Livelo.
+      - name: Carrefour (preços para a Livelo)
+        continue-on-error: true
+        working-directory: promocoes/coletor
+        run: |
+          uv run promocoes coletar carrefour
+          uv run promocoes fotos carrefour
+          uv run promocoes publicar carrefour
