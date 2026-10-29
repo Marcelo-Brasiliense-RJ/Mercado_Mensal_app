@@ -12,6 +12,7 @@ import { CartPanel } from "./CartPanel";
 import { BarcodeModal } from "./BarcodeModal";
 import { VoiceModal } from "@/components/voz/VoiceModal";
 import { QuickBar } from "./QuickBar";
+import { FotoItem } from "@/components/ui/FotoItem";
 import { useListaOfertas } from "@/components/ofertas/useOfertas";
 import { corMercado, corredor, faltaEmCasa, maisBarataPara, nomeMercado, porMercado, resumir } from "@/lib/ofertas";
 
@@ -305,6 +306,7 @@ export function ListView() {
                 >
                   <CheckIcon size={14} />
                 </button>
+                <FotoItem nome={i.name} className="h-10 w-10 rounded-lg" />
                 {/* Clicar no corpo abre as acoes: comprei, baixa (se ja tenho), tirar */}
                 <button
                   onClick={() => !bought && setAction(i)}

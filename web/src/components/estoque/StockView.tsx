@@ -16,6 +16,7 @@ import { BarcodeModal } from "@/components/lista/BarcodeModal";
 import { ItemDetailModal } from "./ItemDetailModal";
 import { BatchAddModal } from "./BatchAddModal";
 import { PrimeirosPassos } from "./PrimeirosPassos";
+import { FotoItem } from "@/components/ui/FotoItem";
 
 // Despensa em cards, dois por linha.
 //
@@ -411,10 +412,12 @@ function Card({
             <SelDot on={selected} />
           </span>
         )}
-        <div className="mb-2 flex items-center gap-1.5">
+        <div className="mb-2 flex items-start justify-between gap-1.5">
           <span className={`rounded-full px-2 py-[2px] text-[10px] font-extrabold uppercase ${cor.selo}`}>
             {cor.texto}
           </span>
+          {/* Foto do produto (pelo nome): reconhecer de relance sem ler */}
+          {!selMode && <FotoItem nome={item.name} className="-mr-1 -mt-1 h-11 w-11 rounded-lg" />}
         </div>
         {/* Nome em duas linhas no maximo: produto de mercado tem nome comprido e
             cortar no meio da palavra deixa indecifravel. */}
