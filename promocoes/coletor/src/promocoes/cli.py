@@ -9,7 +9,7 @@ from pathlib import Path
 
 import httpx
 
-from . import avisos, fotos, lista_app, superbom
+from . import avisos, fotos, lista_app, livelo, superbom
 from .coletor import HEADERS, RIO, coletar, resumo
 from .extracao import extrair
 from .fontes import PARSERS
@@ -175,6 +175,7 @@ def main() -> None:
     x.add_argument("mercados", nargs="*", default=list(PARSERS))
     sub.add_parser("lista", help="puxa do app o que falta comprar (lista + Repor)")
     sub.add_parser("avisar", help="notifica no celular os produtos De olho que entraram em promocao")
+    sub.add_parser("livelo", help="atualiza no app os pontos Livelo por real de cada parceiro")
     pb = sub.add_parser("publicar", help="manda as ofertas aprovadas para a aba Ofertas do app")
     pb.add_argument("mercados", nargs="*", default=todos)
     f = sub.add_parser("fotos", help="miniaturas das ofertas (recorte do encarte ou foto do site)")
@@ -197,6 +198,13 @@ def main() -> None:
             print(avisos.avisar())
         except Exception as e:
             print(f"avisos: falhou ({e})", file=sys.stderr)
+            sys.exit(1)
+        return
+    if a.cmd == "livelo":
+        try:
+            print(livelo.atualizar())
+        except Exception as e:
+            print(f"livelo: falhou ({e})", file=sys.stderr)
             sys.exit(1)
         return
     if a.cmd == "exportar":

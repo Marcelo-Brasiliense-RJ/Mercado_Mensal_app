@@ -1,0 +1,28 @@
+# Pontos Livelo por real de cada parceiro (migration 0046). As campanhas da Livelo duram
+# um ou dois dias, entao roda de 3 em 3 horas; e leve (uma chamada e uma RPC).
+name: Pontos Livelo
+
+on:
+  schedule:
+    - cron: "17 */3 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: livelo
+  cancel-in-progress: true
+
+jobs:
+  atualizar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL || vars.SUPABASE_URL || secrets.NEXT_PUBLIC_SUPABASE_URL || vars.NEXT_PUBLIC_SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY || secrets.SUPABASE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      - name: Atualizar pontos
+        working-directory: promocoes/coletor
+        run: uv run promocoes livelo
