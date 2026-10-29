@@ -14,6 +14,7 @@ import { atualizarLugar, useLugar } from "@/lib/lugar";
 // nao" tira um item da frente (lembrado neste aparelho), sem sumir dos Ajustes.
 const MINIMO_ESTOQUE = 5;
 const CHAVE = "pendencias_dispensadas";
+const FECHADO = "pendencias_fechado"; // recolhido: so o titulo, para o estoque vir logo
 
 type Item = { id: string; titulo: string; texto: string; acao: React.ReactNode };
 
@@ -34,6 +35,13 @@ export function PrimeirosPassos({ onFalar, onDigitar }: { onFalar: () => void; o
   const [orcamento, setOrcamento] = useState(false);
   const [dispensados, setDispensados] = useState<string[]>(() => (typeof window === "undefined" ? [] : lerDispensados()));
   const [ligando, setLigando] = useState(false);
+  const [fechado, setFechado] = useState(() => {
+    try {
+      return typeof window !== "undefined" && localStorage.getItem(FECHADO) === "1";
+    } catch {
+      return false;
+    }
+  });
 
   useEffect(() => {
     estadoPush().then(setPush, () => setPush("sem-suporte"));
@@ -141,14 +149,26 @@ export function PrimeirosPassos({ onFalar, onDigitar }: { onFalar: () => void; o
     }
   }
 
+  function alternar() {
+    const n = !fechado;
+    setFechado(n);
+    try {
+      localStorage.setItem(FECHADO, n ? "1" : "0");
+    } catch {
+      // sem armazenamento: so vale nesta visita
+    }
+  }
+
   return (
     <div className="rounded-[20px] border-2 border-brand bg-brand-soft p-4">
-      <div className="flex items-baseline justify-between">
+      <button type="button" onClick={alternar} aria-expanded={!fechado} className="flex w-full items-center justify-between gap-3 text-left">
         <div className="text-[17px] font-extrabold">Falta configurar</div>
-        <div className="text-[13px] font-bold text-brand">
+        <div className="flex items-center gap-2 text-[13px] font-bold text-brand">
           {pendentes.length} {pendentes.length > 1 ? "pendências" : "pendência"}
+          <span className={`text-[16px] transition-transform ${fechado ? "" : "rotate-180"}`}>⌄</span>
         </div>
-      </div>
+      </button>
+      {!fechado && (
       <div className="mt-3 flex flex-col gap-2.5">
         {pendentes.map((i) => (
           <div key={i.id} className="rounded-2xl bg-card p-3">
@@ -165,6 +185,7 @@ export function PrimeirosPassos({ onFalar, onDigitar }: { onFalar: () => void; o
           </div>
         ))}
       </div>
+      )}
       {mercados && <MeusMercadosModal onClose={() => setMercados(false)} />}
       <BudgetModal open={orcamento} onClose={() => setOrcamento(false)} />
     </div>
