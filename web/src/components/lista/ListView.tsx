@@ -386,6 +386,11 @@ export function ListView() {
                 >
                   <div className={`font-bold ${bought ? "text-text-3 line-through" : ""}`}>
                     {i.name}
+                    {livelo?.fixos.includes(i.name.trim().toLowerCase()) && (
+                      <span className="ml-1 text-[13px]" title="Fixo do mês">
+                        ⭐
+                      </span>
+                    )}
                     {jaTenho && (
                       <span className="mt-0.5 block w-fit rounded-full bg-pos-soft px-2 py-[1px] text-[11px] font-bold text-pos">
                         já tem em casa

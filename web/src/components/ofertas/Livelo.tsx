@@ -98,8 +98,14 @@ function ParceiroLinha({ p, clube }: { p: Paridade; clube: boolean }) {
 }
 
 function Fixos({ l, ofertas }: { l: LiveloT; ofertas: Oferta[] }) {
-  const { stock, showToast } = useStore();
+  const { stock, shopping, showToast } = useStore();
   const [novo, setNovo] = useState("");
+  // Sugestoes: o que esta na lista agora (se compra todo mes, e so tocar).
+  const sugestoes = [
+    ...new Set(shopping.filter((i) => i.status !== "removed").map((i) => i.name.trim().toLowerCase())),
+  ]
+    .filter((n) => !l.fixos.includes(n))
+    .slice(0, 10);
 
   async function adicionar() {
     const n = novo.trim();
@@ -118,6 +124,25 @@ function Fixos({ l, ofertas }: { l: LiveloT; ofertas: Oferta[] }) {
       {l.fixos.map((f) => (
         <FixoCard key={f} item={f} l={l} ofertas={ofertas} />
       ))}
+      {sugestoes.length > 0 && (
+        <div>
+          <div className="mb-1 text-[12px] font-bold text-text-3">Da sua lista: toque no que vocês compram todo mês</div>
+          <div className="flex flex-wrap gap-1.5">
+            {sugestoes.map((n) => (
+              <button
+                key={n}
+                onClick={async () => {
+                  const r = await marcarFixo(n, true);
+                  if (!r.ok) showToast(r.erro!);
+                }}
+                className="h-9 rounded-full border border-border bg-card px-3 text-[13px] font-bold capitalize"
+              >
+                ☆ {n}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       <form
         onSubmit={(e) => {
           e.preventDefault();
