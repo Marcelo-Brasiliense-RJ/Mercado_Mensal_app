@@ -13,6 +13,7 @@ import { BarcodeModal } from "./BarcodeModal";
 import { VoiceModal } from "@/components/voz/VoiceModal";
 import { QuickBar } from "./QuickBar";
 import { FotoItem } from "@/components/ui/FotoItem";
+import { categoriaDe } from "@/lib/categorias";
 import { RotaModal } from "./RotaModal";
 import { MontarLista } from "./MontarLista";
 import { useListaOfertas } from "@/components/ofertas/useOfertas";
@@ -78,7 +79,11 @@ export function ListView() {
     .sort(
       (a, b) =>
         (a.status === "bought" ? 1 : 0) - (b.status === "bought" ? 1 : 0) ||
-        (filtro ? corredor(melhor.get(a)?.categoria) - corredor(melhor.get(b)?.categoria) : 0),
+        (filtro
+          ? corredor(melhor.get(a)?.categoria) - corredor(melhor.get(b)?.categoria)
+          : trip // no mercado: na ordem dos corredores, para nao voltar ao mesmo corredor
+            ? corredor(categoriaDe(a.name)) - corredor(categoriaDe(b.name))
+            : 0),
     );
   const escondidos = filtro ? pendentes.filter(emOutro).length : 0;
 
@@ -185,7 +190,9 @@ export function ListView() {
           </div>
         </div>
 
-        {/* Montar a lista como numa vitrine: um toque por produto, com foto. */}
+        {/* Montar a lista como numa vitrine: um toque por produto, com foto.
+            Dentro do mercado (carrinho aberto) some: ali a tela e de pegar, nao de planejar. */}
+        {!trip && (
         <button
           onClick={() => setMontar(true)}
           className="flex w-full items-center gap-3 rounded-[18px] bg-brand px-4 py-3.5 text-left text-brand-ink shadow-[0_4px_14px_var(--shadow)]"
@@ -197,6 +204,7 @@ export function ListView() {
           </span>
           <span className="text-[22px]" aria-hidden>›</span>
         </button>
+        )}
 
         {/* Lista do mes num toque: o app ja sabe o que falta para completar a casa. */}
         {!trip && doMes.length > 0 && (
@@ -219,7 +227,7 @@ export function ListView() {
 
         {/* Onde compensa: cada mercado com quantos itens da lista e quanto sai la.
             Tocar filtra a lista por aquele mercado, na ordem dos corredores. */}
-        {mercadosComOferta.length > 0 && (
+        {!trip && mercadosComOferta.length > 0 && (
           <div className="rounded-[18px] border border-border bg-card p-3.5">
             <div className="text-[12px] font-bold uppercase tracking-wide text-text-3">Onde compensa comprar</div>
             {resumoLista.mercados[0] && (
@@ -283,6 +291,14 @@ export function ListView() {
           </div>
         )}
 
+        {trip && pendentes.length > 0 && (
+          <div className="flex items-baseline justify-between px-1">
+            <h2 className="text-[18px] font-extrabold">📝 Falta pegar</h2>
+            <span className="text-[13px] font-bold text-text-2">
+              {pendentes.length} {pendentes.length > 1 ? "itens" : "item"} · na ordem dos corredores
+            </span>
+          </div>
+        )}
         {shopping.filter((i) => i.status !== "removed").length > 0 && (
           <div className="relative">
             <SearchIcon
@@ -317,11 +333,12 @@ export function ListView() {
                   bought ? "opacity-60" : ""
                 }`}
               >
+                {/* No mercado o "Peguei" faz o papel da caixinha: ela sai e o nome ganha espaco. */}
                 <button
                   onClick={() => !bought && comprar(i.id)}
                   disabled={bought || busy === i.id}
                   aria-label={bought ? "Comprado" : "Marcar como comprado"}
-                  className={`grid h-[26px] w-[26px] shrink-0 place-items-center rounded-lg border-2 ${
+                  className={`${trip && !bought ? "hidden" : "grid"} h-[26px] w-[26px] shrink-0 place-items-center rounded-lg border-2 ${
                     bought
                       ? "border-brand bg-brand text-brand-ink"
                       : "border-border text-transparent"
@@ -338,6 +355,11 @@ export function ListView() {
                 >
                   <div className={`font-bold ${bought ? "text-text-3 line-through" : ""}`}>
                     {i.name}
+                    {jaTenho && trip && (
+                      <span className="mt-0.5 block w-fit rounded-full bg-pos-soft px-2 py-[1px] text-[11px] font-bold text-pos">
+                        já tem em casa
+                      </span>
+                    )}
                   </div>
                   <div className="text-[13px] text-text-3">
                     {i.desired_quantity} {i.unit} · {brl(price)}
@@ -361,7 +383,7 @@ export function ListView() {
                       );
                     })()}
                 </button>
-                {jaTenho && (
+                {jaTenho && !trip && (
                   <span className="shrink-0 rounded-full bg-pos-soft px-2.5 py-[3px] text-[12px] font-bold text-pos">
                     já tenho
                   </span>
@@ -409,7 +431,7 @@ export function ListView() {
         onScan={() => setScanOpen(true)}
         onManual={() => setAddManualOpen(true)}
       />
-      <AddItemModal open={addManualOpen} onClose={() => setAddManualOpen(false)} />
+      {addManualOpen && <AddItemModal open onClose={() => setAddManualOpen(false)} />}
       {scanOpen && <BarcodeModal open onClose={() => setScanOpen(false)} />}
       {rotaAberta && <RotaModal onClose={() => setRotaAberta(false)} />}
       {montar && <MontarLista onClose={() => setMontar(false)} />}

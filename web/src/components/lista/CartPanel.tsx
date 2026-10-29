@@ -1,14 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { AvisoMaisBarato } from "@/components/ofertas/AvisoMaisBarato";
-import { AvisoPrecoSubiu } from "@/components/ofertas/AvisoPrecoSubiu";
 import { brl } from "@/lib/format";
 import { useStore } from "@/lib/store";
-import { QtyStepper } from "@/components/ui/QtyStepper";
 import { CartItemModal } from "./CartItemModal";
 import { BarcodeIcon } from "@/components/ui/icons";
-import { unitFor, findByName } from "@/lib/defaults";
 import type { TripItem } from "@/lib/types";
 import { atualizarLugar, useLugar } from "@/lib/lugar";
 import { nomeMercado } from "@/lib/ofertas";
@@ -21,9 +17,8 @@ export function CartPanel({ onScan }: { onScan?: () => void }) {
   const {
     trip,
     shopping,
-    stock,
+    budget,
     startTrip,
-    addTripItem,
     cancelTrip,
     finalizeTrip,
     showToast,
@@ -34,20 +29,6 @@ export function CartPanel({ onScan }: { onScan?: () => void }) {
   // e da embalagem e a transcricao come a virgula), entao corrigir na hora e o
   // gesto mais comum de todos.
   const [editar, setEditar] = useState<TripItem | null>(null);
-  const [nome, setNome] = useState("");
-  const [qtd, setQtd] = useState("1");
-  const [preco, setPreco] = useState("");
-
-  // Regra 2 da entrada de dados: o campo nasce preenchido. Unidade pela palavra
-  // do nome, preco pelo ultimo pago naquele item.
-  const conhecido = findByName(nome, stock);
-  const unidade = conhecido?.unit ?? unitFor(nome);
-
-  function onNome(v: string) {
-    setNome(v);
-    const item = findByName(v, stock);
-    setPreco(item?.priceLast != null ? String(item.priceLast) : "");
-  }
 
   async function abrir() {
     // Toque do "Estou no mercado": a hora de pedir a localizacao (o iPhone so pergunta
@@ -58,24 +39,6 @@ export function CartPanel({ onScan }: { onScan?: () => void }) {
     setBusy(false);
     if (!r.ok) return showToast(r.erro);
     showToast("Compra aberta. Vá anotando o que pegar.");
-  }
-
-  async function pegar() {
-    if (!nome.trim()) return;
-    setBusy(true);
-    const r = await addTripItem({
-      name: nome.trim(),
-      // Sem preco digitado, o banco cai no ultimo preco pago; se o item nunca
-      // foi comprado, ele responde sem_preco e o toast pede o valor.
-      price: preco.trim() === "" ? null : Number(preco.replace(",", ".")) || 0,
-      qty: Number(qtd.replace(",", ".")) || 1,
-      unit: unidade,
-    });
-    setBusy(false);
-    if (!r.ok) return showToast(r.erro);
-    setNome("");
-    setQtd("1");
-    setPreco("");
   }
 
   async function desistir() {
@@ -156,34 +119,34 @@ export function CartPanel({ onScan }: { onScan?: () => void }) {
   return (
     <>
     <QualMercado />
-    <div className="rounded-[20px] border-2 border-brand bg-card p-[18px] shadow-[0_2px_12px_var(--shadow)] lg:p-[22px]">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="text-xs font-bold uppercase tracking-wide text-brand">
-            {noMercado && mercado ? `No ${nomeMercado(mercado)}` : "No mercado"}
+    <div className="overflow-hidden rounded-[22px] border-2 border-brand bg-card shadow-[0_4px_16px_var(--shadow)]">
+      {/* Topo do modo mercado: onde esta e quanto ja deu, grande, para bater o olho no corredor. */}
+      <div className="bg-brand px-[18px] pb-4 pt-3.5 text-brand-ink">
+        <div className="flex items-center justify-between gap-3">
+          <div className="text-[15px] font-extrabold">
+            🛒 {noMercado && mercado ? `No ${nomeMercado(mercado)}` : "No mercado"}
           </div>
-          <div className="mt-0.5 text-[13px] text-text-3">
-            carrinho em andamento
-          </div>
-        </div>
-        <div className="text-right">
-          <div className="text-[34px] font-extrabold leading-none lg:text-[40px]">
-            {brl(trip.total)}
-          </div>
-          <div className="mt-1 text-[12px] text-text-3">
-            {trip.items.length} {trip.items.length === 1 ? "item" : "itens"} no
-            carrinho
+          <div className="text-[13px] font-bold opacity-90">
+            {trip.items.length} {trip.items.length === 1 ? "item" : "itens"}
           </div>
         </div>
+        <div className="mt-1 text-[42px] font-extrabold leading-none tracking-[-0.02em] tabular-nums">{brl(trip.total)}</div>
+        {budget.total > 0 && (
+          <div className="mt-1.5 text-[13px] font-bold opacity-90">
+            {budget.total - budget.spent - trip.total >= 0
+              ? `Ainda cabem ${brl(budget.total - budget.spent - trip.total)} no orçamento do mês`
+              : `Passa ${brl(-(budget.total - budget.spent - trip.total))} do orçamento do mês`}
+          </div>
+        )}
       </div>
-
+      <div className="p-[18px] pt-3.5">
       {trip.items.length === 0 ? (
-        <p className="mt-4 text-[14px] leading-relaxed text-text-3">
-          Carrinho aberto. Anote abaixo o que for pegando, ou fale no Telegram que
-          aparece aqui.
+        <p className="text-[14px] leading-relaxed text-text-2">
+          Leia o <b>Código</b> ou <b>Fale</b> o que pegou (botões embaixo). O total sobe aqui na hora.
         </p>
       ) : (
-        <ul className="mt-4 space-y-2">
+        <ul className="space-y-2">
+          <li className="text-[12px] font-bold uppercase tracking-wide text-text-3">No carrinho</li>
           {trip.items.map((it) => {
             const esp = estimado(it.name);
             const diff = esp != null ? it.unit_price - esp : null;
@@ -243,74 +206,6 @@ export function CartPanel({ onScan }: { onScan?: () => void }) {
         </ul>
       )}
 
-      {/* Pegar item sem sair da tela. Preco em branco usa o ultimo pago. */}
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          pegar();
-        }}
-        className="mt-4 rounded-[14px] border border-border bg-card-2 p-3"
-      >
-        <div className="flex flex-wrap items-center gap-2">
-          <input
-            value={nome}
-            onChange={(e) => onNome(e.target.value)}
-            placeholder="O que você pegou?"
-            aria-label="Item"
-            className="h-12 min-w-0 flex-[2] rounded-[13px] border border-border bg-card px-3.5 text-[15px]"
-          />
-          <div className="min-w-[132px] flex-1">
-            <QtyStepper value={qtd} onChange={setQtd} unit={unidade} />
-          </div>
-          <input
-            value={preco}
-            onChange={(e) => setPreco(e.target.value)}
-            inputMode="decimal"
-            placeholder="preço"
-            aria-label="Preço"
-            className="h-12 w-[92px] shrink-0 rounded-[13px] border border-border bg-card px-3 text-right text-[15px]"
-          />
-          {/* Ler o codigo e o caminho rapido: nao precisa digitar o nome. Fica ao
-              lado do "Peguei" porque e a mesma acao, so que pela embalagem. */}
-          {onScan && (
-            <button
-              type="button"
-              onClick={onScan}
-              aria-label="Ler código de barras"
-              className="grid h-12 w-12 shrink-0 place-items-center rounded-[13px] border border-brand bg-card text-brand"
-            >
-              <BarcodeIcon size={22} />
-            </button>
-          )}
-          <button
-            type="submit"
-            disabled={busy || !nome.trim()}
-            className="h-12 shrink-0 rounded-[13px] bg-brand px-5 text-[15px] font-bold text-brand-ink disabled:opacity-50"
-          >
-            Peguei
-          </button>
-        </div>
-        <div className="mt-1.5 text-[12px] text-text-3">
-          {conhecido?.priceLast != null
-            ? `Em ${unidade}, com o preço da última compra já preenchido.`
-            : `Em ${unidade}. Sem preço, usamos o da última compra desse item.`}
-        </div>
-        <div className="mt-3 empty:hidden">
-          <AvisoPrecoSubiu nome={nome} preco={preco.trim() === "" ? null : Number(preco.replace(",", ".")) || null} />
-          <AvisoMaisBarato
-            nome={nome}
-            preco={preco.trim() === "" ? null : Number(preco.replace(",", ".")) || null}
-            unidade={unidade}
-            qtd={Number(qtd.replace(",", ".")) || 1}
-            onFeito={() => {
-              setNome("");
-              setQtd("1");
-              setPreco("");
-            }}
-          />
-        </div>
-      </form>
-
       <div className="mt-3 flex gap-3">
         <button
           type="button"
@@ -331,6 +226,7 @@ export function CartPanel({ onScan }: { onScan?: () => void }) {
       </div>
 
       <CartItemModal item={editar} onClose={() => setEditar(null)} />
+      </div>
     </div>
     </>
   );

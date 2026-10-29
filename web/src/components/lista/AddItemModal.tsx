@@ -37,10 +37,12 @@ export function AddItemModal({
   open: boolean;
   onClose: () => void;
 }) {
-  const { addShopItem, addStock, showToast, stock } = useStore();
+  const { addShopItem, addStock, addTripItem, trip, showToast, stock } = useStore();
   // Aberto da Lista, vai para a lista; a chave manda direto para o estoque (sem preco:
   // estoque nao e compra).
-  const [destino, setDestino] = useState<Destino>("lista");
+  // Com o carrinho aberto (dentro do mercado), digitar e pegar: vai para o carrinho.
+  const padrao: Destino = trip ? "carrinho" : "lista";
+  const [destino, setDestino] = useState<Destino>(padrao);
   const emCasa = destino === "estoque";
   const userName = useUserName();
   const [nome, setNome] = useState("");
@@ -70,11 +72,23 @@ export function AddItemModal({
     setPreco("");
     setUnidadeManual(false);
     setPrecoManual(false);
-    setDestino("lista");
+    setDestino(padrao);
   }
 
   async function submit() {
     if (!nome.trim()) return;
+    if (destino === "carrinho") {
+      const r = await addTripItem({
+        name: nome.trim(),
+        // em branco, o banco usa o ultimo preco pago desse item
+        price: preco ? Number(preco.replace(",", ".")) || null : null,
+        qty: Number(qtd.replace(",", ".")) || 1,
+        unit: unidade,
+      });
+      if (!r.ok) return showToast(r.erro);
+      showToast(`${nome.trim()} no carrinho`);
+      return close();
+    }
     if (emCasa) {
       const r = await addStock({ name: nome.trim(), qty: Number(qtd.replace(",", ".")) || 1, unit: unidade });
       if (!r.ok) return showToast(r.erro);
@@ -101,10 +115,16 @@ export function AddItemModal({
         {userName && (
           <div className="text-[13px] font-bold text-brand">{userName}</div>
         )}
-        <div className="text-[19px] font-extrabold">{emCasa ? "Guardar no estoque" : "Adicionar à lista"}</div>
+        <div className="text-[19px] font-extrabold">
+          {emCasa ? "Guardar no estoque" : destino === "carrinho" ? "Pôr no carrinho" : "Adicionar à lista"}
+        </div>
       </div>
 
-      <DestinoSwitch valor={destino} opcoes={["lista", "estoque"]} onChange={setDestino} />
+      <DestinoSwitch
+        valor={destino}
+        opcoes={trip ? ["carrinho", "lista", "estoque"] : ["lista", "estoque"]}
+        onChange={setDestino}
+      />
 
       <label className={labelCls}>Nome</label>
       <input
@@ -148,7 +168,7 @@ export function AddItemModal({
       </div>
 
       {/* Estoque nao e compra: sem preco. */}
-      <label className={`${labelCls} ${emCasa ? "hidden" : ""}`}>Preço estimado (unidade)</label>
+      <label className={`${labelCls} ${emCasa ? "hidden" : ""}`}>{destino === "carrinho" ? "Quanto custou? (unidade)" : "Preço estimado (unidade)"}</label>
       <input
         value={preco}
         onChange={(e) => {
