@@ -18,7 +18,7 @@ import { RotaModal } from "./RotaModal";
 import { MontarLista } from "./MontarLista";
 import { useListaOfertas } from "@/components/ofertas/useOfertas";
 import { corMercado, corredor, faltaEmCasa, maisBarataPara, nomeMercado, porMercado, resumir } from "@/lib/ofertas";
-import { Foto } from "@/components/ofertas/pecas";
+import { MercadoModal, type ItemMercado } from "./MercadoModal";
 
 export function ListView() {
   const { shopping, trip, buyItems, removeItems, addTripItem, showToast, reloadTrip, stock, stockToList } =
@@ -67,6 +67,15 @@ export function ListView() {
   const resumoLista = resumir(ofertas, faltaEmCasa(pendentes, []));
   const [rotaAberta, setRotaAberta] = useState(false);
   const [montar, setMontar] = useState(false);
+  const [mercadoAberto, setMercadoAberto] = useState<string | null>(null);
+  // Produtos do encarte que entram na conta do mercado aberto.
+  const itensDoMercado = (m: string): ItemMercado[] =>
+    resumoLista.itens.flatMap((x) => {
+      const o = x.opcoes.find((y) => y.mercado === m);
+      if (!o) return [];
+      const naLista = shopping.find((s) => s.status === "pending" && s.name.trim().toLowerCase() === x.item.nome)?.estimated_price ?? null;
+      return [{ nome: x.item.nome, oferta: o, naLista, melhor: x.opcoes[0] }];
+    });
   // Fica fora do "Vou no X" so o que esta mais barato em OUTRO mercado; item sem oferta
   // nenhuma se compra em qualquer lugar e continua aparecendo.
   const emOutro = (i: ShopItem) => {
@@ -242,14 +251,10 @@ export function ListView() {
                 .filter((m) => m.itens > 0)
                 .map((m, i) => {
                   const on = filtro === m.mercado;
-                  // Os produtos do encarte que entram nessa conta: tocar mostra quais sao.
-                  const deLa = resumoLista.itens
-                    .map((x) => ({ x, o: x.opcoes.find((o) => o.mercado === m.mercado) }))
-                    .filter((y) => y.o);
                   return (
-                    <div key={m.mercado}>
                     <button
-                      onClick={() => setOndeVou(on ? null : m.mercado)}
+                      key={m.mercado}
+                      onClick={() => setMercadoAberto(m.mercado)}
                       aria-pressed={on}
                       className={`flex w-full items-center gap-3 rounded-[13px] border-2 px-3 py-2 text-left ${on ? "" : "border-border"}`}
                       style={on ? { borderColor: corMercado(m.mercado), background: `${corMercado(m.mercado)}14` } : undefined}
@@ -266,47 +271,15 @@ export function ListView() {
                       </span>
                       <span className="text-[15px] font-extrabold tabular-nums">{brl(m.total)}</span>
                       {i === 0 && <span className="text-[16px]" aria-hidden>🏆</span>}
-                      <span className={`text-[14px] text-text-3 transition-transform ${on ? "rotate-180" : ""}`} aria-hidden>
-                        ⌄
+                      <span className="text-[18px] text-text-3" aria-hidden>
+                        ›
                       </span>
                     </button>
-                    {on && (
-                      <ul className="mt-1.5 flex flex-col gap-1.5 pl-1">
-                        {deLa.map(({ x, o }) => {
-                          const naLista = shopping.find((s) => s.name.trim().toLowerCase() === x.item.nome)?.estimated_price;
-                          const maisBarato = x.opcoes[0].mercado === m.mercado;
-                          return (
-                            <li key={o!.id} className="flex items-center gap-2.5 rounded-[12px] bg-card-2 p-2">
-                              <Foto o={o} className="h-11 w-11 shrink-0 rounded-lg" />
-                              <div className="min-w-0 flex-1">
-                                <div className="text-[13px] font-bold leading-tight">{o!.produto}</div>
-                                <div className="text-[12px] text-text-3">
-                                  para “{x.item.nome}”
-                                  {naLista ? ` · na lista ${brl(naLista)}` : ""}
-                                </div>
-                              </div>
-                              <div className="shrink-0 text-right">
-                                <div className="text-[14px] font-extrabold tabular-nums">{brl(o!.preco_por)}</div>
-                                {maisBarato ? (
-                                  <div className="text-[11px] font-bold text-pos">mais barato</div>
-                                ) : (
-                                  <div className="text-[11px] text-text-3">
-                                    {nomeMercado(x.opcoes[0].mercado)} {brl(x.opcoes[0].preco_por)}
-                                  </div>
-                                )}
-                              </div>
-                            </li>
-                          );
-                        })}
-                        <li className="px-1 text-[11px] text-text-3">Preço de 1 unidade no encarte.</li>
-                      </ul>
-                    )}
-                    </div>
                   );
                 })}
             </div>
             <div className="mt-2 text-[12px] text-text-3">
-              {filtro ? "Mostrando só o que vale comprar lá." : "Toque num mercado para ver os produtos e só o que vale comprar lá."}
+              {filtro ? "Mostrando só o que vale comprar lá." : "Toque num mercado para ver os produtos e ir até lá."}
             </div>
             <button
               onClick={() => setRotaAberta(true)}
@@ -473,6 +446,15 @@ export function ListView() {
       {addManualOpen && <AddItemModal open onClose={() => setAddManualOpen(false)} />}
       {scanOpen && <BarcodeModal open onClose={() => setScanOpen(false)} />}
       {rotaAberta && <RotaModal onClose={() => setRotaAberta(false)} />}
+      {mercadoAberto && (
+        <MercadoModal
+          mercado={mercadoAberto}
+          itens={itensDoMercado(mercadoAberto)}
+          filtrando={filtro === mercadoAberto}
+          onFiltrar={() => setOndeVou(filtro === mercadoAberto ? null : mercadoAberto)}
+          onClose={() => setMercadoAberto(null)}
+        />
+      )}
       {montar && <MontarLista onClose={() => setMontar(false)} />}
       <VoiceModal open={voiceOpen} onClose={() => setVoiceOpen(false)} />
       <ListItemActions
