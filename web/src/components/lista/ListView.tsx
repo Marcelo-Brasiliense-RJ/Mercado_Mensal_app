@@ -289,6 +289,11 @@ export function ListView() {
             <div className="mt-2 text-[12px] text-text-3">
               {filtro ? "Mostrando só o que vale comprar lá." : "Toque num mercado para ver os produtos e ir até lá."}
             </div>
+            {resumoLista.itens.some((x) => !x.opcoes.length) && (
+              <div className="mt-1 text-[12px] text-text-3">
+                Sem oferta esta semana: {resumoLista.itens.filter((x) => !x.opcoes.length).map((x) => x.item.nome).join(", ")}.
+              </div>
+            )}
             <button
               onClick={() => setRotaAberta(true)}
               className="mt-3 h-12 w-full rounded-[14px] bg-brand text-[15px] font-bold text-brand-ink"
