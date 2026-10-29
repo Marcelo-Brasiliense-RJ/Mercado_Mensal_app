@@ -6,6 +6,7 @@ import { useStore } from "@/lib/store";
 import { useOfertas } from "./useOfertas";
 import { DeOlho, Estrela } from "./DeOlho";
 import { MercadosDaCasa } from "./MeusMercados";
+import { NaoCompro, Polegar } from "./NaoCompro";
 import { Foto, PorUnidade, Selo } from "./pecas";
 import { Grupo, useRecolhidos } from "@/components/ui/Grupo";
 import { ICONE } from "@/lib/categorias";
@@ -126,6 +127,7 @@ export function OfertasView() {
         <>
           {/* 0. O que a pessoa marcou para pegar em promocao */}
           <DeOlho ofertas={dados.ofertas} onComparar={(titulo, opcoes) => setAberto({ titulo, opcoes })} />
+          <NaoCompro ofertas={dados.ofertas} escondidas={dados.escondidas} />
 
           {/* 1. A resposta */}
           {melhor && resumo.comOferta > 0 ? (
@@ -345,6 +347,7 @@ function CardOferta({
         <div className="relative">
           <Foto o={o} className="h-24 w-full rounded-xl" />
           <Estrela o={o} />
+          <Polegar o={o} />
         </div>
         {rotulo && (
           <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-[0.06em] text-brand">

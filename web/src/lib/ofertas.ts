@@ -329,3 +329,42 @@ export function veredito(o: Oferta | undefined, d: Desejo, ultimoPago: number | 
 }
 
 const brlCurto = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+// ============ Não compro (0045) ============
+export type Evitar = {
+  id: number;
+  termo: string;
+  nome: string;
+  barcode: string | null;
+  motivo: string | null;
+  foto: string | null; // URL da loja; miniatura do encarte vem por tem_foto
+  tem_foto: boolean;
+};
+
+const significativas = (s: string) =>
+  padrao(s)
+    .replace(/[^a-z0-9 ]/g, " ")
+    .split(/\s+/)
+    .filter((p) => p.length > 1 && !PEQUENAS.has(p) && !/^\d/.test(p));
+
+// O que identifica o produto ruim: o tipo + a marca ("cafe pilao"). Sem marca, as tres
+// primeiras palavras. Mais largo que isso e o app esconderia marca boa junto.
+export function termoEvitar(produto: string, marca = ""): string {
+  const p = significativas(produto);
+  const m = significativas(marca).filter((x) => !p.slice(0, 1).includes(x));
+  if (m.length) return [p[0], ...m].filter(Boolean).join(" ");
+  return p.slice(0, 3).join(" ");
+}
+
+// Oferta (ou produto lido) que a casa marcou como ruim: todas as palavras do termo no nome.
+export function ehRuim(nome: string, evitar: Evitar[], barcode?: string | null): Evitar | null {
+  if (barcode) {
+    const porCodigo = evitar.find((e) => e.barcode && e.barcode === barcode);
+    if (porCodigo) return porCodigo;
+  }
+  const n = new Set(significativas(nome));
+  return evitar.find((e) => {
+    const t = significativas(e.termo);
+    return t.length > 0 && t.every((x) => n.has(x));
+  }) ?? null;
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { casaBusca, casaDesejo, casaItem, veredito, corredor, desejosDa, faltaEmCasa, maisBarato, melhorQue, nomeBonito, ofertasDo, porMercado, porUnidade, precoSubiu, prazo, resumir, termoDe, type ItemFalta, type Oferta } from "./ofertas";
+import { ehRuim, termoEvitar, casaBusca, casaDesejo, casaItem, veredito, corredor, desejosDa, faltaEmCasa, maisBarato, melhorQue, nomeBonito, ofertasDo, porMercado, porUnidade, precoSubiu, prazo, resumir, termoDe, type ItemFalta, type Oferta } from "./ofertas";
 
 let id = 0;
 const of = (o: Partial<Oferta>): Oferta => ({
@@ -188,5 +188,20 @@ describe("veredito do De olho", () => {
     const x = of({ produto: "Paleta, Peito ou Acém Bovino a Vácuo" });
     expect(termoDe(x)).toBe("paleta peito");
     expect(casaDesejo(x, "paleta, peito")).toBe(true);
+  });
+});
+
+describe("nao compro", () => {
+  const e = (termo: string, barcode: string | null = null) =>
+    ({ id: 1, termo, nome: termo, barcode, motivo: null, foto: null, tem_foto: false });
+  it("termo: tipo + marca, ou tres palavras", () => {
+    expect(termoEvitar("Café Torrado e Moído Pilão 500g", "Pilão")).toBe("cafe pilao");
+    expect(termoEvitar("Detergente Líquido Neutro 500ml")).toBe("detergente liquido neutro");
+  });
+  it("esconde so a marca marcada", () => {
+    const lista = [e("cafe pilao")];
+    expect(ehRuim("Café Pilão Tradicional 500g", lista)).toBeTruthy();
+    expect(ehRuim("Café Melitta Tradicional 500g", lista)).toBeNull();
+    expect(ehRuim("qualquer", [e("x", "789")], "789")).toBeTruthy();
   });
 });

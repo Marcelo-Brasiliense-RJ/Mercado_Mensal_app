@@ -14,7 +14,8 @@ import { BarcodeScanner } from "./BarcodeScanner";
 import { DestinoSwitch, type Destino } from "@/components/ui/Destino";
 import { useLugar } from "@/lib/lugar";
 import { useListaOfertas } from "@/components/ofertas/useOfertas";
-import { nomeMercado } from "@/lib/ofertas";
+import { ehRuim, nomeMercado, termoEvitar } from "@/lib/ofertas";
+import { marcarRuim, useEvitar } from "@/components/ofertas/useEvitar";
 import { precoNoMercado } from "@/lib/precoMercado";
 import { usePrecosVistos } from "@/lib/precosVistos";
 
@@ -54,6 +55,8 @@ export function BarcodeModal({
   const ofertas = useListaOfertas();
   const vistos = usePrecosVistos(noMercado ? mercado : null);
   const [origemPreco, setOrigemPreco] = useState<string | null>(null);
+  // Produto da lista "Não compro" (0045): avisa antes de pegar.
+  const evitar = useEvitar();
   function sugerirPreco(n: string, code: string) {
     // nomeMercado devolve o proprio nome para mercado fora da lista ("Atacadão")
     const s = precoNoMercado(n, code, noMercado ? mercado : null, ofertas, vistos, nomeMercado);
@@ -351,6 +354,27 @@ export function BarcodeModal({
               />
             )}
           </div>
+
+          {(() => {
+            const ruim = nome ? ehRuim(nome, evitar, codigo) : null;
+            return ruim ? (
+              <div className="mb-4 rounded-[14px] border-2 border-neg bg-neg-soft p-3 text-neg" role="alert">
+                <div className="text-[16px] font-extrabold">⚠️ Você marcou como ruim</div>
+                <div className="text-[13px]">{ruim.motivo ?? "Está na sua lista Não compro."}</div>
+              </div>
+            ) : nome ? (
+              <button
+                type="button"
+                onClick={async () => {
+                  const ok = await marcarRuim({ termo: termoEvitar(nome, marca), nome, barcode: codigo, foto });
+                  showToast(ok ? `👎 ${nome} no Não compro` : "Não deu para marcar.");
+                }}
+                className="-mt-2 mb-3 text-[13px] font-bold text-text-2 underline"
+              >
+                👎 Produto ruim? Marcar para não comprar
+              </button>
+            ) : null;
+          })()}
 
           <div className="mb-4">
             <label className={labelCls}>Quantidade</label>
