@@ -244,7 +244,34 @@ export function StockView() {
         )}
 
         {/* Busca so aparece quando ha despensa o bastante para procurar. */}
-        {stock.length >= 8 && <div className="lg:hidden">{search}</div>}
+        {stock.length > 0 && (
+          <div className="flex items-center gap-2">
+            {stock.length >= 8 && <div className="min-w-0 flex-1 lg:hidden">{search}</div>}
+            <button
+              onClick={() => (selMode ? exitSel() : setSelMode(true))}
+              className={`h-[44px] shrink-0 rounded-[12px] border px-4 text-[14px] font-bold ${
+                selMode ? "border-brand bg-brand text-brand-ink" : "border-border bg-card text-text-2"
+              } ${stock.length >= 8 ? "" : "ml-auto"}`}
+            >
+              {selMode ? "Cancelar" : "Selecionar"}
+            </button>
+          </div>
+        )}
+        {selMode && (
+          <div className="flex items-center justify-between gap-2 rounded-[14px] bg-card-2 px-3.5 py-2.5 text-[13px]">
+            <span className="font-bold">
+              {selected.size ? `${selected.size} selecionado${selected.size > 1 ? "s" : ""}` : "Toque nos itens para selecionar"}
+            </span>
+            <button
+              onClick={() =>
+                setSelected((s) => (s.size === filtered.length ? new Set() : new Set(filtered.map((i) => i.id))))
+              }
+              className="h-9 shrink-0 rounded-lg px-2 font-bold text-brand underline"
+            >
+              {selected.size === filtered.length ? "Desmarcar todos" : `Selecionar todos (${filtered.length})`}
+            </button>
+          </div>
+        )}
 
         {stock.length === 0 && (
           <div className="pt-10 text-center">
@@ -271,6 +298,21 @@ export function StockView() {
               aberto={!!q || aberto(cat)}
               onAlternar={() => alternar(cat)}
             >
+              {selMode && (
+                <button
+                  onClick={() =>
+                    setSelected((s) => {
+                      const n = new Set(s);
+                      const todos = itens.every((i) => n.has(i.id));
+                      itens.forEach((i) => (todos ? n.delete(i.id) : n.add(i.id)));
+                      return n;
+                    })
+                  }
+                  className="-mt-1 self-start text-[13px] font-bold text-brand underline"
+                >
+                  {itens.every((i) => selected.has(i.id)) ? `Desmarcar ${cat}` : `Marcar todos de ${cat}`}
+                </button>
+              )}
               {/* Dois cards por linha no celular: cabe o dobro de despensa num olhar. */}
               <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4 lg:gap-3.5">
                 {itens.map((i) => (
@@ -297,16 +339,6 @@ export function StockView() {
           <p className="pt-10 text-center text-text-3">Nenhum item encontrado.</p>
         )}
 
-        {stock.length > 0 && (
-          <div className="flex justify-center pt-1">
-            <button
-              onClick={() => (selMode ? exitSel() : setSelMode(true))}
-              className="h-10 rounded-[10px] px-3.5 text-[13px] font-bold text-text-3"
-            >
-              {selMode ? "Cancelar seleção" : "Selecionar vários"}
-            </button>
-          </div>
-        )}
       </div>
 
       {/* Barra de acoes em lote */}
