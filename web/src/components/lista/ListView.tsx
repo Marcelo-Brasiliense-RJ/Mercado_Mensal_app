@@ -18,6 +18,7 @@ import { RotaModal } from "./RotaModal";
 import { MontarLista } from "./MontarLista";
 import { useListaOfertas } from "@/components/ofertas/useOfertas";
 import { corMercado, corredor, faltaEmCasa, maisBarataPara, nomeMercado, porMercado, resumir } from "@/lib/ofertas";
+import { Foto } from "@/components/ofertas/pecas";
 
 export function ListView() {
   const { shopping, trip, buyItems, removeItems, addTripItem, showToast, reloadTrip, stock, stockToList } =
@@ -241,12 +242,16 @@ export function ListView() {
                 .filter((m) => m.itens > 0)
                 .map((m, i) => {
                   const on = filtro === m.mercado;
+                  // Os produtos do encarte que entram nessa conta: tocar mostra quais sao.
+                  const deLa = resumoLista.itens
+                    .map((x) => ({ x, o: x.opcoes.find((o) => o.mercado === m.mercado) }))
+                    .filter((y) => y.o);
                   return (
+                    <div key={m.mercado}>
                     <button
-                      key={m.mercado}
                       onClick={() => setOndeVou(on ? null : m.mercado)}
                       aria-pressed={on}
-                      className={`flex items-center gap-3 rounded-[13px] border-2 px-3 py-2 text-left ${on ? "" : "border-border"}`}
+                      className={`flex w-full items-center gap-3 rounded-[13px] border-2 px-3 py-2 text-left ${on ? "" : "border-border"}`}
                       style={on ? { borderColor: corMercado(m.mercado), background: `${corMercado(m.mercado)}14` } : undefined}
                     >
                       <span
@@ -261,12 +266,47 @@ export function ListView() {
                       </span>
                       <span className="text-[15px] font-extrabold tabular-nums">{brl(m.total)}</span>
                       {i === 0 && <span className="text-[16px]" aria-hidden>🏆</span>}
+                      <span className={`text-[14px] text-text-3 transition-transform ${on ? "rotate-180" : ""}`} aria-hidden>
+                        ⌄
+                      </span>
                     </button>
+                    {on && (
+                      <ul className="mt-1.5 flex flex-col gap-1.5 pl-1">
+                        {deLa.map(({ x, o }) => {
+                          const naLista = shopping.find((s) => s.name.trim().toLowerCase() === x.item.nome)?.estimated_price;
+                          const maisBarato = x.opcoes[0].mercado === m.mercado;
+                          return (
+                            <li key={o!.id} className="flex items-center gap-2.5 rounded-[12px] bg-card-2 p-2">
+                              <Foto o={o} className="h-11 w-11 shrink-0 rounded-lg" />
+                              <div className="min-w-0 flex-1">
+                                <div className="text-[13px] font-bold leading-tight">{o!.produto}</div>
+                                <div className="text-[12px] text-text-3">
+                                  para “{x.item.nome}”
+                                  {naLista ? ` · na lista ${brl(naLista)}` : ""}
+                                </div>
+                              </div>
+                              <div className="shrink-0 text-right">
+                                <div className="text-[14px] font-extrabold tabular-nums">{brl(o!.preco_por)}</div>
+                                {maisBarato ? (
+                                  <div className="text-[11px] font-bold text-pos">mais barato</div>
+                                ) : (
+                                  <div className="text-[11px] text-text-3">
+                                    {nomeMercado(x.opcoes[0].mercado)} {brl(x.opcoes[0].preco_por)}
+                                  </div>
+                                )}
+                              </div>
+                            </li>
+                          );
+                        })}
+                        <li className="px-1 text-[11px] text-text-3">Preço de 1 unidade no encarte.</li>
+                      </ul>
+                    )}
+                    </div>
                   );
                 })}
             </div>
             <div className="mt-2 text-[12px] text-text-3">
-              {filtro ? "Mostrando só o que vale comprar lá." : "Toque num mercado para ver só o que vale comprar lá."}
+              {filtro ? "Mostrando só o que vale comprar lá." : "Toque num mercado para ver os produtos e só o que vale comprar lá."}
             </div>
             <button
               onClick={() => setRotaAberta(true)}
@@ -355,15 +395,15 @@ export function ListView() {
                 >
                   <div className={`font-bold ${bought ? "text-text-3 line-through" : ""}`}>
                     {i.name}
-                    {jaTenho && trip && (
+                    {jaTenho && (
                       <span className="mt-0.5 block w-fit rounded-full bg-pos-soft px-2 py-[1px] text-[11px] font-bold text-pos">
                         já tem em casa
                       </span>
                     )}
                   </div>
-                  <div className="text-[13px] text-text-3">
-                    {i.desired_quantity} {i.unit} · {brl(price)}
-                    {price > 0 && ` = ${brl(i.desired_quantity * price)}`}
+                  <div className="whitespace-nowrap text-[13px] text-text-3">
+                    {i.desired_quantity} {i.unit}
+                    {price > 0 && i.desired_quantity !== 1 && ` × ${brl(price)}`}
                   </div>
                   {!bought &&
                     (() => {
@@ -375,21 +415,26 @@ export function ListView() {
                             className="mt-1 inline-flex max-w-full items-center gap-1.5 rounded-md px-2 py-0.5 text-[12px] font-bold text-white"
                             style={{ background: corMercado(o.mercado) }}
                           >
-                            <span className="truncate">
-                              🏷 {nomeMercado(o.mercado)} · {brl(o.preco_por)}
+                            <span className="whitespace-nowrap">
+                              {nomeMercado(o.mercado)} {brl(o.preco_por)}
                             </span>
                           </div>
                         )
                       );
                     })()}
                 </button>
-                {jaTenho && !trip && (
-                  <span className="shrink-0 rounded-full bg-pos-soft px-2.5 py-[3px] text-[12px] font-bold text-pos">
-                    já tenho
-                  </span>
-                )}
                 {/* Com compra aberta, o alvo grande da linha e "Peguei". Sem
                     compra, continua sendo o valor, que e a informacao da lista. */}
+                {/* Valor (ou Peguei) e o X empilhados: o nome e a oferta ganham a largura. */}
+                <div className="flex shrink-0 flex-col items-end">
+                <button
+                  onClick={() => remover(i.id)}
+                  disabled={busy === i.id}
+                  aria-label="Remover"
+                  className="-mr-1.5 -mt-1.5 grid h-8 w-8 place-items-center rounded-lg text-[18px] text-text-3 hover:bg-card-2"
+                >
+                  ×
+                </button>
                 {!bought && trip ? (
                   <button
                     onClick={() => peguei(i)}
@@ -399,20 +444,14 @@ export function ListView() {
                     Peguei
                   </button>
                 ) : (
-                  !jaTenho && (
-                    <span className="shrink-0 text-[16px] font-extrabold">
+                  !jaTenho &&
+                  price > 0 && (
+                    <span className="shrink-0 whitespace-nowrap text-[16px] font-extrabold tabular-nums">
                       {brl(i.desired_quantity * price)}
                     </span>
                   )
                 )}
-                <button
-                  onClick={() => remover(i.id)}
-                  disabled={busy === i.id}
-                  aria-label="Remover"
-                  className="grid h-11 w-11 shrink-0 place-items-center rounded-lg text-[18px] text-text-3 hover:bg-card-2"
-                >
-                  ×
-                </button>
+                </div>
               </li>
             );
           })}
