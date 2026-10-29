@@ -48,12 +48,13 @@ export function MontarLista({ onClose }: { onClose: () => void }) {
   const [qtdLocal, setQtdLocal] = useState<Record<string, number>>({});
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
-  function mudarQtd(s: StockItem, delta: number) {
-    const k = s.name.trim().toLowerCase();
+  // `s`: o item de casa com esse nome, quando existe (oferta tambem aprende o de sempre).
+  function mudarQtd(nome: string, unidade: string, delta: number, s?: StockItem) {
+    const k = nome.trim().toLowerCase();
     const id = naLista.get(k);
     if (!id || id.startsWith("local-")) return;
-    const atual = qtdLocal[k] ?? qtdNaLista.get(k) ?? falta(s);
-    const passo = s.unit === "kg" || s.unit === "L" ? 0.5 : 1;
+    const atual = qtdLocal[k] ?? qtdNaLista.get(k) ?? (s ? falta(s) : 1);
+    const passo = unidade === "kg" || unidade === "L" ? 0.5 : 1;
     const nova = Math.max(passo, Number((atual + delta * passo).toFixed(2)));
     setQtdLocal((q) => ({ ...q, [k]: nova }));
     clearTimeout(timers.current[k]);
@@ -61,6 +62,7 @@ export function MontarLista({ onClose }: { onClose: () => void }) {
       const r = await updateShopItem(id, { qty: nova });
       if (!r.ok) return showToast(r.erro);
       // Aprende o de sempre: com o que tem em casa mais o que vai levar. Proximo mes ja vem certo.
+      if (!s) return;
       const sempre = Number((Math.max(0, s.current) + nova).toFixed(2));
       if (sempre !== s.normal) await setPar(s.id, sempre);
     }, 700);
@@ -115,19 +117,30 @@ export function MontarLista({ onClose }: { onClose: () => void }) {
     setAdicionados((n) => n + 1);
   }
 
+  const deCasa = useMemo(() => new Map(stock.map((s) => [padrao(s.name), s])), [stock]);
   function ladrilhoOferta(o: Oferta) {
     const k = o.produto.trim().toLowerCase();
     const on = naLista.has(k);
+    const s = deCasa.get(padrao(o.produto)); // mesmo nome de algo de casa: leva o que falta
+    const unidade = s?.unit ?? "un";
     return (
       <Ladrilho
         key={o.id}
         on={on}
         ocupado={ocupado === k}
-        onClick={() => alternar(o.produto, 1, "un", o.preco_por)}
+        onClick={() => {
+          setQtdLocal((q) => {
+            const n = { ...q };
+            delete n[k];
+            return n;
+          });
+          void alternar(o.produto, s ? falta(s) : 1, unidade, o.preco_por);
+        }}
         foto={<Foto o={o} className="h-16 w-16 rounded-lg" />}
         nome={o.produto}
         sub=""
         preco={{ por: o.preco_por, de: o.preco_de, off: desconto(o) }}
+        qtd={on ? { valor: qtdLocal[k] ?? qtdNaLista.get(k) ?? 1, unidade, mudar: (d) => mudarQtd(o.produto, unidade, d, s) } : undefined}
         faixa={corMercado(o.mercado)}
         etiqueta={nomeMercado(o.mercado)}
       />
@@ -260,7 +273,7 @@ export function MontarLista({ onClose }: { onClose: () => void }) {
                   nome={s.name}
                   sub={on ? tem : `${tem} · leva ${num(leva)}`}
                   alerta={!on && s.current <= 0}
-                  qtd={on ? { valor: qtdLocal[k] ?? qtdNaLista.get(k) ?? leva, unidade: s.unit, mudar: (d) => mudarQtd(s, d) } : undefined}
+                  qtd={on ? { valor: qtdLocal[k] ?? qtdNaLista.get(k) ?? leva, unidade: s.unit, mudar: (d) => mudarQtd(s.name, s.unit, d, s) } : undefined}
                 />
               );
             })}
