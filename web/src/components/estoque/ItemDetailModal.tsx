@@ -22,6 +22,7 @@ export function ItemDetailModal({
     addStockToList,
     addStock,
     zerarStock,
+    deleteStock,
     baixaStock,
     setPar,
     parSugerido,
@@ -373,6 +374,19 @@ export function ItemDetailModal({
           Adicionar à lista
         </button>
       </div>
+      {/* Excluir mora no fim e pede confirmacao: tira o item do estoque de vez. */}
+      <button
+        onClick={async () => {
+          if (!item || !confirm(`Excluir ${item.name} do estoque?`)) return;
+          const r = await deleteStock([item.id]);
+          if (!r.ok) return showToast(r.erro);
+          showToast(`${item.name} excluído`, { desfazer: true });
+          fechar();
+        }}
+        className="mt-3 h-11 w-full text-[14px] font-bold text-neg underline"
+      >
+        Excluir do estoque
+      </button>
     </Modal>
   );
 }

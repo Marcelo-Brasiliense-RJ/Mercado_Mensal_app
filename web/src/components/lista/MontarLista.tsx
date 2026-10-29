@@ -1,0 +1,239 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { brl } from "@/lib/format";
+import { useStore } from "@/lib/store";
+import { SearchIcon } from "@/components/ui/icons";
+import { FotoItem } from "@/components/ui/FotoItem";
+import { Foto } from "@/components/ofertas/pecas";
+import { useListaOfertas } from "@/components/ofertas/useOfertas";
+import { corMercado, corredor, desconto, nomeMercado, padrao, type Oferta } from "@/lib/ofertas";
+import { categoriaDe } from "@/lib/categorias";
+import { unitFor } from "@/lib/defaults";
+import type { StockItem } from "@/lib/types";
+
+// Montar a lista no toque, como numa vitrine: cada quadrado e um produto, tocar poe na
+// lista (com a quantidade que falta para completar a casa), tocar de novo tira.
+// Antes era um popup por item, digitando nome, quantidade e preco: lento e chato.
+type Aba = "acabando" | "casa" | "oferta";
+
+const falta = (s: StockItem) => Math.max(1, Math.round(s.normal - s.current));
+
+export function MontarLista({ onClose }: { onClose: () => void }) {
+  const { stock, shopping, addShopItem, removeItems, showToast } = useStore();
+  const ofertas = useListaOfertas();
+  const acabandoTodos = stock.filter((s) => s.current <= 0 || (s.normal > 0 && s.current < s.normal * 0.5));
+  const [aba, setAba] = useState<Aba>(acabandoTodos.length ? "acabando" : "casa");
+  const [busca, setBusca] = useState("");
+  const [adicionados, setAdicionados] = useState(0);
+  const [ocupado, setOcupado] = useState<string | null>(null);
+
+  const naLista = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const i of shopping) if (i.status === "pending") m.set(i.name.trim().toLowerCase(), i.id);
+    return m;
+  }, [shopping]);
+
+  const b = padrao(busca.trim());
+  const filtra = (nome: string) => !b || padrao(nome).includes(b);
+
+  const casa = useMemo(
+    () =>
+      stock
+        .filter((s) => filtra(s.name))
+        .sort((x, y) => corredor(categoriaDe(x.name)) - corredor(categoriaDe(y.name)) || x.name.localeCompare(y.name)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- filtra depende de b
+    [stock, b],
+  );
+  const acabando = casa.filter((s) => acabandoTodos.includes(s));
+  const emOferta = useMemo(
+    () =>
+      ofertas
+        .filter((o) => !b || padrao(`${o.produto} ${o.marca}`).includes(b))
+        .sort((x, y) => desconto(y) - desconto(x))
+        .slice(0, 60),
+    [ofertas, b],
+  );
+
+  async function alternar(nome: string, qtd: number, unidade: string, preco: number | null) {
+    const k = nome.trim().toLowerCase();
+    const id = naLista.get(k);
+    setOcupado(k);
+    if (id) {
+      // item recem-posto ainda sem id do banco: espera o recarregar antes de tirar
+      if (id.startsWith("local-")) return setOcupado(null);
+      const r = await removeItems([id]);
+      setOcupado(null);
+      if (!r.ok) return showToast(r.erro);
+      setAdicionados((n) => Math.max(0, n - 1));
+      return;
+    }
+    const r = await addShopItem({ name: k, desired_quantity: qtd, unit: unidade, estimated_price: preco });
+    setOcupado(null);
+    if (!r.ok) return showToast(r.erro);
+    setAdicionados((n) => n + 1);
+  }
+
+  const novo = busca.trim();
+  const existe = novo && (stock.some((s) => padrao(s.name) === padrao(novo)) || naLista.has(novo.toLowerCase()));
+
+  return (
+    <div className="fixed inset-0 z-40 flex flex-col bg-bg">
+      <div className="border-b border-border bg-card px-4 pb-3 pt-[max(12px,env(safe-area-inset-top))]">
+        <div className="mb-2 flex items-center justify-between">
+          <div className="text-[20px] font-extrabold">⚡ Montar lista</div>
+          <button onClick={onClose} aria-label="Fechar" className="grid h-11 w-11 place-items-center rounded-full bg-card-2 text-[20px] font-bold">
+            ×
+          </button>
+        </div>
+        <label className="relative block">
+          <SearchIcon size={20} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-text-3" />
+          <input
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && novo && !existe) {
+                void alternar(novo, 1, unitFor(novo), null);
+                setBusca("");
+              }
+            }}
+            placeholder="Procurar ou escrever um item"
+            enterKeyHint="done"
+            className="h-12 w-full rounded-2xl border-2 border-border bg-card-2 pl-12 pr-4 text-[16px] outline-none focus:border-brand"
+          />
+        </label>
+        <div className="mt-2.5 grid grid-cols-3 gap-1.5">
+          {(
+            [
+              ["acabando", `🔴 Acabando${acabandoTodos.length ? ` (${acabandoTodos.length})` : ""}`],
+              ["casa", "🏠 Tudo de casa"],
+              ["oferta", "🏷 Em oferta"],
+            ] as [Aba, string][]
+          ).map(([id, txt]) => (
+            <button
+              key={id}
+              onClick={() => setAba(id)}
+              aria-pressed={aba === id}
+              className={`h-10 rounded-xl text-[13px] font-bold ${aba === id ? "bg-brand text-brand-ink" : "bg-card-2 text-text-2"}`}
+            >
+              {txt}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-3 pb-28 pt-3">
+        {novo && !existe && (
+          <button
+            onClick={() => {
+              void alternar(novo, 1, unitFor(novo), null);
+              setBusca("");
+            }}
+            className="mb-3 h-12 w-full rounded-2xl border-2 border-dashed border-brand text-[15px] font-bold text-brand"
+          >
+            + Pôr “{novo}” na lista
+          </button>
+        )}
+
+        {aba !== "oferta" ? (
+          <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6">
+            {(aba === "acabando" ? acabando : casa).map((s) => {
+              const k = s.name.trim().toLowerCase();
+              const on = naLista.has(k);
+              return (
+                <Ladrilho
+                  key={s.id}
+                  on={on}
+                  ocupado={ocupado === k}
+                  onClick={() => alternar(s.name, falta(s), s.unit, s.priceLast)}
+                  foto={<FotoItem nome={s.name} className="h-16 w-16 rounded-lg" />}
+                  nome={s.name}
+                  sub={on ? "na lista" : s.current <= 0 ? "acabou" : `tem ${Number(s.current.toFixed(2)).toLocaleString("pt-BR")} ${s.unit}`}
+                  alerta={!on && s.current <= 0}
+                />
+              );
+            })}
+            {(aba === "acabando" ? acabando : casa).length === 0 && (
+              <p className="col-span-full py-10 text-center text-[14px] text-text-2">
+                {aba === "acabando" ? "Nada acabando em casa. 🎉" : "Nada com esse nome em casa."}
+              </p>
+            )}
+          </div>
+        ) : (
+          <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6">
+            {emOferta.map((o: Oferta) => {
+              const k = o.produto.trim().toLowerCase();
+              const on = naLista.has(k);
+              return (
+                <Ladrilho
+                  key={o.id}
+                  on={on}
+                  ocupado={ocupado === k}
+                  onClick={() => alternar(o.produto, 1, "un", o.preco_por)}
+                  foto={<Foto o={o} className="h-16 w-16 rounded-lg" />}
+                  nome={o.produto}
+                  sub={`${brl(o.preco_por)}${desconto(o) ? ` · -${desconto(o)}%` : ""}`}
+                  faixa={corMercado(o.mercado)}
+                  etiqueta={nomeMercado(o.mercado)}
+                />
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      <div className="fixed inset-x-0 bottom-0 border-t border-border bg-card px-4 pb-[max(12px,env(safe-area-inset-bottom))] pt-3">
+        <button onClick={onClose} className="h-[52px] w-full rounded-[14px] bg-brand text-[16px] font-extrabold text-brand-ink">
+          {adicionados ? `Pronto · ${adicionados} ${adicionados > 1 ? "itens" : "item"} na lista` : "Pronto"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function Ladrilho({
+  on,
+  ocupado,
+  onClick,
+  foto,
+  nome,
+  sub,
+  alerta,
+  faixa,
+  etiqueta,
+}: {
+  on: boolean;
+  ocupado: boolean;
+  onClick: () => void;
+  foto: React.ReactNode;
+  nome: string;
+  sub: string;
+  alerta?: boolean;
+  faixa?: string;
+  etiqueta?: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={ocupado}
+      aria-pressed={on}
+      className={`relative flex flex-col items-center gap-1 overflow-hidden rounded-2xl border-2 bg-card px-1.5 pb-2 pt-2 text-center transition-transform active:scale-95 disabled:opacity-60 ${
+        on ? "border-pos bg-pos-soft" : "border-border"
+      }`}
+    >
+      {etiqueta && (
+        <span className="absolute inset-x-0 top-0 truncate px-1 text-[10px] font-extrabold leading-4 text-white" style={{ background: faixa }}>
+          {etiqueta}
+        </span>
+      )}
+      <span className={etiqueta ? "mt-3" : ""}>{foto}</span>
+      <span className="line-clamp-2 min-h-[2.2em] text-[12px] font-extrabold leading-tight">{nome}</span>
+      <span className={`text-[11px] font-bold ${on ? "text-pos" : alerta ? "text-neg" : "text-text-2"}`}>{sub}</span>
+      {on && (
+        <span className="absolute right-1 top-1 grid h-6 w-6 place-items-center rounded-full bg-pos text-[13px] font-extrabold text-white">
+          ✓
+        </span>
+      )}
+    </button>
+  );
+}

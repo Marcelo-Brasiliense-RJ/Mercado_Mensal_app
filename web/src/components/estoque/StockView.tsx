@@ -56,6 +56,7 @@ export function StockView() {
   const ofertas = useListaOfertas();
   const {
     stock,
+    shopping,
     zerarStock,
     baixaStock,
     addStock,
@@ -81,7 +82,11 @@ export function StockView() {
   const filtered = stock
     .filter((i) => i.name.toLowerCase().includes(q.toLowerCase()))
     .sort((a, b) => ORDEM[estadoDe(a)] - ORDEM[estadoDe(b)] || a.name.localeCompare(b.name));
-  const faltando = stock.filter((i) => estadoDe(i) !== "tem");
+  // O aviso conta so o que ainda NAO esta na lista: depois de "Mandar pra lista" ele
+  // tem que mudar, senao parece que o toque nao fez nada.
+  const naLista = new Set(shopping.filter((s) => s.status === "pending").map((s) => s.name.trim().toLowerCase()));
+  const acabando = stock.filter((i) => estadoDe(i) !== "tem");
+  const faltando = acabando.filter((i) => !naLista.has(i.name.trim().toLowerCase()));
   // Por corredor do mercado (mesmas categorias dos encartes), cada um abre e fecha.
   const { aberto, alternar } = useRecolhidos("estoque_fechados");
   const grupos = Object.entries(
@@ -212,6 +217,12 @@ export function StockView() {
 
         {/* Primeira coisa da tela: o que falta, com a acao junto. Antes o topo
             trazia contagem de itens e valor em reais, que nao fazem ninguem agir. */}
+        {faltando.length === 0 && acabando.length > 0 && (
+          <div className="rounded-[18px] border-[1.5px] border-pos/50 bg-pos-soft px-3.5 py-3 text-[14px] font-bold text-pos">
+            ✓ {acabando.length === 1 ? "O item que está acabando já está" : `Os ${acabando.length} itens que estão acabando já estão`} na
+            lista de compras
+          </div>
+        )}
         {faltando.length > 0 && (
           <div className="flex items-center gap-3 rounded-[18px] border-[1.5px] border-warn bg-warn-soft p-3.5">
             <div className="min-w-0 flex-1">
@@ -219,7 +230,7 @@ export function StockView() {
                 {faltando.length} {faltando.length === 1 ? "item" : "itens"}
               </div>
               <div className="mt-1 text-[13px] font-bold text-text-2">
-                acabando ou já acabou
+                acabando{acabando.length > faltando.length ? ", fora da lista" : " ou já acabou"}
               </div>
             </div>
             <button
@@ -233,7 +244,34 @@ export function StockView() {
         )}
 
         {/* Busca so aparece quando ha despensa o bastante para procurar. */}
-        {stock.length >= 8 && <div className="lg:hidden">{search}</div>}
+        {stock.length > 0 && (
+          <div className="flex items-center gap-2">
+            {stock.length >= 8 && <div className="min-w-0 flex-1 lg:hidden">{search}</div>}
+            <button
+              onClick={() => (selMode ? exitSel() : setSelMode(true))}
+              className={`h-[44px] shrink-0 rounded-[12px] border px-4 text-[14px] font-bold ${
+                selMode ? "border-brand bg-brand text-brand-ink" : "border-border bg-card text-text-2"
+              } ${stock.length >= 8 ? "" : "ml-auto"}`}
+            >
+              {selMode ? "Cancelar" : "Selecionar"}
+            </button>
+          </div>
+        )}
+        {selMode && (
+          <div className="flex items-center justify-between gap-2 rounded-[14px] bg-card-2 px-3.5 py-2.5 text-[13px]">
+            <span className="font-bold">
+              {selected.size ? `${selected.size} selecionado${selected.size > 1 ? "s" : ""}` : "Toque nos itens para selecionar"}
+            </span>
+            <button
+              onClick={() =>
+                setSelected((s) => (s.size === filtered.length ? new Set() : new Set(filtered.map((i) => i.id))))
+              }
+              className="h-9 shrink-0 rounded-lg px-2 font-bold text-brand underline"
+            >
+              {selected.size === filtered.length ? "Desmarcar todos" : `Selecionar todos (${filtered.length})`}
+            </button>
+          </div>
+        )}
 
         {stock.length === 0 && (
           <div className="pt-10 text-center">
@@ -260,6 +298,21 @@ export function StockView() {
               aberto={!!q || aberto(cat)}
               onAlternar={() => alternar(cat)}
             >
+              {selMode && (
+                <button
+                  onClick={() =>
+                    setSelected((s) => {
+                      const n = new Set(s);
+                      const todos = itens.every((i) => n.has(i.id));
+                      itens.forEach((i) => (todos ? n.delete(i.id) : n.add(i.id)));
+                      return n;
+                    })
+                  }
+                  className="-mt-1 self-start text-[13px] font-bold text-brand underline"
+                >
+                  {itens.every((i) => selected.has(i.id)) ? `Desmarcar ${cat}` : `Marcar todos de ${cat}`}
+                </button>
+              )}
               {/* Dois cards por linha no celular: cabe o dobro de despensa num olhar. */}
               <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4 lg:gap-3.5">
                 {itens.map((i) => (
@@ -274,6 +327,7 @@ export function StockView() {
                     onMais={() => mais(i)}
                     onRepor={() => repor(i)}
                     oferta={estadoDe(i) !== "tem" ? maisBarataPara(ofertas, i.name) : null}
+                    noCarrinho={naLista.has(i.name.trim().toLowerCase())}
                   />
                 ))}
               </div>
@@ -285,16 +339,6 @@ export function StockView() {
           <p className="pt-10 text-center text-text-3">Nenhum item encontrado.</p>
         )}
 
-        {stock.length > 0 && (
-          <div className="flex justify-center pt-1">
-            <button
-              onClick={() => (selMode ? exitSel() : setSelMode(true))}
-              className="h-10 rounded-[10px] px-3.5 text-[13px] font-bold text-text-3"
-            >
-              {selMode ? "Cancelar seleção" : "Selecionar vários"}
-            </button>
-          </div>
-        )}
       </div>
 
       {/* Barra de acoes em lote */}
@@ -382,6 +426,7 @@ function Card({
   onMais,
   onRepor,
   oferta,
+  noCarrinho,
 }: {
   item: StockItem;
   selMode: boolean;
@@ -392,6 +437,7 @@ function Card({
   onMais: () => void;
   onRepor: () => void;
   oferta?: Oferta | null;
+  noCarrinho?: boolean;
 }) {
   const estado = estadoDe(item);
   const cor = CORES[estado];
@@ -413,8 +459,13 @@ function Card({
           </span>
         )}
         <div className="mb-2 flex items-start justify-between gap-1.5">
-          <span className={`rounded-full px-2 py-[2px] text-[10px] font-extrabold uppercase ${cor.selo}`}>
-            {cor.texto}
+          <span className="flex flex-wrap gap-1">
+            <span className={`rounded-full px-2 py-[2px] text-[10px] font-extrabold uppercase ${cor.selo}`}>
+              {cor.texto}
+            </span>
+            {noCarrinho && (
+              <span className="rounded-full bg-brand-soft px-2 py-[2px] text-[10px] font-extrabold uppercase text-brand">📝 Na lista</span>
+            )}
           </span>
           {/* Foto do produto (pelo nome): reconhecer de relance sem ler */}
           {!selMode && <FotoItem nome={item.name} className="-mr-1 -mt-1 h-11 w-11 rounded-lg" />}
@@ -467,7 +518,7 @@ function Card({
             disabled={ocupado}
             className={`h-12 text-[13px] font-bold text-brand disabled:opacity-40 ${acabou ? "bg-brand/5" : ""}`}
           >
-            Repor
+            {noCarrinho ? "+ Lista" : "Repor"}
           </button>
         </div>
       )}
