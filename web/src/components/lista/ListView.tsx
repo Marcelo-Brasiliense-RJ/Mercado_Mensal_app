@@ -14,6 +14,7 @@ import { VoiceModal } from "@/components/voz/VoiceModal";
 import { QuickBar } from "./QuickBar";
 import { FotoItem } from "@/components/ui/FotoItem";
 import { RotaModal } from "./RotaModal";
+import { MontarLista } from "./MontarLista";
 import { useListaOfertas } from "@/components/ofertas/useOfertas";
 import { corMercado, corredor, faltaEmCasa, maisBarataPara, nomeMercado, porMercado, resumir } from "@/lib/ofertas";
 
@@ -63,6 +64,7 @@ export function ListView() {
   // resposta para "onde compensa fazer a compra", na cara, sem abrir a aba Ofertas.
   const resumoLista = resumir(ofertas, faltaEmCasa(pendentes, []));
   const [rotaAberta, setRotaAberta] = useState(false);
+  const [montar, setMontar] = useState(false);
   // Fica fora do "Vou no X" so o que esta mais barato em OUTRO mercado; item sem oferta
   // nenhuma se compra em qualquer lugar e continua aparecendo.
   const emOutro = (i: ShopItem) => {
@@ -182,6 +184,19 @@ export function ListView() {
             <div className="mt-1.5 text-[12px] text-text-3">itens para comprar</div>
           </div>
         </div>
+
+        {/* Montar a lista como numa vitrine: um toque por produto, com foto. */}
+        <button
+          onClick={() => setMontar(true)}
+          className="flex w-full items-center gap-3 rounded-[18px] bg-brand px-4 py-3.5 text-left text-brand-ink shadow-[0_4px_14px_var(--shadow)]"
+        >
+          <span className="text-[26px]" aria-hidden>⚡</span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-[17px] font-extrabold">Montar lista rápida</span>
+            <span className="block text-[13px] opacity-90">Toque nos produtos: acabando, de casa ou em oferta</span>
+          </span>
+          <span className="text-[22px]" aria-hidden>›</span>
+        </button>
 
         {/* Lista do mes num toque: o app ja sabe o que falta para completar a casa. */}
         {!trip && doMes.length > 0 && (
@@ -397,6 +412,7 @@ export function ListView() {
       <AddItemModal open={addManualOpen} onClose={() => setAddManualOpen(false)} />
       {scanOpen && <BarcodeModal open onClose={() => setScanOpen(false)} />}
       {rotaAberta && <RotaModal onClose={() => setRotaAberta(false)} />}
+      {montar && <MontarLista onClose={() => setMontar(false)} />}
       <VoiceModal open={voiceOpen} onClose={() => setVoiceOpen(false)} />
       <ListItemActions
         key={action?.id}
