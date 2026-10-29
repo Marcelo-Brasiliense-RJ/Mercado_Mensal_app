@@ -11,7 +11,7 @@ import { reconhecerEmEtapas, type Base } from "./etapasReconhecer";
 //
 // Fica neste aparelho (localStorage): fechar o app no meio nao perde as fotos.
 
-export type Destino = "estoque" | "carrinho";
+export type Destino = "estoque" | "carrinho" | "lista";
 export type FotoFila = {
   id: string;
   img: string; // JPEG reduzido (data URL)

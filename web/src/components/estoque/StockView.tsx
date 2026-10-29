@@ -61,6 +61,8 @@ export function StockView() {
     shopping,
     zerarStock,
     baixaStock,
+    mexerLocal,
+    reloadData,
     addStock,
     stockToList,
     showToast,
@@ -72,7 +74,6 @@ export function StockView() {
   const [selMode, setSelMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
-  const [agindo, setAgindo] = useState<string | null>(null);
   const [voiceOpen, setVoiceOpen] = useState(false);
   // O leitor tambem mora aqui: quem esta no mercado abre o Estoque para ver o que
   // falta e, de codigo na mao, nao deveria ter que trocar de aba para registrar.
@@ -118,21 +119,22 @@ export function StockView() {
   }
 
   // Um toque, sem popup: tirar uma unidade do que tem em casa.
+  // O numero muda na hora (otimista); o banco grava por tras. Errou: recarrega o real.
   async function usei(item: StockItem) {
-    setAgindo(item.id);
     const passo = stepFor(item.unit);
+    mexerLocal(item.id, -passo);
     const r = await baixaStock(item.id, passo);
-    setAgindo(null);
+    if (!r.ok) void reloadData();
     // "Usei" e o toque mais facil de dar sem querer: o aviso ja traz o Desfazer.
     showToast(r.ok ? `${item.name}: usei ${fmtQtd(passo)} ${item.unit}` : r.erro, { desfazer: r.ok });
   }
 
   // Um toque, sem popup: chegou mais um em casa (o "+1" do card).
   async function mais(item: StockItem) {
-    setAgindo(item.id);
     const passo = stepFor(item.unit);
+    mexerLocal(item.id, passo);
     const r = await addStock({ name: item.name, qty: passo, unit: item.unit });
-    setAgindo(null);
+    if (!r.ok) void reloadData();
     showToast(r.ok ? `${item.name}: +${fmtQtd(passo)} ${item.unit}` : r.erro, { desfazer: r.ok });
   }
 
@@ -316,7 +318,7 @@ export function StockView() {
                     item={i}
                     selMode={selMode}
                     selected={selected.has(i.id)}
-                    ocupado={agindo === i.id}
+                    ocupado={false}
                     onAbrir={() => onItem(i)}
                     onUsei={() => usei(i)}
                     onMais={() => mais(i)}

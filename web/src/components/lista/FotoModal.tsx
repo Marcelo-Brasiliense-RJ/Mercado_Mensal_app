@@ -41,7 +41,7 @@ export function FotoModal({
     const fs = Array.from(arquivos ?? []).filter((f) => f.type.startsWith("image/"));
     if (!fs.length) return;
     setDesta((n) => n + fs.length);
-    for (const f of fs) await enfileirarFoto(f, destino === "estoque" ? "estoque" : "carrinho");
+    for (const f of fs) await enfileirarFoto(f, destino);
     if (fs.length > 1) showToast(`📷 ${fs.length} fotos na fila`);
   }
 
@@ -56,7 +56,7 @@ export function FotoModal({
         <p className="text-[13px] text-text-2">Um atrás do outro. A IA reconhece em fila e você confere no fim.</p>
       </div>
 
-      <DestinoSwitch valor={destino} opcoes={["estoque", "carrinho"]} onChange={setDestino} />
+      <DestinoSwitch valor={destino} opcoes={["estoque", "lista", "carrinho"]} onChange={setDestino} />
 
       <input
         ref={camera}

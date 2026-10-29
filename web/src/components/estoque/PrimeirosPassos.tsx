@@ -27,7 +27,7 @@ function lerDispensados(): string[] {
 }
 
 export function PrimeirosPassos({ onFalar, onDigitar }: { onFalar: () => void; onDigitar: () => void }) {
-  const { stock, budget, dataLoading, showToast } = useStore();
+  const { stock, budget, dataReady, showToast } = useStore();
   const ofertas = useOfertas();
   const lugar = useLugar();
   const [push, setPush] = useState<EstadoPush | null>(null);
@@ -47,7 +47,8 @@ export function PrimeirosPassos({ onFalar, onDigitar }: { onFalar: () => void; o
     estadoPush().then(setPush, () => setPush("sem-suporte"));
   }, []);
 
-  if (ofertas.fase === "carregando" || dataLoading || push == null) return null;
+  // so na primeira carga: recarregar por tras (um +1 no card) nao pode sumir com o quadro
+  if (ofertas.fase === "carregando" || !dataReady || push == null) return null;
 
   const btn = "h-11 shrink-0 rounded-xl bg-brand px-4 text-[14px] font-bold text-brand-ink disabled:opacity-50";
   const btn2 = "h-11 shrink-0 rounded-xl border-2 border-brand px-4 text-[14px] font-bold text-brand";

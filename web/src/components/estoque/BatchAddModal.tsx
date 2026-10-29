@@ -6,6 +6,7 @@ import { ItemGrid, type GridItem, type GridField } from "@/components/receipt/It
 import { unitFor, findByName } from "@/lib/defaults";
 import { useStore } from "@/lib/store";
 import { DestinoSwitch, type Destino } from "@/components/ui/Destino";
+import { quantoPedir, TambemNaLista } from "@/components/ui/TambemNaLista";
 
 // Cadastrar a despensa inteira numa tela so. Antes eram 8 passos e dois modais
 // empilhados POR ITEM, com o modal fechando a cada um. A grade e a mesma da
@@ -26,6 +27,7 @@ export function BatchAddModal({
   const paraLista = destino === "lista";
   const [items, setItems] = useState<GridItem[]>([vazia(), vazia(), vazia()]);
   const [saving, setSaving] = useState(false);
+  const [tambem, setTambem] = useState(false);
 
   function patch(i: number, field: GridField, value: string) {
     setItems((prev) =>
@@ -59,6 +61,7 @@ export function BatchAddModal({
     setItems([vazia(), vazia(), vazia()]);
     setSaving(false);
     setDestino("estoque");
+    setTambem(false);
   }
 
   const preenchidos = items.filter((i) => i.nome.trim());
@@ -86,11 +89,16 @@ export function BatchAddModal({
         setSaving(false);
         return showToast(r.erro);
       }
+      if (!paraLista && tambem) {
+        const q = Number(it.qtd) || 1;
+        const pedir = quantoPedir(it.nome, q, stock);
+        await addShopItem({ name: it.nome.trim(), desired_quantity: pedir.qtd, unit: it.unidade, estimated_price: pedir.preco });
+      }
     }
     showToast(
       preenchidos.length === 1
-        ? `${preenchidos[0].nome.trim()} ${paraLista ? "na lista" : "adicionado ao estoque"}`
-        : `${preenchidos.length} itens ${paraLista ? "na lista" : "adicionados ao estoque"}`,
+        ? `${preenchidos[0].nome.trim()} ${paraLista ? "na lista" : tambem ? "no estoque e na lista" : "adicionado ao estoque"}`
+        : `${preenchidos.length} itens ${paraLista ? "na lista" : tambem ? "no estoque e na lista" : "adicionados ao estoque"}`,
     );
     close();
   }
@@ -114,6 +122,7 @@ export function BatchAddModal({
         precos={false}
         avisoDe={avisoDe}
       />
+      {!paraLista && <TambemNaLista valor={tambem} onChange={setTambem} />}
 
       <div data-rodape className="flex gap-3">
         <button
