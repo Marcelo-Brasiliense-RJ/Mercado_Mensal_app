@@ -201,8 +201,16 @@ export function ListView() {
         </div>
 
         {/* Montar a lista como numa vitrine: um toque por produto, com foto.
-            Dentro do mercado (carrinho aberto) some: ali a tela e de pegar, nao de planejar. */}
-        {!trip && (
+            Dentro do mercado (carrinho aberto) vira um botao discreto: a tela e de pegar,
+            mas lembrar de algo no corredor ainda e um toque. */}
+        {trip ? (
+          <button
+            onClick={() => setMontar(true)}
+            className="flex h-12 w-full items-center justify-center gap-2 rounded-[14px] border-2 border-brand bg-card text-[15px] font-bold text-brand"
+          >
+            ⚡ Montar lista rápida
+          </button>
+        ) : (
         <button
           onClick={() => setMontar(true)}
           className="flex w-full items-center gap-3 rounded-[18px] bg-brand px-4 py-3.5 text-left text-brand-ink shadow-[0_4px_14px_var(--shadow)]"

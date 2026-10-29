@@ -15,15 +15,17 @@ export async function reduzir(arquivo: File, lado = 1024): Promise<string> {
 }
 
 // `nao`: nome que a pessoa disse que esta errado ("pedir pra rever").
-// undefined = falha de rede/cota (tentar de novo depois); null = a IA nao reconheceu.
-export async function reconhecerImagem(image: string, nao?: string): Promise<Reconhecido | null | undefined> {
+// undefined = falha de rede/cota (tentar de novo depois); null = a IA nao reconheceu;
+// "sem_ia" = o servidor nao tem chave da IA configurada (nao adianta repetir).
+export async function reconhecerImagem(image: string, nao?: string, forte = false): Promise<Reconhecido | null | undefined | "sem_ia"> {
   try {
     const r = await fetch("/api/reconhecer", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ image, nao }),
+      body: JSON.stringify({ image, nao, forte }),
     });
-    const d = (await r.json()) as Partial<Reconhecido> & { ok?: boolean; encontrado?: boolean };
+    const d = (await r.json()) as Partial<Reconhecido> & { ok?: boolean; encontrado?: boolean; erro?: string };
+    if (d.erro === "ia_indisponivel") return "sem_ia";
     if (!d.ok) return undefined;
     if (!d.encontrado && !d.codigo) return null;
     return { nome: d.nome ?? "", marca: d.marca ?? "", tamanho: d.tamanho ?? "", codigo: d.codigo ?? "" };

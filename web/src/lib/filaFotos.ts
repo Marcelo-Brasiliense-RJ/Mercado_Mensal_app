@@ -2,6 +2,8 @@
 
 import { useSyncExternalStore } from "react";
 import { reconhecerImagem, reduzir } from "./reconhecer";
+import { codigoNaFoto } from "./codigoNaFoto";
+import { reconhecerEmEtapas, type Base } from "./etapasReconhecer";
 
 // Fila de fotos para a IA reconhecer. Na correria do mercado a pessoa tira a foto e
 // segue; a IA trabalha uma de cada vez (a cota gratuita nao aguenta rajada) e, quando
@@ -14,7 +16,9 @@ export type FotoFila = {
   id: string;
   img: string; // JPEG reduzido (data URL)
   destino: Destino;
-  estado: "esperando" | "reconhecendo" | "pronto" | "falhou";
+  estado: "preparando" | "esperando" | "reconhecendo" | "pronto" | "falhou";
+  codigoFoto?: string; // codigo de barras lido na propria foto, no celular
+  fonte?: "codigo" | "ia";
   nome?: string;
   marca?: string;
   codigo?: string;
@@ -22,6 +26,7 @@ export type FotoFila = {
   foto?: string | null; // foto da loja, quando o codigo acha o produto numa base
   nao?: string; // nome recusado ("pedir pra rever")
   tentativas?: number;
+  motivo?: "sem_ia" | "ia_falhou"; // por que falhou, quando nao foi so "nao reconheci"
 };
 
 const CHAVE = "fila_fotos";
@@ -50,11 +55,16 @@ function carregar() {
   try {
     const f = JSON.parse(localStorage.getItem(CHAVE) ?? "[]") as FotoFila[];
     // o que estava no meio quando o app fechou volta para a espera
-    fila = f.map((x) => (x.estado === "reconhecendo" ? { ...x, estado: "esperando" } : x));
+    fila = f.map((x) => (x.estado === "reconhecendo" || x.estado === "preparando" ? { ...x, estado: "esperando" } : x));
   } catch {
     fila = [];
   }
   void processar();
+}
+
+async function produto(codigo: string): Promise<Base | null> {
+  const d = await (await fetch(`/api/produto?codigo=${encodeURIComponent(codigo)}`)).json();
+  return d?.ok && d.encontrado && d.nome ? d : null;
 }
 
 let rodando = false;
@@ -66,36 +76,24 @@ async function processar() {
       const x = fila.find((y) => y.estado === "esperando");
       if (!x) break;
       trocar(x.id, { estado: "reconhecendo" });
-      const r = await reconhecerImagem(x.img, x.nao);
-      if (r === undefined) {
+      // "Rever" e porque o nome estava errado: pula o codigo da foto e vai direto na IA.
+      const r = await reconhecerEmEtapas({
+        codigoLocal: async () => (x.nao ? "" : (x.codigoFoto ?? "")),
+        produto,
+        ia: (forte) => reconhecerImagem(x.img, x.nao, forte),
+      });
+      if (r.ok) {
+        trocar(x.id, { estado: "pronto", nome: r.nome, marca: r.marca, codigo: r.codigo, unidade: r.unidade, foto: r.foto, fonte: r.fonte });
+        continue;
+      }
+      if (r.motivo === "ia_falhou") {
         // rede ou cota: tenta de novo daqui a pouco, ate 3 vezes
         const t = (x.tentativas ?? 0) + 1;
-        trocar(x.id, t >= 3 ? { estado: "falhou", tentativas: t } : { estado: "esperando", tentativas: t });
+        trocar(x.id, t >= 3 ? { estado: "falhou", tentativas: t, motivo: "ia_falhou", codigo: r.codigo } : { estado: "esperando", tentativas: t });
         if (t < 3) await new Promise((ok) => setTimeout(ok, 4000));
         continue;
       }
-      if (!r) {
-        trocar(x.id, { estado: "falhou" });
-        continue;
-      }
-      // Codigo lido na foto: o nome certo vem da base publica (o da IA varia de foto para foto).
-      let base: { nome?: string; unidade?: string | null; marca?: string; foto?: string | null } = {};
-      if (r.codigo) {
-        try {
-          const d = await (await fetch(`/api/produto?codigo=${encodeURIComponent(r.codigo)}`)).json();
-          if (d?.ok && d.encontrado && d.nome) base = d;
-        } catch {
-          // base fora do ar: fica o nome da IA
-        }
-      }
-      trocar(x.id, {
-        estado: "pronto",
-        nome: base.nome || r.nome,
-        marca: base.marca || r.marca,
-        codigo: r.codigo,
-        unidade: base.unidade ?? undefined,
-        foto: base.foto ?? null,
-      });
+      trocar(x.id, { estado: "falhou", motivo: r.motivo === "sem_ia" ? "sem_ia" : undefined, codigo: r.codigo });
     }
   } finally {
     rodando = false;
@@ -105,7 +103,11 @@ async function processar() {
 export async function enfileirarFoto(arquivo: File, destino: Destino) {
   carregar();
   const img = await reduzir(arquivo);
-  mudar([...fila, { id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, img, destino, estado: "esperando" }]);
+  const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  mudar([...fila, { id, img, destino, estado: "preparando" }]);
+  // Etapa 1 com a foto inteira (mais nitida que a reduzida que vai para a IA).
+  const codigoFoto = await codigoNaFoto(arquivo).catch(() => "");
+  trocar(id, { estado: "esperando", codigoFoto });
   void processar();
 }
 
@@ -113,7 +115,7 @@ export async function enfileirarFoto(arquivo: File, destino: Destino) {
 export function reverFoto(id: string) {
   const x = fila.find((y) => y.id === id);
   if (!x) return;
-  trocar(id, { estado: "esperando", nao: x.nome || x.nao, nome: undefined, codigo: undefined, foto: null, tentativas: 0 });
+  trocar(id, { estado: "esperando", nao: x.nome || x.nao, nome: undefined, codigo: undefined, foto: null, tentativas: 0, motivo: undefined });
   void processar();
 }
 
