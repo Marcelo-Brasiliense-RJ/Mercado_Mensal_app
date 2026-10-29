@@ -107,6 +107,10 @@ function rpcAusente(error: { code?: string; message?: string } | null): boolean 
 type Store = Data & {
   savingsTotal: number;
   dataLoading: boolean;
+  // true depois da primeira carga: recarregar por tras nao some com nada da tela
+  dataReady: boolean;
+  // +1/-1 no card aparece na hora, antes do banco responder
+  mexerLocal: (id: string, delta: number) => void;
   toast: string | null;
   // O aviso de baixo oferece "Desfazer" (so depois de escrita que o banco registra em mercado_events).
   toastDesfazer: boolean;
@@ -176,6 +180,7 @@ export function useStore(): Store {
 export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   const [data, setData] = useState<Data>(EMPTY);
   const [dataLoading, setDataLoading] = useState(false);
+  const [dataReady, setDataReady] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [toastDesfazer, setToastDesfazer] = useState(false);
   const [receiptOpen, setReceiptOpen] = useState(false);
@@ -207,12 +212,22 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
         savings: eco.savings ?? [],
         trip: (tripR.data as Trip | null) ?? null,
       });
+      setDataReady(true);
     } catch {
       // Falha de rede/sessao: mantem o que tinha. O gate ja cuida de sessao.
     } finally {
       setDataLoading(false);
     }
   }, []);
+
+  const mexerLocal = useCallback(
+    (id: string, delta: number) =>
+      setData((d) => ({
+        ...d,
+        stock: d.stock.map((s) => (s.id === id ? { ...s, current: Math.max(0, Number((s.current + delta).toFixed(3))) } : s)),
+      })),
+    [],
+  );
 
   // Lista muda na tela na hora (uma ida ao banco so) e o resto recarrega por tras.
   // Antes cada toque esperava 4 leituras do banco: "Repor" demorava a aparecer na Lista.
@@ -691,6 +706,8 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       ...data,
       savingsTotal,
       dataLoading,
+      dataReady,
+      mexerLocal,
       toast,
       toastDesfazer,
       desfazer,
@@ -731,6 +748,8 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       data,
       savingsTotal,
       dataLoading,
+      dataReady,
+      mexerLocal,
       toast,
       toastDesfazer,
       desfazer,

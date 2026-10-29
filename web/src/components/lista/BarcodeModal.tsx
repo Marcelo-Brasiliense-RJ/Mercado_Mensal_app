@@ -12,6 +12,7 @@ import { unitFor, findByName } from "@/lib/defaults";
 import { isTypedBarcode, onlyDigits, prettyBarcode } from "@/lib/barcode";
 import { BarcodeScanner } from "./BarcodeScanner";
 import { DestinoSwitch, type Destino } from "@/components/ui/Destino";
+import { quantoPedir, TambemNaLista } from "@/components/ui/TambemNaLista";
 import { useLugar } from "@/lib/lugar";
 import { useListaOfertas } from "@/components/ofertas/useOfertas";
 import { ehRuim, nomeMercado, termoEvitar } from "@/lib/ofertas";
@@ -49,7 +50,7 @@ export function BarcodeModal({
   onClose: () => void;
   destinoPadrao?: "estoque" | "carrinho";
 }) {
-  const { findBarcode, addTripItemByBarcode, addStockByBarcode, baixaStock, showToast, trip, stock } = useStore();
+  const { findBarcode, addTripItemByBarcode, addStockByBarcode, addShopItem, baixaStock, showToast, trip, stock } = useStore();
   // Dentro de um mercado conhecido (GPS), o codigo vai para o carrinho de qualquer tela.
   const { noMercado, mercado } = useLugar();
   // No mercado identificado, o preco ja vem DAQUELE mercado: encarte ou ultimo visto la.
@@ -68,6 +69,9 @@ export function BarcodeModal({
   const padrao: Destino = noMercado ? "carrinho" : destinoPadrao;
   const [destino, setDestino] = useState<Destino>(padrao);
   const emCasa = destino === "estoque";
+  const paraLista = destino === "lista";
+  // Guardar em casa e ja pedir na lista ("tem, mas esta acabando").
+  const [tambem, setTambem] = useState(false);
 
   const [fase, setFase] = useState<Fase>("ler");
   const [codigo, setCodigo] = useState("");
@@ -196,10 +200,15 @@ export function BarcodeModal({
       qty: Number(qtd.replace(",", ".")) || 1,
       unit: unidade,
     });
+    if (r.ok && tambem) {
+      const pedir = quantoPedir(nome, Number(qtd.replace(",", ".")) || 1, stock);
+      await addShopItem({ name: nome.trim(), desired_quantity: pedir.qtd, unit: unidade, estimated_price: pedir.preco });
+    }
     setBusy(false);
     if (!r.ok) return showToast(r.erro);
     setLidos((l) => [`+${qtd} ${nome.trim()}`, ...l]);
-    showToast(`${nome.trim()}: +${qtd} ${unidade} no estoque`, { desfazer: true });
+    showToast(`${nome.trim()}: +${qtd} ${unidade} no estoque${tambem ? " e na lista" : ""}`, { desfazer: !tambem });
+    setTambem(false);
     voltarALer();
   }
 
@@ -220,6 +229,20 @@ export function BarcodeModal({
   async function pegar() {
     if (!nome.trim()) return showToast("Diga o nome do produto.");
     if (emCasa) return guardar();
+    if (paraLista) {
+      setBusy(true);
+      const r = await addShopItem({
+        name: nome.trim(),
+        desired_quantity: Number(qtd.replace(",", ".")) || 1,
+        unit: unidade,
+        estimated_price: preco.trim() === "" ? (findByName(nome, stock)?.priceLast ?? null) : Number(preco.replace(",", ".")) || null,
+      });
+      setBusy(false);
+      if (!r.ok) return showToast(r.erro);
+      setLidos((l) => [`📝 ${nome.trim()}`, ...l]);
+      showToast(`${nome.trim()} na lista`);
+      return voltarALer();
+    }
     setBusy(true);
     const r = await addTripItemByBarcode({
       code: codigo,
@@ -252,7 +275,13 @@ export function BarcodeModal({
             Leitor de código
           </div>
           <div className="text-[19px] font-extrabold">
-            {fase === "ler" ? "Leia o código do produto" : emCasa ? "Quanto tem aí?" : "Quanto você pegou?"}
+            {fase === "ler"
+              ? "Leia o código do produto"
+              : emCasa
+                ? "Quanto tem aí?"
+                : paraLista
+                  ? "Quanto quer comprar?"
+                  : "Quanto você pegou?"}
           </div>
         </div>
         {trip && !emCasa && (
@@ -266,7 +295,7 @@ export function BarcodeModal({
       {noMercado && destinoPadrao !== "carrinho" && (
         <div className="mb-2 text-[12px] font-bold text-brand">📍 Você está num mercado: vai para o carrinho</div>
       )}
-      <DestinoSwitch valor={destino} opcoes={["estoque", "carrinho"]} onChange={setDestino} />
+      <DestinoSwitch valor={destino} opcoes={["estoque", "lista", "carrinho"]} onChange={setDestino} />
 
       {fase === "ler" ? (
         <>
@@ -438,7 +467,8 @@ export function BarcodeModal({
           </div>
 
           {emCasa ? (
-            <p className="mb-5 rounded-[13px] bg-card-2 p-3 text-[13px] text-text-2">
+            <>
+            <p className="mb-3 rounded-[13px] bg-card-2 p-3 text-[13px] text-text-2">
               {(() => {
                 const item = findByName(nome, stock);
                 return item
@@ -446,9 +476,11 @@ export function BarcodeModal({
                   : "Ainda não está no estoque: “Guardar” cria o item.";
               })()}
             </p>
+            <TambemNaLista valor={tambem} onChange={setTambem} />
+            </>
           ) : (
             <>
-          <label className={labelCls}>Quanto custou? (por {unidade})</label>
+          <label className={labelCls}>{paraLista ? "Preço (se souber)" : "Quanto custou?"} (por {unidade})</label>
           <div className="relative mb-1.5">
             <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[18px] font-bold text-text-3">
               R$
@@ -515,7 +547,11 @@ export function BarcodeModal({
               {busy
                 ? "Salvando…"
                 : emCasa
-                  ? "+ Guardar no estoque"
+                  ? tambem
+                    ? "+ Guardar e pôr na lista"
+                    : "+ Guardar no estoque"
+                  : paraLista
+                  ? "📝 Pôr na lista"
                   : totalItem > 0
                   ? `Colocar · ${brl(totalItem)}`
                   : "Colocar no carrinho"}

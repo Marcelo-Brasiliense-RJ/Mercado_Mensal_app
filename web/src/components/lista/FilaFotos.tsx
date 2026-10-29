@@ -4,10 +4,11 @@ import { useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { QtyStepper } from "@/components/ui/QtyStepper";
 import { DestinoSwitch } from "@/components/ui/Destino";
+import { quantoPedir, TambemNaLista } from "@/components/ui/TambemNaLista";
 import { useStore } from "@/lib/store";
 import { brl } from "@/lib/format";
 import { findByName, unitFor } from "@/lib/defaults";
-import { reverFoto, tirarDaFila, useFilaFotos, type FotoFila } from "@/lib/filaFotos";
+import { reverFoto, tirarDaFila, useDescanso, useFilaFotos, type FotoFila } from "@/lib/filaFotos";
 
 // O que volta da fila de fotos: um aviso no topo enquanto a IA trabalha e, com o
 // leitor fechado, um popup por produto reconhecido: "e isso mesmo?" -> quantidade e
@@ -15,7 +16,8 @@ import { reverFoto, tirarDaFila, useFilaFotos, type FotoFila } from "@/lib/filaF
 const UNITS = ["un", "kg", "g", "L", "ml", "pct", "cx", "dz"];
 
 export function FilaFotos() {
-  const { fila, leitorAberto } = useFilaFotos();
+  const { fila, leitorAberto, pausaAte } = useFilaFotos();
+  const descanso = useDescanso(pausaAte);
   const trabalhando = fila.filter((x) => x.estado === "preparando" || x.estado === "esperando" || x.estado === "reconhecendo").length;
   const prontos = fila.filter((x) => x.estado === "pronto" || x.estado === "falhou");
   // "Depois": fecha os popups ate a pessoa tocar no aviso (ou o app abrir de novo).
@@ -35,7 +37,11 @@ export function FilaFotos() {
             className={`flex items-center gap-2 rounded-full bg-text px-4 py-2 text-[13px] font-bold text-bg shadow-lg ${clicavel ? "pointer-events-auto" : ""}`}
           >
             {trabalhando > 0 && <span className="h-3 w-3 animate-spin rounded-full border-2 border-bg/40 border-t-bg" />}
-            {trabalhando > 0 ? `📷 Reconhecendo ${trabalhando} ${trabalhando > 1 ? "fotos" : "foto"}` : ""}
+            {trabalhando > 0
+              ? descanso > 0
+                ? `⏸ IA no limite · ${trabalhando} na fila · volta em ${descanso}s`
+                : `📷 Reconhecendo ${trabalhando} ${trabalhando > 1 ? "fotos" : "foto"}`
+              : ""}
             {trabalhando > 0 && prontos.length > 0 ? " · " : ""}
             {prontos.length > 0 ? `✓ ${prontos.length} para conferir${clicavel ? " · tocar" : ""}` : ""}
           </button>
@@ -48,7 +54,7 @@ export function FilaFotos() {
 }
 
 function Conferir({ x, resta, onDepois }: { x: FotoFila; resta: number; onDepois: () => void }) {
-  const { addTripItemByBarcode, addTripItem, addStockByBarcode, addStock, showToast, stock } = useStore();
+  const { addTripItemByBarcode, addTripItem, addStockByBarcode, addStock, addShopItem, showToast, stock } = useStore();
   const falhou = x.estado === "falhou";
   const [passo, setPasso] = useState<"conferir" | "dados">("conferir");
   const [editando, setEditando] = useState(falhou);
@@ -60,6 +66,8 @@ function Conferir({ x, resta, onDepois }: { x: FotoFila; resta: number; onDepois
   const [preco, setPreco] = useState(jaTem?.priceLast != null ? String(jaTem.priceLast) : "");
   const [busy, setBusy] = useState(false);
   const emCasa = destino === "estoque";
+  const paraLista = destino === "lista";
+  const [tambem, setTambem] = useState(false);
 
   function seguir() {
     const n = nome.trim();
@@ -78,16 +86,22 @@ function Conferir({ x, resta, onDepois }: { x: FotoFila; resta: number; onDepois
     const price = preco.trim() === "" ? null : Number(preco.replace(",", ".")) || 0;
     setBusy(true);
     // Com codigo, grava o vinculo: da proxima vez o leitor ja sabe o nome.
-    const r = emCasa
+    const r = paraLista
+      ? await addShopItem({ name: n, desired_quantity: q, unit: unidade, estimated_price: price || null })
+      : emCasa
       ? x.codigo
         ? await addStockByBarcode({ code: x.codigo, name: n, qty: q, unit: unidade })
         : await addStock({ name: n, qty: q, unit: unidade })
       : x.codigo
         ? await addTripItemByBarcode({ code: x.codigo, name: n, price, qty: q, unit: unidade })
         : await addTripItem({ name: n, price, qty: q, unit: unidade });
+    if (r.ok && emCasa && tambem) {
+      const pedir = quantoPedir(n, q, stock);
+      await addShopItem({ name: n, desired_quantity: pedir.qtd, unit: unidade, estimated_price: pedir.preco });
+    }
     setBusy(false);
     if (!r.ok) return showToast(r.erro);
-    showToast(`✓ ${n} ${emCasa ? "no estoque" : "no carrinho"}`);
+    showToast(`✓ ${n} ${paraLista ? "na lista" : emCasa ? (tambem ? "no estoque e na lista" : "no estoque") : "no carrinho"}`);
     tirarDaFila(x.id);
   }
 
@@ -194,7 +208,7 @@ function Conferir({ x, resta, onDepois }: { x: FotoFila; resta: number; onDepois
             void salvar();
           }}
         >
-          <DestinoSwitch valor={destino} opcoes={["estoque", "carrinho"]} onChange={(d) => setDestino(d as typeof destino)} />
+          <DestinoSwitch valor={destino} opcoes={["estoque", "lista", "carrinho"]} onChange={(d) => setDestino(d as typeof destino)} />
           <label className="mb-1.5 block text-xs font-bold text-text-2">Quantidade</label>
           <div className="mb-4 flex gap-2">
             <div className="min-w-0 flex-1">
@@ -213,9 +227,12 @@ function Conferir({ x, resta, onDepois }: { x: FotoFila; resta: number; onDepois
               ))}
             </select>
           </div>
+          {emCasa && <TambemNaLista valor={tambem} onChange={setTambem} />}
           {!emCasa && (
             <>
-              <label className="mb-1.5 block text-xs font-bold text-text-2">Quanto pagou? (por {unidade})</label>
+              <label className="mb-1.5 block text-xs font-bold text-text-2">
+                {paraLista ? "Preço (se souber)" : "Quanto pagou?"} (por {unidade})
+              </label>
               <div className="relative mb-4">
                 <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[18px] font-bold text-text-3">R$</span>
                 <input
@@ -235,7 +252,17 @@ function Conferir({ x, resta, onDepois }: { x: FotoFila; resta: number; onDepois
               Voltar
             </button>
             <button type="submit" disabled={busy} className="h-[56px] flex-[2] rounded-[14px] bg-brand text-[15px] font-bold text-brand-ink disabled:opacity-50">
-              {busy ? "Salvando…" : emCasa ? "+ Guardar no estoque" : totalItem > 0 ? `Colocar · ${brl(totalItem)}` : "Colocar no carrinho"}
+              {busy
+                ? "Salvando…"
+                : emCasa
+                  ? tambem
+                    ? "+ Guardar e pôr na lista"
+                    : "+ Guardar no estoque"
+                  : paraLista
+                    ? "📝 Pôr na lista"
+                    : totalItem > 0
+                      ? `Colocar · ${brl(totalItem)}`
+                      : "Colocar no carrinho"}
             </button>
           </div>
         </form>

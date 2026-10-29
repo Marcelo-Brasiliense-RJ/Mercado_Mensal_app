@@ -12,6 +12,7 @@ import { CartPanel } from "./CartPanel";
 import { BarcodeModal } from "./BarcodeModal";
 import { VoiceModal } from "@/components/voz/VoiceModal";
 import { QuickBar } from "./QuickBar";
+import { FotoModal } from "./FotoModal";
 import { FotoItem } from "@/components/ui/FotoItem";
 import { categoriaDe } from "@/lib/categorias";
 import { RotaModal } from "./RotaModal";
@@ -26,6 +27,7 @@ export function ListView() {
   const { shopping, trip, buyItems, removeItems, addTripItem, showToast, reloadTrip, stock, stockToList } =
     useStore();
   const [addManualOpen, setAddManualOpen] = useState(false);
+  const [fotoOpen, setFotoOpen] = useState(false);
   const [scanOpen, setScanOpen] = useState(false);
   const [voiceOpen, setVoiceOpen] = useState(false);
   const [q, setQ] = useState("");
@@ -351,7 +353,7 @@ export function ListView() {
         {shopping.filter((i) => i.status !== "removed").length === 0 && (
           <p className="pt-8 text-center text-[15px] leading-relaxed text-text-3">
             Sua lista está vazia. Use os botões aqui embaixo: <b>Falar</b> o que
-            precisa, ler o <b>Código</b> da embalagem ou <b>Digitar</b> o item.
+            precisa, ler o <b>Código</b> da embalagem ou tirar <b>Foto</b> do produto.
           </p>
         )}
 
@@ -467,9 +469,18 @@ export function ListView() {
       <QuickBar
         onVoice={() => setVoiceOpen(true)}
         onScan={() => setScanOpen(true)}
-        onManual={() => setAddManualOpen(true)}
+        onFoto={() => setFotoOpen(true)}
       />
       {addManualOpen && <AddItemModal open onClose={() => setAddManualOpen(false)} />}
+      {fotoOpen && (
+        <FotoModal
+          onClose={() => setFotoOpen(false)}
+          onDigitar={() => {
+            setFotoOpen(false);
+            setAddManualOpen(true);
+          }}
+        />
+      )}
       {scanOpen && <BarcodeModal open onClose={() => setScanOpen(false)} />}
       {rotaAberta && <RotaModal onClose={() => setRotaAberta(false)} />}
       {mercadoAberto && (

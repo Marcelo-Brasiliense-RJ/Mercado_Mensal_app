@@ -10,6 +10,7 @@ import { useListaOfertas } from "@/components/ofertas/useOfertas";
 import { corMercado, corredor, desconto, nomeMercado, padrao, type Oferta } from "@/lib/ofertas";
 import { categoriaDe, ICONE } from "@/lib/categorias";
 import { unitFor } from "@/lib/defaults";
+import { Sugestoes } from "./Sugestoes";
 import type { StockItem } from "@/lib/types";
 
 // Montar a lista no toque, como numa vitrine: cada quadrado e um produto, tocar poe na
@@ -237,16 +238,15 @@ export function MontarLista({ onClose }: { onClose: () => void }) {
       </div>
 
       <div className="flex-1 overflow-y-auto px-3 pb-28 pt-3">
-        {novo && !existe && (
-          <button
-            onClick={() => {
-              void alternar(novo, 1, unitFor(novo), null);
+        {/* Escrevendo: o generico, o que esta em oferta e o nome como esta no mercado. */}
+        {novo.length >= 2 && (
+          <Sugestoes
+            termo={novo}
+            onEscolher={(e) => {
+              void alternar(e.nome, 1, unitFor(e.nome), e.preco);
               setBusca("");
             }}
-            className="mb-3 h-12 w-full rounded-2xl border-2 border-dashed border-brand text-[15px] font-bold text-brand"
-          >
-            + Pôr “{novo}” na lista
-          </button>
+          />
         )}
 
         {aba !== "oferta" ? (

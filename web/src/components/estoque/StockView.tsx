@@ -8,11 +8,12 @@ import { Grupo, useRecolhidos } from "@/components/ui/Grupo";
 import type { StockItem } from "@/lib/types";
 import { brl, stockRatio } from "@/lib/format";
 import { stepFor } from "@/lib/defaults";
-import { BarcodeIcon, CheckIcon, MicIcon, PlusIcon, SearchIcon } from "@/components/ui/icons";
+import { BarcodeIcon, CameraIcon, CheckIcon, MicIcon, PlusIcon, SearchIcon } from "@/components/ui/icons";
 import { ScreenHeader } from "@/components/layout/ScreenHeader";
 import { useStore, type RpcResult } from "@/lib/store";
 import { VoiceModal } from "@/components/voz/VoiceModal";
 import { BarcodeModal } from "@/components/lista/BarcodeModal";
+import { FotoModal } from "@/components/lista/FotoModal";
 import { ItemDetailModal } from "./ItemDetailModal";
 import { BatchAddModal } from "./BatchAddModal";
 import { PrimeirosPassos } from "./PrimeirosPassos";
@@ -60,6 +61,8 @@ export function StockView() {
     shopping,
     zerarStock,
     baixaStock,
+    mexerLocal,
+    reloadData,
     addStock,
     stockToList,
     showToast,
@@ -71,12 +74,12 @@ export function StockView() {
   const [selMode, setSelMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
-  const [agindo, setAgindo] = useState<string | null>(null);
   const [voiceOpen, setVoiceOpen] = useState(false);
   // O leitor tambem mora aqui: quem esta no mercado abre o Estoque para ver o que
   // falta e, de codigo na mao, nao deveria ter que trocar de aba para registrar.
   const [scanOpen, setScanOpen] = useState(false);
   const [stockAddOpen, setStockAddOpen] = useState(false);
+  const [fotoOpen, setFotoOpen] = useState(false);
   // itens a excluir (um pelo card, varios pela selecao): a confirmacao pergunta se vai para o Não compro
   const [excluir, setExcluir] = useState<StockItem[] | null>(null);
 
@@ -116,21 +119,22 @@ export function StockView() {
   }
 
   // Um toque, sem popup: tirar uma unidade do que tem em casa.
+  // O numero muda na hora (otimista); o banco grava por tras. Errou: recarrega o real.
   async function usei(item: StockItem) {
-    setAgindo(item.id);
     const passo = stepFor(item.unit);
+    mexerLocal(item.id, -passo);
     const r = await baixaStock(item.id, passo);
-    setAgindo(null);
+    if (!r.ok) void reloadData();
     // "Usei" e o toque mais facil de dar sem querer: o aviso ja traz o Desfazer.
     showToast(r.ok ? `${item.name}: usei ${fmtQtd(passo)} ${item.unit}` : r.erro, { desfazer: r.ok });
   }
 
   // Um toque, sem popup: chegou mais um em casa (o "+1" do card).
   async function mais(item: StockItem) {
-    setAgindo(item.id);
     const passo = stepFor(item.unit);
+    mexerLocal(item.id, passo);
     const r = await addStock({ name: item.name, qty: passo, unit: item.unit });
-    setAgindo(null);
+    if (!r.ok) void reloadData();
     showToast(r.ok ? `${item.name}: +${fmtQtd(passo)} ${item.unit}` : r.erro, { desfazer: r.ok });
   }
 
@@ -272,8 +276,8 @@ export function StockView() {
               Sua despensa está vazia
             </div>
             <p className="mx-auto max-w-[320px] text-[14px] leading-relaxed text-text-2">
-              Toque em <b>Falar</b> e diga o que tem em casa, ou em <b>Digitar</b>{" "}
-              para escrever.
+              Toque em <b>Falar</b> e diga o que tem em casa, ou em <b>Foto</b>{" "}
+              e fotografe os produtos.
             </p>
           </div>
         )}
@@ -314,7 +318,7 @@ export function StockView() {
                     item={i}
                     selMode={selMode}
                     selected={selected.has(i.id)}
-                    ocupado={agindo === i.id}
+                    ocupado={false}
                     onAbrir={() => onItem(i)}
                     onUsei={() => usei(i)}
                     onMais={() => mais(i)}
@@ -384,17 +388,27 @@ export function StockView() {
               Código
             </button>
             <button
-              onClick={() => setStockAddOpen(true)}
+              onClick={() => setFotoOpen(true)}
               className="flex h-[54px] flex-1 flex-col items-center justify-center gap-0.5 rounded-[14px] border border-border bg-card-2 text-[12px] font-bold"
             >
-              <PlusIcon size={22} />
-              Digitar
+              <CameraIcon size={22} />
+              Foto
             </button>
           </div>
         </div>
       )}
 
       <BatchAddModal open={stockAddOpen} onClose={() => setStockAddOpen(false)} />
+      {fotoOpen && (
+        <FotoModal
+          destinoPadrao="estoque"
+          onClose={() => setFotoOpen(false)}
+          onDigitar={() => {
+            setFotoOpen(false);
+            setStockAddOpen(true);
+          }}
+        />
+      )}
       {/* Tudo que entra por aqui vai para o estoque (a chave no topo troca). */}
       <VoiceModal open={voiceOpen} onClose={() => setVoiceOpen(false)} tela="estoque" />
       {scanOpen && <BarcodeModal open onClose={() => setScanOpen(false)} destinoPadrao="estoque" />}

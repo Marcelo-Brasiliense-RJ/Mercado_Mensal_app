@@ -7,6 +7,7 @@ import { useStore } from "@/lib/store";
 import { createClient } from "@/lib/supabase/client";
 import { unitFor, findByName } from "@/lib/defaults";
 import { DestinoSwitch, type Destino } from "@/components/ui/Destino";
+import { Sugestoes } from "./Sugestoes";
 
 // Primeiro nome do usuario logado (user_metadata.name/full_name ou prefixo do
 // email), so pra personalizar o cabecalho do popup.
@@ -52,6 +53,8 @@ export function AddItemModal({
   // Enquanto o usuario nao editar, unidade e preco acompanham o nome digitado.
   const [unidadeManual, setUnidadeManual] = useState(false);
   const [precoManual, setPrecoManual] = useState(false);
+  // Sugestoes abertas enquanto digita; fecham ao escolher (ou ao sair do campo).
+  const [sugerir, setSugerir] = useState(false);
 
   const conhecido = findByName(nome, stock);
 
@@ -73,6 +76,7 @@ export function AddItemModal({
     setUnidadeManual(false);
     setPrecoManual(false);
     setDestino(padrao);
+    setSugerir(false);
   }
 
   async function submit() {
@@ -129,11 +133,26 @@ export function AddItemModal({
       <label className={labelCls}>Nome</label>
       <input
         value={nome}
-        onChange={(e) => onNome(e.target.value)}
-        placeholder="Ex.: Arroz"
-        className={`${field} ${conhecido ? "mb-1.5" : "mb-3.5"}`}
+        onChange={(e) => {
+          onNome(e.target.value);
+          setSugerir(true);
+        }}
+        onFocus={() => setSugerir(true)}
+        placeholder="Ex.: iogurte, carne, café pilão"
+        className={`${field} ${conhecido || sugerir ? "mb-1.5" : "mb-3.5"}`}
+        autoComplete="off"
         autoFocus
       />
+      {sugerir && (
+        <Sugestoes
+          termo={nome}
+          onEscolher={(e) => {
+            onNome(e.nome);
+            if (e.preco != null && !precoManual) setPreco(String(e.preco));
+            setSugerir(false);
+          }}
+        />
+      )}
       {conhecido && (
         <p className="mb-3.5 text-[12px] text-text-2">
           {conhecido.current > 0

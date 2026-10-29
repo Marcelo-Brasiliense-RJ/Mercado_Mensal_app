@@ -209,7 +209,7 @@ export function VoiceModal({
       | (new () => Reconhecedor)
       | undefined;
     if (!SR) {
-      setErro("Este aparelho não transcreve sozinho. Use Código de barras ou Digitar.");
+      setErro("Este aparelho não transcreve sozinho. Use Código de barras ou Foto.");
       setFase("gravar");
       return;
     }
