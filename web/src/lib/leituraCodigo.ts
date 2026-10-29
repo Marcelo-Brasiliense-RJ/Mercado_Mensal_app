@@ -11,7 +11,9 @@
 // O ZXing tambem so le na horizontal: cada tentativa gira a imagem num angulo. As
 // tentativas se revezam quadro a quadro, entao uma volta inteira leva ~1 s.
 
-type Passo = { rot: number; realce?: "centro" | "todo" };
+// forte: escuro com ruido ou reflexo quase branco. Suaviza (tira o granulado) e realca
+// bem mais; numa imagem boa isso estoura, por isso e uma tentativa a parte.
+type Passo = { rot: number; realce?: "centro" | "todo"; forte?: boolean };
 
 // Deitado e em pe primeiro (como quase todo mundo segura); o realce no meio do caminho.
 export const PASSOS: Passo[] = [
@@ -21,18 +23,38 @@ export const PASSOS: Passo[] = [
   { rot: 0, realce: "todo" },
   { rot: 30 },
   { rot: 90, realce: "centro" },
+  { rot: 0, realce: "todo", forte: true },
   { rot: 120 },
+  { rot: 0, realce: "centro", forte: true },
   { rot: 60 },
   { rot: 150 },
 ];
 
 // Cinza pelo menor canal (barra colorida em fundo branco fica escura) e realce local:
 // 128 + (pixel - media da vizinhanca) x ganho. Media por imagem integral: O(pixels).
-function realcar(ctx: CanvasRenderingContext2D, w: number, h: number, raio: number, ganho: number) {
+function realcar(ctx: CanvasRenderingContext2D, w: number, h: number, raio: number, ganho: number, suave: boolean) {
   const d = ctx.getImageData(0, 0, w, h);
   const p = d.data;
-  const g = new Float32Array(w * h);
+  let g = new Float32Array(w * h);
   for (let i = 0; i < w * h; i++) g[i] = Math.min(p[i * 4], p[i * 4 + 1], p[i * 4 + 2]);
+  if (suave) {
+    // media vertical de 5 linhas: as barras sao verticais (depois do giro), o ruido nao
+    const s = new Float32Array(w * h);
+    for (let y = 0; y < h; y++)
+      for (let x = 0; x < w; x++) {
+        let t = 0;
+        let n = 0;
+        for (let k = -2; k <= 2; k++) {
+          const yy = y + k;
+          if (yy >= 0 && yy < h) {
+            t += g[yy * w + x];
+            n++;
+          }
+        }
+        s[y * w + x] = t / n;
+      }
+    g = s;
+  }
   const W = w + 1;
   const I = new Float64Array(W * (h + 1));
   for (let y = 0; y < h; y++) {
@@ -91,7 +113,8 @@ export async function criarLeitor() {
     ctx.rotate(rad);
     ctx.drawImage(fonte, (largura - cw) / 2, (altura - ch) / 2, cw, ch, -w / 2, -h / 2, w, h);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    if (passo.realce) realcar(ctx, tw, th, passo.realce === "centro" ? 16 : 32, passo.realce === "centro" ? 8 : 4);
+    if (passo.realce)
+      realcar(ctx, tw, th, passo.realce === "centro" ? 16 : 32, (passo.realce === "centro" ? 8 : 4) * (passo.forte ? 3 : 1), !!passo.forte);
     try {
       return reader.decodeFromCanvas(tela).getText();
     } catch {

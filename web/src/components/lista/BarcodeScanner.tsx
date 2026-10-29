@@ -56,6 +56,24 @@ export function BarcodeScanner({
   // Ultimo codigo que chegou e foi RECUSADO, so para dar retorno na tela em vez
   // de ficar mudo enquanto a pessoa insiste no mesmo produto.
   const [recusado, setRecusado] = useState("");
+  // Lanterna (quando o aparelho deixa) e aviso de escuro: no escuro extremo nao ha
+  // realce que recupere o codigo, so luz.
+  const trilha = useRef<MediaStreamTrack | null>(null);
+  const [temLanterna, setTemLanterna] = useState(false);
+  const [lanterna, setLanterna] = useState(false);
+  const [escuro, setEscuro] = useState(false);
+
+  async function alternarLanterna() {
+    const t = trilha.current;
+    if (!t) return;
+    const nova = !lanterna;
+    try {
+      await t.applyConstraints({ advanced: [{ torch: nova } as MediaTrackConstraintSet] });
+      setLanterna(nova);
+    } catch {
+      setTemLanterna(false);
+    }
+  }
 
   useEffect(() => {
     let raf = 0;
@@ -86,6 +104,10 @@ export function BarcodeScanner({
         const stream = await abrirCamera();
         if (!vivo) return;
         await pedirFocoContinuo(stream);
+        const t = stream.getVideoTracks()[0] ?? null;
+        trilha.current = t;
+        const caps = (t?.getCapabilities?.() ?? {}) as { torch?: boolean };
+        if (vivo) setTemLanterna(!!caps.torch);
         const video = videoRef.current!;
         video.srcObject = stream;
         await video.play();
@@ -118,10 +140,24 @@ export function BarcodeScanner({
           intervalo = 100; // decodificar em JS e pesado: nao precisa ser todo quadro
         }
 
+        // Brilho medio numa miniatura do quadro, a cada segundo: escuro pede lanterna.
+        const amostra = document.createElement("canvas");
+        amostra.width = 32;
+        amostra.height = 18;
+        let ultimaLuz = 0;
         let ultimo = 0;
         const tick = async (agora: number) => {
           if (doneRef.current || !videoRef.current) return;
           const v = videoRef.current;
+          if (v.readyState === v.HAVE_ENOUGH_DATA && agora - ultimaLuz > 1000) {
+            ultimaLuz = agora;
+            const c = amostra.getContext("2d", { willReadFrequently: true })!;
+            c.drawImage(v, 0, 0, 32, 18);
+            const px = c.getImageData(0, 0, 32, 18).data;
+            let soma = 0;
+            for (let i = 0; i < px.length; i += 4) soma += px[i] * 0.3 + px[i + 1] * 0.59 + px[i + 2] * 0.11;
+            setEscuro(soma / (px.length / 4) < 50);
+          }
           if (v.readyState === v.HAVE_ENOUGH_DATA && agora - ultimo >= intervalo) {
             ultimo = agora;
             const valor = await ler(v);
@@ -141,6 +177,8 @@ export function BarcodeScanner({
       doneRef.current = true;
       cancelAnimationFrame(raf);
       if (el) el.srcObject = null;
+      // lanterna nao fica acesa depois de fechar o leitor
+      trilha.current?.applyConstraints({ advanced: [{ torch: false } as MediaTrackConstraintSet] }).catch(() => {});
       soltarCamera();
     };
   }, []);
@@ -150,12 +188,29 @@ export function BarcodeScanner({
       <video ref={videoRef} muted playsInline className="h-full w-full object-cover" />
       {/* Mira quadrada: o codigo pode estar deitado, em pe ou inclinado. */}
       <div className="pointer-events-none absolute left-1/2 top-1/2 h-[150px] w-[150px] -translate-x-1/2 -translate-y-1/2 rounded-[14px] border-2 border-white/80" />
+      {temLanterna && (
+        <button
+          type="button"
+          onClick={alternarLanterna}
+          aria-pressed={lanterna}
+          aria-label={lanterna ? "Apagar lanterna" : "Acender lanterna"}
+          className={`absolute right-2 top-2 grid h-11 w-11 place-items-center rounded-full text-[20px] ${
+            lanterna ? "bg-white text-black" : "bg-black/50 text-white"
+          }`}
+        >
+          🔦
+        </button>
+      )}
       <div className="pointer-events-none absolute inset-x-0 bottom-2 px-3 text-center text-[12px] font-bold text-white/90">
         {!lendo
           ? "Código lido"
           : recusado
             ? `Quase: ${recusado}. Chegue mais perto.`
-            : "Aponte para o código, em qualquer posição"}
+            : escuro && !lanterna
+              ? temLanterna
+                ? "Está escuro: toque na lanterna 🔦"
+                : "Está escuro: chegue perto de uma luz"
+              : "Aponte para o código, em qualquer posição"}
       </div>
     </div>
   );
