@@ -56,6 +56,7 @@ export function StockView() {
   const ofertas = useListaOfertas();
   const {
     stock,
+    shopping,
     zerarStock,
     baixaStock,
     addStock,
@@ -81,7 +82,11 @@ export function StockView() {
   const filtered = stock
     .filter((i) => i.name.toLowerCase().includes(q.toLowerCase()))
     .sort((a, b) => ORDEM[estadoDe(a)] - ORDEM[estadoDe(b)] || a.name.localeCompare(b.name));
-  const faltando = stock.filter((i) => estadoDe(i) !== "tem");
+  // O aviso conta so o que ainda NAO esta na lista: depois de "Mandar pra lista" ele
+  // tem que mudar, senao parece que o toque nao fez nada.
+  const naLista = new Set(shopping.filter((s) => s.status === "pending").map((s) => s.name.trim().toLowerCase()));
+  const acabando = stock.filter((i) => estadoDe(i) !== "tem");
+  const faltando = acabando.filter((i) => !naLista.has(i.name.trim().toLowerCase()));
   // Por corredor do mercado (mesmas categorias dos encartes), cada um abre e fecha.
   const { aberto, alternar } = useRecolhidos("estoque_fechados");
   const grupos = Object.entries(
@@ -212,6 +217,12 @@ export function StockView() {
 
         {/* Primeira coisa da tela: o que falta, com a acao junto. Antes o topo
             trazia contagem de itens e valor em reais, que nao fazem ninguem agir. */}
+        {faltando.length === 0 && acabando.length > 0 && (
+          <div className="rounded-[18px] border-[1.5px] border-pos/50 bg-pos-soft px-3.5 py-3 text-[14px] font-bold text-pos">
+            ✓ {acabando.length === 1 ? "O item que está acabando já está" : `Os ${acabando.length} itens que estão acabando já estão`} na
+            lista de compras
+          </div>
+        )}
         {faltando.length > 0 && (
           <div className="flex items-center gap-3 rounded-[18px] border-[1.5px] border-warn bg-warn-soft p-3.5">
             <div className="min-w-0 flex-1">
@@ -219,7 +230,7 @@ export function StockView() {
                 {faltando.length} {faltando.length === 1 ? "item" : "itens"}
               </div>
               <div className="mt-1 text-[13px] font-bold text-text-2">
-                acabando ou já acabou
+                acabando{acabando.length > faltando.length ? ", fora da lista" : " ou já acabou"}
               </div>
             </div>
             <button
@@ -274,6 +285,7 @@ export function StockView() {
                     onMais={() => mais(i)}
                     onRepor={() => repor(i)}
                     oferta={estadoDe(i) !== "tem" ? maisBarataPara(ofertas, i.name) : null}
+                    noCarrinho={naLista.has(i.name.trim().toLowerCase())}
                   />
                 ))}
               </div>
@@ -382,6 +394,7 @@ function Card({
   onMais,
   onRepor,
   oferta,
+  noCarrinho,
 }: {
   item: StockItem;
   selMode: boolean;
@@ -392,6 +405,7 @@ function Card({
   onMais: () => void;
   onRepor: () => void;
   oferta?: Oferta | null;
+  noCarrinho?: boolean;
 }) {
   const estado = estadoDe(item);
   const cor = CORES[estado];
@@ -413,8 +427,13 @@ function Card({
           </span>
         )}
         <div className="mb-2 flex items-start justify-between gap-1.5">
-          <span className={`rounded-full px-2 py-[2px] text-[10px] font-extrabold uppercase ${cor.selo}`}>
-            {cor.texto}
+          <span className="flex flex-wrap gap-1">
+            <span className={`rounded-full px-2 py-[2px] text-[10px] font-extrabold uppercase ${cor.selo}`}>
+              {cor.texto}
+            </span>
+            {noCarrinho && (
+              <span className="rounded-full bg-brand-soft px-2 py-[2px] text-[10px] font-extrabold uppercase text-brand">📝 Na lista</span>
+            )}
           </span>
           {/* Foto do produto (pelo nome): reconhecer de relance sem ler */}
           {!selMode && <FotoItem nome={item.name} className="-mr-1 -mt-1 h-11 w-11 rounded-lg" />}
@@ -467,7 +486,7 @@ function Card({
             disabled={ocupado}
             className={`h-12 text-[13px] font-bold text-brand disabled:opacity-40 ${acabou ? "bg-brand/5" : ""}`}
           >
-            Repor
+            {noCarrinho ? "+ Lista" : "Repor"}
           </button>
         </div>
       )}
