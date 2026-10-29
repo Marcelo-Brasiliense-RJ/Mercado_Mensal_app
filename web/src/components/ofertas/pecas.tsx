@@ -20,7 +20,15 @@ export function Selo({ mercado }: { mercado: string }) {
 
 export function Foto({ o, src, className = "" }: { o?: Oferta | null; src?: string; className?: string }) {
   const [falhou, setFalhou] = useState(false);
-  const url = src ?? (o?.tem_foto ? `/api/oferta-foto?id=${o.id}` : null);
+  // Sem foto do encarte (ou produto da Livelo, digitado pela casa): a foto vem pelo nome,
+  // do mesmo catalogo das fotos do estoque.
+  const url =
+    src ??
+    (o?.tem_foto
+      ? `/api/oferta-foto?id=${o.id}`
+      : o
+        ? `/api/foto?nome=${encodeURIComponent(`${o.produto} ${o.marca}`.trim().toLowerCase())}`
+        : null);
   if (!url || falhou) {
     return (
       <div className={`grid shrink-0 place-items-center bg-card-2 text-[30px] ${className}`} aria-hidden>
