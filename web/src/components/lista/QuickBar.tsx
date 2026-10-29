@@ -2,7 +2,7 @@
 
 import { brl } from "@/lib/format";
 import { useStore } from "@/lib/store";
-import { BarcodeIcon, MicIcon, PlusIcon } from "@/components/ui/icons";
+import { BarcodeIcon, CameraIcon, MicIcon } from "@/components/ui/icons";
 
 // Barra fixa do rodape na aba Lista, no celular.
 //
@@ -16,11 +16,11 @@ import { BarcodeIcon, MicIcon, PlusIcon } from "@/components/ui/icons";
 export function QuickBar({
   onVoice,
   onScan,
-  onManual,
+  onFoto,
 }: {
   onVoice: () => void;
   onScan: () => void;
-  onManual: () => void;
+  onFoto: () => void;
 }) {
   const { trip, shopping } = useStore();
 
@@ -81,11 +81,11 @@ export function QuickBar({
         </button>
         <button
           type="button"
-          onClick={onManual}
+          onClick={onFoto}
           className={`${btn} border border-border bg-card-2 text-text`}
         >
-          <PlusIcon size={22} />
-          Digitar
+          <CameraIcon size={22} />
+          Foto
         </button>
       </div>
     </div>
