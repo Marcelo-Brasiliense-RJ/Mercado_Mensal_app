@@ -8,7 +8,7 @@ import { quantoPedir, TambemNaLista } from "@/components/ui/TambemNaLista";
 import { useStore } from "@/lib/store";
 import { brl } from "@/lib/format";
 import { findByName, unitFor } from "@/lib/defaults";
-import { reverFoto, tirarDaFila, useFilaFotos, type FotoFila } from "@/lib/filaFotos";
+import { reverFoto, tirarDaFila, useDescanso, useFilaFotos, type FotoFila } from "@/lib/filaFotos";
 
 // O que volta da fila de fotos: um aviso no topo enquanto a IA trabalha e, com o
 // leitor fechado, um popup por produto reconhecido: "e isso mesmo?" -> quantidade e
@@ -16,7 +16,8 @@ import { reverFoto, tirarDaFila, useFilaFotos, type FotoFila } from "@/lib/filaF
 const UNITS = ["un", "kg", "g", "L", "ml", "pct", "cx", "dz"];
 
 export function FilaFotos() {
-  const { fila, leitorAberto } = useFilaFotos();
+  const { fila, leitorAberto, pausaAte } = useFilaFotos();
+  const descanso = useDescanso(pausaAte);
   const trabalhando = fila.filter((x) => x.estado === "preparando" || x.estado === "esperando" || x.estado === "reconhecendo").length;
   const prontos = fila.filter((x) => x.estado === "pronto" || x.estado === "falhou");
   // "Depois": fecha os popups ate a pessoa tocar no aviso (ou o app abrir de novo).
@@ -36,7 +37,11 @@ export function FilaFotos() {
             className={`flex items-center gap-2 rounded-full bg-text px-4 py-2 text-[13px] font-bold text-bg shadow-lg ${clicavel ? "pointer-events-auto" : ""}`}
           >
             {trabalhando > 0 && <span className="h-3 w-3 animate-spin rounded-full border-2 border-bg/40 border-t-bg" />}
-            {trabalhando > 0 ? `📷 Reconhecendo ${trabalhando} ${trabalhando > 1 ? "fotos" : "foto"}` : ""}
+            {trabalhando > 0
+              ? descanso > 0
+                ? `⏸ IA no limite · ${trabalhando} na fila · volta em ${descanso}s`
+                : `📷 Reconhecendo ${trabalhando} ${trabalhando > 1 ? "fotos" : "foto"}`
+              : ""}
             {trabalhando > 0 && prontos.length > 0 ? " · " : ""}
             {prontos.length > 0 ? `✓ ${prontos.length} para conferir${clicavel ? " · tocar" : ""}` : ""}
           </button>

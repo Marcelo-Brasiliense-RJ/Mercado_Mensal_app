@@ -1,6 +1,6 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { reconhecerImagem, reduzir } from "./reconhecer";
 import { codigoNaFoto } from "./codigoNaFoto";
 import { reconhecerEmEtapas, type Base } from "./etapasReconhecer";
@@ -67,6 +67,14 @@ async function produto(codigo: string): Promise<Base | null> {
   return d?.ok && d.encontrado && d.nome ? d : null;
 }
 
+// Lote de fotos sem derrubar as chaves do Gemini: uma foto por vez, com um intervalo
+// minimo entre chamadas a IA, e quando o servidor diz que todas as chaves estao no
+// limite, a fila inteira pausa o tempo pedido (a foto volta para a espera, nao falha).
+const INTERVALO_IA_MS = 2500;
+let pausaAte = 0; // ms: fila parada por limite das chaves
+let ultimaIA = 0;
+const dormir = (ms: number) => new Promise((ok) => setTimeout(ok, ms));
+
 let rodando = false;
 async function processar() {
   if (rodando) return;
@@ -80,8 +88,21 @@ async function processar() {
       const r = await reconhecerEmEtapas({
         codigoLocal: async () => (x.nao ? "" : (x.codigoFoto ?? "")),
         produto,
-        ia: (forte) => reconhecerImagem(x.img, x.nao, forte),
+        ia: async (forte) => {
+          const falta = Math.max(pausaAte, ultimaIA + INTERVALO_IA_MS) - Date.now();
+          if (falta > 0) await dormir(falta);
+          ultimaIA = Date.now();
+          return reconhecerImagem(x.img, x.nao, forte);
+        },
       });
+      if (!r.ok && r.motivo === "limite") {
+        pausaAte = Date.now() + r.espera * 1000;
+        trocar(x.id, { estado: "esperando" });
+        avisar();
+        await dormir(r.espera * 1000);
+        avisar();
+        continue;
+      }
       if (r.ok) {
         trocar(x.id, { estado: "pronto", nome: r.nome, marca: r.marca, codigo: r.codigo, unidade: r.unidade, foto: r.foto, fonte: r.fonte });
         continue;
@@ -127,13 +148,17 @@ export function marcarLeitor(aberto: boolean) {
   ouvintes.forEach((x) => x());
 }
 
-type Estado = { fila: FotoFila[]; leitorAberto: boolean };
-let foto: Estado = { fila, leitorAberto };
+// pausaAte: a tela mostra "IA descansando, volta em N s" enquanto as chaves recuperam.
+type Estado = { fila: FotoFila[]; leitorAberto: boolean; pausaAte: number };
+let foto: Estado = { fila, leitorAberto, pausaAte };
 function ler(): Estado {
-  if (foto.fila !== fila || foto.leitorAberto !== leitorAberto) foto = { fila, leitorAberto };
+  if (foto.fila !== fila || foto.leitorAberto !== leitorAberto || foto.pausaAte !== pausaAte) foto = { fila, leitorAberto, pausaAte };
   return foto;
 }
-const vazio: Estado = { fila: [], leitorAberto: false };
+const vazio: Estado = { fila: [], leitorAberto: false, pausaAte: 0 };
+function avisar() {
+  ouvintes.forEach((x) => x());
+}
 
 export function useFilaFotos(): Estado {
   return useSyncExternalStore(
@@ -145,4 +170,15 @@ export function useFilaFotos(): Estado {
     ler,
     () => vazio,
   );
+}
+
+// Segundos que faltam da pausa por limite (0 = rodando), atualizando a cada segundo.
+export function useDescanso(pausa: number): number {
+  const [agora, setAgora] = useState(() => Date.now());
+  useEffect(() => {
+    if (pausa <= Date.now()) return;
+    const id = setInterval(() => setAgora(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [pausa]);
+  return Math.max(0, Math.ceil((pausa - agora) / 1000));
 }

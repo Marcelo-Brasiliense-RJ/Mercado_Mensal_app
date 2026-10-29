@@ -27,6 +27,23 @@ const ESQUEMA = {
   required: ["nome", "marca", "tamanho", "codigo"],
 };
 
+// Estado do rodizio, por instancia do servidor (melhor esforco: outra instancia comeca
+// do zero e no maximo leva um 429 a mais, que tambem e respeitado).
+let vez = 0;
+const descanso = new Map<string, number>(); // "modelo|chave" -> livre a partir de (ms)
+
+// O 429 do Gemini diz quanto esperar (RetryInfo.retryDelay, ex.: "23s").
+async function pausaPedida(r: Response): Promise<number | null> {
+  try {
+    const j = (await r.json()) as { error?: { details?: { retryDelay?: string }[] } };
+    const d = j.error?.details?.find((x) => x.retryDelay)?.retryDelay;
+    const s = d ? parseFloat(d) : NaN;
+    return Number.isFinite(s) ? Math.ceil(s * 1000) + 1000 : null;
+  } catch {
+    return null;
+  }
+}
+
 function chaves(): string[] {
   const out: string[] = [];
   for (const [k, v] of Object.entries(process.env)) if (/^GEMINI_API_KEY(_\d+)?$/.test(k) && v) out.push(v);
@@ -71,8 +88,21 @@ export async function POST(req: Request) {
     ],
     generationConfig: { responseMimeType: "application/json", responseSchema: ESQUEMA, temperature: 0 },
   });
+  // Rodizio: cada pedido comeca numa chave diferente (a cota se espalha) e a chave que
+  // levou 429 descansa o tempo que o Google pediu, por modelo. Com tudo descansando,
+  // devolve 429 com a espera: a fila do celular aguarda e tenta de novo, sem perder a foto.
+  const inicio = vez++ % ks.length;
+  let espera = Infinity;
   for (const modelo of nao || forte ? [...MODELOS].reverse() : MODELOS) {
-    for (const k of ks) {
+    for (let n = 0; n < ks.length; n++) {
+      const i = (inicio + n) % ks.length;
+      const id = `${modelo}|${i}`;
+      const livre = descanso.get(id) ?? 0;
+      if (livre > Date.now()) {
+        espera = Math.min(espera, livre - Date.now());
+        continue;
+      }
+      const k = ks[i];
       try {
         const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`, {
           method: "POST",
@@ -80,7 +110,16 @@ export async function POST(req: Request) {
           body: corpo,
           signal: AbortSignal.timeout(20000),
         });
-        if (r.status === 429 || r.status === 403) continue; // cota desta chave: tenta a proxima
+        if (r.status === 429) {
+          const ms = (await pausaPedida(r)) ?? 60_000;
+          descanso.set(id, Date.now() + ms);
+          espera = Math.min(espera, ms);
+          continue; // cota desta chave neste modelo: a proxima
+        }
+        if (r.status === 403) {
+          descanso.set(id, Date.now() + 3_600_000); // chave sem permissao: fora por 1 h
+          continue;
+        }
         if (r.status === 404 || r.status >= 500) break; // modelo fora: tenta o proximo
         if (!r.ok) continue;
         const j = (await r.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
@@ -101,5 +140,7 @@ export async function POST(req: Request) {
       }
     }
   }
+  if (espera < Infinity)
+    return NextResponse.json({ ok: false, erro: "limite", espera: Math.max(5, Math.ceil(espera / 1000)) }, { status: 429 });
   return NextResponse.json({ ok: false, erro: "ia_falhou" }, { status: 502 });
 }

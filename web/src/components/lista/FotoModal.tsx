@@ -6,7 +6,7 @@ import { CameraIcon } from "@/components/ui/icons";
 import { DestinoSwitch, type Destino } from "@/components/ui/Destino";
 import { useStore } from "@/lib/store";
 import { useLugar } from "@/lib/lugar";
-import { enfileirarFoto, marcarLeitor, useFilaFotos } from "@/lib/filaFotos";
+import { enfileirarFoto, marcarLeitor, useDescanso, useFilaFotos } from "@/lib/filaFotos";
 
 // Modo foto: o jeito principal de anotar (no lugar do Digitar). Tira uma foto atras da
 // outra, ou escolhe varias da galeria de uma vez; cada uma vai para a fila da IA e a
@@ -27,7 +27,8 @@ export function FotoModal({
   const camera = useRef<HTMLInputElement>(null);
   const galeria = useRef<HTMLInputElement>(null);
   const [desta, setDesta] = useState(0); // fotos mandadas nesta abertura
-  const { fila } = useFilaFotos();
+  const { fila, pausaAte } = useFilaFotos();
+  const descanso = useDescanso(pausaAte);
   const trabalhando = fila.filter((x) => x.estado === "preparando" || x.estado === "esperando" || x.estado === "reconhecendo");
   const prontas = fila.filter((x) => x.estado === "pronto" || x.estado === "falhou").length;
 
@@ -115,6 +116,11 @@ export function FotoModal({
             {trabalhando.length > 0 && prontas > 0 && " · "}
             {prontas > 0 && `${prontas} ${prontas > 1 ? "prontas" : "pronta"}`}
             {". Você confere ao tocar em Pronto."}
+            {descanso > 0 && (
+              <span className="mt-1 block font-bold text-warn">
+                ⏸ A IA está no limite de uso: continua sozinha em {descanso}s. Pode seguir tirando foto.
+              </span>
+            )}
           </div>
         </div>
       )}

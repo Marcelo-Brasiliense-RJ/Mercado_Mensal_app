@@ -6,10 +6,11 @@
 //   4. Nada resolveu: devolve o motivo e o codigo que deu para ler, se houver.
 //
 // Pura (as etapas entram por parametro) para o teste cobrir a ordem sem rede.
-import type { Reconhecido } from "./reconhecer";
+import type { Limite, Reconhecido } from "./reconhecer";
 
 export type Base = { nome: string; marca?: string; unidade?: string | null; foto?: string | null };
-export type RespostaIA = Reconhecido | null | undefined | "sem_ia";
+export type RespostaIA = Reconhecido | null | undefined | "sem_ia" | Limite;
+const ehLimite = (r: RespostaIA): r is Limite => !!r && typeof r === "object" && "limite" in r;
 
 export type Etapas = {
   codigoLocal: () => Promise<string>;
@@ -19,7 +20,9 @@ export type Etapas = {
 
 export type Resultado =
   | { ok: true; nome: string; marca: string; codigo: string; unidade?: string; foto: string | null; fonte: "codigo" | "ia" }
-  | { ok: false; motivo: "sem_ia" | "ia_falhou" | "nao_reconheceu"; codigo: string };
+  | { ok: false; motivo: "sem_ia" | "ia_falhou" | "nao_reconheceu"; codigo: string }
+  // chaves no limite: a fila espera `espera` segundos e tenta de novo (a foto nao falhou)
+  | { ok: false; motivo: "limite"; espera: number; codigo: string };
 
 export async function reconhecerEmEtapas(e: Etapas): Promise<Resultado> {
   const daBase = (b: Base, codigo: string, fonte: "codigo" | "ia", marcaIA = ""): Resultado => ({
@@ -44,6 +47,7 @@ export async function reconhecerEmEtapas(e: Etapas): Promise<Resultado> {
   for (const forte of [false, true]) {
     const r = await e.ia(forte).catch(() => undefined);
     ultima = r;
+    if (ehLimite(r)) return { ok: false, motivo: "limite", espera: r.limite, codigo: local };
     if (r === "sem_ia" || r === undefined) break; // sem chave ou sem resposta: a forte tambem nao vai
     if (!r) continue;
     const codigo = local || r.codigo;

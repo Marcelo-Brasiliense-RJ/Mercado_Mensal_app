@@ -74,4 +74,11 @@ describe("reconhecerEmEtapas", () => {
     );
     expect(r).toMatchObject({ ok: true, nome: vex.nome });
   });
+
+  it("chaves no limite: pede para esperar, sem marcar a foto como falha", async () => {
+    const ia = vi.fn(async () => ({ limite: 23 }));
+    const r = await reconhecerEmEtapas(etapas({ ia }));
+    expect(ia).toHaveBeenCalledTimes(1); // nao gasta a forte
+    expect(r).toEqual({ ok: false, motivo: "limite", espera: 23, codigo: "" });
+  });
 });
