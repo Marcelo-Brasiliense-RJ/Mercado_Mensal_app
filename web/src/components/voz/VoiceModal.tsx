@@ -8,6 +8,8 @@ import { DestinoSwitch, nomeDestino } from "@/components/ui/Destino";
 import { useLugar } from "@/lib/lugar";
 import { useStore } from "@/lib/store";
 import { findByName, unitFor } from "@/lib/defaults";
+import { createClient } from "@/lib/supabase/client";
+import type { ShopItem } from "@/lib/types";
 import {
   ERRO_VOZ,
   escolherMime,
@@ -44,12 +46,14 @@ const MAX_SEGUNDOS = 60;
 
 // Destino pela tela de onde a pessoa abriu. No Estoque tudo vai para o estoque,
 // diga o que disser ("comprei arroz" la e guardar a compra). Na Lista vale o que a
-// frase diz entre lista e carrinho; "estoque" so se ela trocar na chave.
-function destinoDaTela(tela: "estoque" | "mercado", ouvido: VozIntencao): VozIntencao {
-  if (tela === "estoque") return "estoque";
+// frase diz entre lista e carrinho; "estoque" so se ela trocar na chave. No Montar
+// lista tudo vai para a lista: ali a pessoa esta dizendo o que falta.
+function destinoDaTela(tela: Tela, ouvido: VozIntencao): VozIntencao {
+  if (tela === "estoque" || tela === "lista") return tela;
   return ouvido === "lista" ? "lista" : "carrinho";
 }
 
+type Tela = "estoque" | "mercado" | "lista";
 type Fase = "gravar" | "gravando" | "enviando" | "conferir" | "salvando";
 
 export function VoiceModal({
@@ -59,17 +63,20 @@ export function VoiceModal({
 }: {
   open: boolean;
   onClose: () => void;
-  tela?: "estoque" | "mercado";
+  tela?: Tela;
 }) {
-  const { addShopItem, addTripItem, addStock, showToast, stock } = useStore();
+  const { addShopItem, addTripItem, addStock, removeItems, showToast, stock } = useStore();
   // Dentro de um mercado conhecido (GPS), vale como se estivesse na Lista: carrinho.
+  // Montar lista e excecao: la a pessoa diz o que falta, esteja onde estiver.
   const { noMercado } = useLugar();
-  const telaAgora = noMercado ? "mercado" : tela;
+  const telaAgora = noMercado && tela !== "lista" ? "mercado" : tela;
+  const inicial: VozIntencao = tela === "mercado" ? "carrinho" : tela;
 
   const [fase, setFase] = useState<Fase>("gravar");
   const [segundos, setSegundos] = useState(0);
   const [texto, setTexto] = useState("");
-  const [destino, setDestino] = useState<VozIntencao>(tela === "estoque" ? "estoque" : "carrinho");
+  const [destino, setDestino] = useState<VozIntencao>(inicial);
+  const [jaForam, setJaForam] = useState(0); // entraram direto na lista (modo Montar lista)
   const [itens, setItens] = useState<GridItem[]>([]);
   const [erro, setErro] = useState("");
 
@@ -108,7 +115,8 @@ export function VoiceModal({
     setTexto("");
     setItens([]);
     setErro("");
-    setDestino(tela === "estoque" ? "estoque" : "carrinho");
+    setDestino(inicial);
+    setJaForam(0);
   }
 
   function fechar() {
@@ -177,28 +185,89 @@ export function VoiceModal({
         setFase("gravar");
         return;
       }
-      mostrarResultado(data.texto, data.intencao, data.itens);
+      await mostrarResultado(data.texto, data.intencao, data.itens);
     } catch {
       setErro("Sem conexão. Tente de novo.");
       setFase("gravar");
     }
   }
 
-  function mostrarResultado(frase: string, intencao: VozIntencao, lidos: VozItem[]) {
+  async function mostrarResultado(frase: string, intencao: VozIntencao, lidos: VozItem[]) {
     setTexto(frase);
     setDestino(destinoDaTela(telaAgora, intencao));
-    setItens(
-      lidos.map((i) => ({
-        nome: i.nome,
-        qtd: i.qtd,
-        // Preco nao falado nasce com o ultimo que a casa pagou (regra 2 da secao
-        // 0.1 do tarefas.md: todo campo nasce preenchido). Falar "comprar
-        // absorvente" vinha com R$ 0,00 e obrigava a digitar o preco no corredor.
-        preco: i.preco ?? findByName(i.nome, stock)?.priceLast ?? 0,
-        unidade: i.unidade,
-      })),
-    );
+    const linhas: GridItem[] = lidos.map((i) => ({
+      nome: i.nome,
+      qtd: i.qtd,
+      // Preco nao falado nasce com o ultimo que a casa pagou (regra 2 da secao
+      // 0.1 do tarefas.md: todo campo nasce preenchido). Falar "comprar
+      // absorvente" vinha com R$ 0,00 e obrigava a digitar o preco no corredor.
+      preco: i.preco ?? findByName(i.nome, stock)?.priceLast ?? 0,
+      unidade: i.unidade,
+      duvida: i.duvida,
+    }));
+
+    // Montar lista: o que a IA entendeu entra direto (aviso com Desfazer); so o que
+    // ficou em duvida volta para a pessoa conferir. Ouvido pelo aparelho (sem IA)
+    // nao entra direto: o interpretador local erra mais, entao tudo e conferido.
+    if (tela === "lista" && !modoLocal) {
+      const certos = linhas.filter((i) => !i.duvida && i.nome.trim().length >= 3);
+      const duvidas = linhas.filter((i) => !certos.includes(i));
+      const falharam = certos.length ? await porDireto(certos) : [];
+      const resto = [...duvidas, ...falharam].map((i) => ({ ...i, duvida: true }));
+      if (!resto.length && certos.length) return fechar();
+      setJaForam(certos.length - falharam.length);
+      setItens(resto);
+      setFase("conferir");
+      return;
+    }
+    setItens(linhas);
     setFase("conferir");
+  }
+
+  // Ids pendentes da lista, para saber depois quais linhas a voz criou (a RPC de
+  // incluir nao devolve o id). null = nao deu para ler, e ai nao ha Desfazer: sem o
+  // retrato do antes, desfazer tiraria da lista o que ja estava la.
+  async function pendentes(): Promise<Set<string> | null> {
+    const { data, error } = await createClient().rpc("mercado_list_web");
+    if (error || !Array.isArray(data)) return null;
+    return new Set((data as ShopItem[]).filter((i) => i.status === "pending").map((i) => i.id));
+  }
+
+  // Poe na lista sem perguntar. Devolve os que o banco recusou, para irem a conferencia.
+  // O Desfazer do aviso tira exatamente as linhas criadas agora; o desfazer do banco
+  // (0023) nao serve aqui porque incluir pelo app nao grava evento.
+  async function porDireto(certos: GridItem[]): Promise<GridItem[]> {
+    setFase("salvando");
+    const antes = await pendentes();
+    const foram: string[] = [];
+    const falharam: GridItem[] = [];
+    for (const it of certos) {
+      const r = await addShopItem({
+        name: it.nome.trim(),
+        desired_quantity: Number(it.qtd) || 1,
+        unit: it.unidade,
+        estimated_price: it.preco > 0 ? it.preco : null,
+      });
+      if (r.ok) foram.push(it.nome.trim());
+      else falharam.push(it);
+    }
+    if (!foram.length) return falharam;
+    const depois = antes ? await pendentes() : null;
+    const novos = antes && depois ? [...depois].filter((id) => !antes.has(id)) : [];
+    const nomes =
+      foram.length > 3 ? `${foram.slice(0, 3).join(", ")} e mais ${foram.length - 3}` : foram.join(", ");
+    showToast(
+      `Na lista: ${nomes}`,
+      novos.length
+        ? {
+            desfazer: async () => {
+              const r = await removeItems(novos);
+              showToast(r.ok ? "Desfeito: saiu da lista" : r.erro);
+            },
+          }
+        : undefined,
+    );
+    return falharam;
   }
 
   // Ouvir pelo proprio aparelho. Nao sobe audio nenhum: o navegador devolve o
@@ -297,9 +366,11 @@ export function VoiceModal({
           Falar aqui no app
         </div>
         <div className="text-[19px] font-extrabold">
-          {fase === "conferir" || fase === "salvando"
-            ? "Confere e salva"
-            : "Diga o que aconteceu"}
+          {fase === "conferir" && jaForam > 0
+            ? "Fiquei em dúvida nestes"
+            : fase === "conferir" || fase === "salvando"
+              ? "Confere e salva"
+              : "Diga o que aconteceu"}
         </div>
       </div>
 
@@ -307,7 +378,9 @@ export function VoiceModal({
         <>
           <p className="mb-4 text-[13px] leading-relaxed text-text-2">
             {noMercado && tela === "estoque" && "📍 Você está num mercado: vai para o carrinho. "}
-            {telaAgora === "estoque"
+            {tela === "lista"
+              ? "Fale o que falta: “1 arroz, 1 feijão, 5 detergentes e arroz da Máximo”. O que eu entender entra direto na lista; no que eu ficar em dúvida, eu pergunto."
+              : telaAgora === "estoque"
               ? "Fale o que tem em casa: “três leites, dois arroz e um café”. Vai para o estoque; você confere antes de salvar."
               : "Fale normal, como você contaria pra alguém: “comprei arroz vinte reais, dois pacotes, e café doze e noventa”. Você confere antes de salvar."}
           </p>
@@ -368,6 +441,12 @@ export function VoiceModal({
           <p className="mb-4 rounded-[13px] border border-border bg-card-2 p-3 text-[13px] leading-relaxed text-text-2">
             “{texto}”
           </p>
+          {jaForam > 0 && (
+            <p className="mb-4 text-[13px] font-bold text-pos">
+              ✓ {jaForam} {jaForam === 1 ? "item já entrou" : "itens já entraram"} na lista. Corrija
+              o nome dos de baixo e salve, ou tire o que não for.
+            </p>
+          )}
 
           <DestinoSwitch
             valor={destino}
@@ -382,6 +461,7 @@ export function VoiceModal({
               onRemove={(i) => setItens((l) => l.filter((_, idx) => idx !== i))}
               // Estoque nao e compra: sem preco ali, senao mexeria no gasto do mes.
               precos={destino !== "estoque"}
+              fotos
               avisoDe={(nome) => {
                 const item = findByName(nome, stock);
                 if (!item || item.current <= 0) return null;

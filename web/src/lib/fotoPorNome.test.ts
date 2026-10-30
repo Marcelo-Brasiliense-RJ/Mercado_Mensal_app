@@ -40,6 +40,6 @@ describe("foto pelo nome", () => {
   });
 
   it("endereço versionado: regra nova não usa foto velha guardada", () => {
-    expect(urlFoto(" Hibisco Em Pó ")).toBe("/api/foto?v=2&nome=hibisco%20em%20p%C3%B3");
+    expect(urlFoto(" Hibisco Em Pó ")).toBe("/api/foto?v=3&nome=hibisco%20em%20p%C3%B3");
   });
 });

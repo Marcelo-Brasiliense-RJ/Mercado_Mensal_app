@@ -1,6 +1,7 @@
 "use client";
 
 import { brl } from "@/lib/format";
+import { FotoItem } from "@/components/ui/FotoItem";
 
 export type GridItem = {
   nome: string;
@@ -29,6 +30,7 @@ export function ItemGrid({
   onAddRow,
   precos = true,
   avisoDe,
+  fotos = false,
 }: {
   items: GridItem[];
   onPatch: (i: number, field: GridField, value: string) => void;
@@ -36,6 +38,7 @@ export function ItemGrid({
   onAddRow?: () => void;
   precos?: boolean;
   avisoDe?: (nome: string) => string | null;
+  fotos?: boolean; // foto do produto pelo nome, para conferir "e isso mesmo?" de olho
 }) {
   const total = items.reduce(
     (a, i) => a + (Number(i.qtd) || 0) * (Number(i.preco) || 0),
@@ -54,6 +57,7 @@ export function ItemGrid({
             }`}
           >
             <div className="flex items-center gap-2 px-3 py-2.5">
+              {fotos && <FotoItem nome={it.nome} className="h-9 w-9 rounded-[9px]" />}
               <input
                 value={it.nome}
                 onChange={(e) => onPatch(i, "nome", e.target.value)}

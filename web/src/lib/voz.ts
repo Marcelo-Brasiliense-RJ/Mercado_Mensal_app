@@ -14,6 +14,9 @@ export type VozItem = {
   // pacotes" = 20 no total) e a divisao e feita em codigo, nunca pelo modelo:
   // conta de LLM e o tipo de erro que ninguem confere.
   preco: number | null;
+  // O modelo nao teve certeza do produto (palavra que nao e produto, nome cortado,
+  // marca sem o que e). Esse item nao entra sozinho: a tela pergunta.
+  duvida?: boolean;
 };
 
 export type VozResposta =
@@ -89,7 +92,8 @@ export function normalizaItens(raw: unknown): VozItem[] {
     const total = numero(o.preco_total);
     const preco = total != null && total > 0 ? +(total / qtd).toFixed(2) : null;
 
-    itens.push({ nome, qtd, unidade, preco });
+    // So `true` vale como duvida: qualquer outra coisa do modelo e "entendi".
+    itens.push({ nome, qtd, unidade, preco, ...(o.duvida === true ? { duvida: true } : {}) });
   }
   return itens;
 }
