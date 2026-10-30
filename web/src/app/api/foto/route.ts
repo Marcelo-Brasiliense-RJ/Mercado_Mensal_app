@@ -6,7 +6,7 @@
 // mostra o icone da categoria. Antes pegava o primeiro resultado e errava a foto.
 // Uma busca por nome, guardada uma semana pela borda e pelo navegador: a mesma foto
 // serve a todos os itens com esse nome.
-import { buscas, melhor } from "@/lib/fotoPorNome";
+import { buscas, melhor, palavras, parecido } from "@/lib/fotoPorNome";
 
 export const runtime = "nodejs";
 
@@ -35,15 +35,25 @@ async function buscar(loja: string, q: string): Promise<Candidato[]> {
   }
 }
 
+// VTEX entrega miniatura pelo caminho: /ids/123/ -> /ids/123-160-160/
+const miniatura = (url: string) => url.replace(/\/ids\/(\d+)\//, "/ids/$1-160-160/");
+
 // Do mais especifico ao mais geral; para na primeira busca que achar um produto bom.
+// Sem nenhum com todas as palavras, a segunda chance (parecido) olha tudo o que veio e,
+// se ainda nada, busca so pelo que o item e (a primeira palavra: "farinha").
 async function achar(nome: string): Promise<string | null> {
+  const vistos: Candidato[] = [];
   for (const q of buscas(nome)) {
     const todos = (await Promise.all(LOJAS.map((l) => buscar(l, q)))).flat();
     const m = melhor(nome, todos);
-    // VTEX entrega miniatura pelo caminho: /ids/123/ -> /ids/123-160-160/
-    if (m) return m.url.replace(/\/ids\/(\d+)\//, "/ids/$1-160-160/");
+    if (m) return miniatura(m.url);
+    vistos.push(...todos);
   }
-  return null;
+  let p = parecido(nome, vistos);
+  const primeira = palavras(nome)[0];
+  if (!p && primeira && primeira !== nome.trim().toLowerCase())
+    p = parecido(nome, (await Promise.all(LOJAS.map((l) => buscar(l, primeira)))).flat());
+  return p ? miniatura(p.url) : null;
 }
 
 export async function GET(req: Request) {
