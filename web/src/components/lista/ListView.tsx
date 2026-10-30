@@ -78,8 +78,10 @@ export function ListView() {
   // Quanto a lista sai em cada mercado (o mais barato de cada item dentro dele): a
   // resposta para "onde compensa fazer a compra", na cara, sem abrir a aba Ofertas.
   const resumoLista = resumir(ofertas, faltaEmCasa(pendentes, []));
+  const semOferta = resumoLista.itens.filter((x) => !x.opcoes.length).map((x) => x.item.nome);
   const [rotaAberta, setRotaAberta] = useState(false);
   const [ondeAberto, setOndeAberto] = useState(false);
+  const [verSemOferta, setVerSemOferta] = useState(false);
   const [montar, setMontar] = useState(false);
   const [mercadoAberto, setMercadoAberto] = useState<string | null>(null);
   // Produtos do encarte que entram na conta do mercado aberto.
@@ -328,9 +330,13 @@ export function ListView() {
             <div className="mt-2 text-[12px] text-text-3">
               {filtro ? "Mostrando só o que vale comprar lá." : "Toque num mercado para ver os produtos e ir até lá."}
             </div>
-            {resumoLista.itens.some((x) => !x.opcoes.length) && (
+            {semOferta.length > 0 && (
               <div className="mt-1 text-[12px] text-text-3">
-                Sem oferta esta semana: {resumoLista.itens.filter((x) => !x.opcoes.length).map((x) => x.item.nome).join(", ")}.
+                {semOferta.length} {semOferta.length > 1 ? "itens" : "item"} sem oferta esta semana.{" "}
+                <button onClick={() => setVerSemOferta((v) => !v)} className="font-bold text-brand underline">
+                  {verSemOferta ? "esconder" : "ver quais"}
+                </button>
+                {verSemOferta && <div className="mt-1">{semOferta.join(" · ")}</div>}
               </div>
             )}
             <button
