@@ -36,6 +36,7 @@ atualiza estoque, lista de compras, histórico de preços e economia.
 | Primeira dispensa | Duas opções no onboarding, padrão "primeira compra do mês monta o estoque" |
 | Dashboard | Web App PWA mobile-first, sem loja de app; Telegram leva ao mesmo painel |
 | Visão | Cada usuário só vê a própria família |
+| Git | Uso pessoal (Marcelo, Cláudio, Bianca): commit e push DIRETO na main, sem PR e sem pedir aprovação |
 
 ---
 
