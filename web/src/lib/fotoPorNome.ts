@@ -27,13 +27,20 @@ export function nota(item: string, produto: string): number {
   const ps = palavras(item);
   const pp = palavras(produto);
   if (!ps.length || !pp.length) return 0;
-  const tem = new Set(pp);
+  // Marca escrita junta ou separada vale igual: a casa digita "plus vita" e a loja escreve
+  // "Plusvita" (e o contrario). Sem isso "pao bisnaguito plus vita" nao casava com o
+  // proprio produto. Por isso o produto tambem conta com as palavras vizinhas coladas.
+  const tem = new Set([...pp, ...pp.slice(1).map((w, i) => pp[i] + w)]);
   // plural vale ("biscoito" casa "biscoitos"), marca colada nao ("acaicamp" nao e "acai")
   const perto = (a: string, b: string) => a.startsWith(b) && b.length >= 3 && a.length - b.length <= 2;
   const igual = (p: string, t: string) => t === p || perto(t, p) || perto(p, t);
   const casa = (p: string) => [...tem].some((t) => igual(p, t));
   if (!igual(ps[0], pp[0])) return 0;
-  return ps.filter(casa).length / ps.length;
+  const ok = ps.map(casa);
+  ps.forEach((w, i) => {
+    if (i + 1 < ps.length && casa(w + ps[i + 1])) ok[i] = ok[i + 1] = true;
+  });
+  return ok.filter(Boolean).length / ps.length;
 }
 
 // Todas as palavras do item no produto (uma de folga a partir de 6 palavras). Nome curto
@@ -54,25 +61,6 @@ export function melhor<T extends { nome: string }>(item: string, candidatos: T[]
   return n >= notaMinima(item) - 1e-9 ? m : null;
 }
 
-// Segunda chance, so quando nenhum produto tem todas as palavras: o mesmo produto de
-// outra marca ou variedade ("farinha neston" -> uma farinha). O dono pediu foto em todo
-// item, igual para todas as casas; foto do mesmo produto de outra marca reconhece melhor
-// que o icone. Continua obrigatorio COMECAR pelo que o item e (nota), entao "alho" nao
-// vira "Tempero Alho". So pode faltar UMA palavra, e so em nome de 3 ou mais: com duas,
-// a que falta e a variedade tanto quanto a marca ("xarope de acai" virava xarope de
-// tangerina, "farinha neston" virava farinha de rosca), e ai o icone engana menos.
-export function parecido<T extends { nome: string }>(item: string, candidatos: T[]): T | null {
-  const k = palavras(item).length;
-  if (k < 3) return null;
-  let m: T | null = null;
-  let n = 0;
-  for (const c of candidatos) {
-    const x = nota(item, c.nome);
-    if (x > n) [m, n] = [c, x];
-  }
-  return n >= (k - 1) / k - 1e-9 ? m : null;
-}
-
 // Buscas em ordem: o nome inteiro, depois so as palavras que identificam (a loja acha
 // mais com menos), depois as 3 primeiras.
 export function buscas(nome: string): string[] {
@@ -84,7 +72,9 @@ export function buscas(nome: string): string[] {
 // a borda guardam a foto por dias, e sem trocar o endereco a foto errada antiga continuava
 // aparecendo (v2: so produto com todas as palavras do item; v3: entrou
 // a loja Prezunic, entao o "sem foto" guardado precisa ser buscado de novo; v4: segunda
-// chance com `parecido`).
-export const VERSAO_FOTO = 4;
+// chance aceitando uma palavra a menos; v5: a segunda chance saiu, porque a palavra que
+// faltava podia ser a que diz o produto ("pao bisnaguito plus vita" virou pao de forma
+// Plus Vita), e marca junta/separada passou a casar).
+export const VERSAO_FOTO = 5;
 export const urlFoto = (nome: string) =>
   `/api/foto?v=${VERSAO_FOTO}&nome=${encodeURIComponent(nome.trim().toLowerCase())}`;
