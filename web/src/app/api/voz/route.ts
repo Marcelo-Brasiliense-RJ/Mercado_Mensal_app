@@ -76,6 +76,12 @@ export async function POST(req: Request) {
     fd.append("model", MODELO_TRANSCRICAO);
     fd.append("language", "pt");
     fd.append("temperature", "0");
+    // Contexto para o Whisper: com barulho de mercado e voz distante, ele erra menos
+    // quando sabe que o assunto e lista de compras (puxa "detergente", nao "de gente").
+    fd.append(
+      "prompt",
+      "Lista de compras de supermercado, em português do Brasil: um arroz, um feijão, cinco detergentes, dois quilos de carne, leite integral, papel higiênico, sabão em pó.",
+    );
     const tr = await fetch(`${GROQ}/audio/transcriptions`, {
       method: "POST",
       headers: { authorization: `Bearer ${key}` },

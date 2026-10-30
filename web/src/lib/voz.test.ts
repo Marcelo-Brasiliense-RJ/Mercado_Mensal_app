@@ -108,3 +108,26 @@ describe("normalizaItens duvida", () => {
     expect(c.duvida).toBeUndefined();
   });
 });
+
+describe("interpretarLocal sem virgula", () => {
+  it("cada numero depois de um nome abre item novo (lista ditada de uma vez)", () => {
+    const r = interpretarLocal("Comprar um arroz um feijão cinco detergente");
+    expect(r.intencao).toBe("lista");
+    expect(r.itens.map((i) => [i.nome, i.qtd, i.preco])).toEqual([
+      ["arroz", 1, null],
+      ["feijao", 1, null],
+      ["detergente", 5, null],
+    ]);
+  });
+
+  it("preco falado continua do item, e quantidade com unidade completa o anterior", () => {
+    const r = interpretarLocal("comprei arroz vinte reais dois pacotes");
+    expect(r.itens).toHaveLength(1);
+    expect(r.itens[0]).toMatchObject({ nome: "arroz", qtd: 2, unidade: "pct", preco: 10 });
+    const c = interpretarLocal("preciso de carne 2 kg cinco detergente");
+    expect(c.itens.map((i) => [i.nome, i.qtd, i.unidade])).toEqual([
+      ["carne", 2, "kg"],
+      ["detergente", 5, "L"],
+    ]);
+  });
+});

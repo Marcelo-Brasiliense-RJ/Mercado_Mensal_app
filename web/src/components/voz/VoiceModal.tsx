@@ -29,8 +29,10 @@ type Reconhecedor = {
   continuous: boolean;
   start: () => void;
   stop: () => void;
-  onresult: ((e: { results: { 0: { 0: { transcript: string } } } }) => void) | null;
-  onerror: (() => void) | null;
+  onresult:
+    | ((e: { resultIndex: number; results: ArrayLike<{ isFinal: boolean; 0: { transcript: string } }> }) => void)
+    | null;
+  onerror: ((e: { error: string }) => void) | null;
   onend: (() => void) | null;
 };
 
@@ -84,16 +86,27 @@ export function VoiceModal({
   // ouve e o proprio navegador e quem entende a frase e o interpretador local.
   const [modoLocal, setModoLocal] = useState(false);
   const falaRef = useRef<Reconhecedor | null>(null);
+  const ouvidoRef = useRef<string[]>([]); // trechos ja entendidos pelo aparelho
+  const paradaRef = useRef(false); // a pessoa tocou em parar (ou deu o tempo)
+  const inicioRef = useRef(0);
   const recRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
 
   // Para a gravacao e solta o microfone quando o popup fecha ou a tela sai do ar:
   // microfone aberto sem tela e a pior falha possivel de privacidade.
+  // Fechar descarta o que estava sendo ouvido: tirar o onend/onstop antes de parar
+  // impede o aparelho de voltar a ouvir sozinho e a fala de cair na lista depois.
   useEffect(() => {
     if (open) return;
+    paradaRef.current = true;
+    if (falaRef.current) falaRef.current.onend = null;
     falaRef.current?.stop();
-    if (recRef.current?.state === "recording") recRef.current.stop();
+    falaRef.current = null;
+    if (recRef.current?.state === "recording") {
+      recRef.current.onstop = null;
+      recRef.current.stop();
+    }
     streamRef.current?.getTracks().forEach((t) => t.stop());
   }, [open]);
 
@@ -120,9 +133,14 @@ export function VoiceModal({
   }
 
   function fechar() {
+    paradaRef.current = true;
+    if (falaRef.current) falaRef.current.onend = null;
     falaRef.current?.stop();
     falaRef.current = null;
-    if (recRef.current?.state === "recording") recRef.current.stop();
+    if (recRef.current?.state === "recording") {
+      recRef.current.onstop = null;
+      recRef.current.stop();
+    }
     streamRef.current?.getTracks().forEach((t) => t.stop());
     onClose();
     limpar();
@@ -136,7 +154,12 @@ export function VoiceModal({
     );
     if (!mime) return setErro("Este navegador não grava áudio. Use o campo digitado.");
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Mercado e barulhento e o celular fica longe da boca (no carrinho, na mao baixa):
+      // pede ao aparelho reducao de ruido, cancelamento de eco e ganho automatico, que
+      // sobe a voz baixa. Quem nao suporta ignora e grava como antes.
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { noiseSuppression: true, echoCancellation: true, autoGainControl: true, channelCount: 1 },
+      });
       streamRef.current = stream;
       const rec = new MediaRecorder(stream, { mimeType: mime });
       chunksRef.current = [];
@@ -156,6 +179,7 @@ export function VoiceModal({
 
   function parar() {
     if (falaRef.current) {
+      paradaRef.current = true;
       falaRef.current.stop();
       return;
     }
@@ -192,7 +216,9 @@ export function VoiceModal({
     }
   }
 
-  async function mostrarResultado(frase: string, intencao: VozIntencao, lidos: VozItem[]) {
+  // `local`: frase ouvida pelo proprio aparelho, sem IA. Vem por parametro e nao do
+  // estado modoLocal, que ainda esta velho no primeiro uso (o callback foi criado antes).
+  async function mostrarResultado(frase: string, intencao: VozIntencao, lidos: VozItem[], local = false) {
     setTexto(frase);
     setDestino(destinoDaTela(telaAgora, intencao));
     const linhas: GridItem[] = lidos.map((i) => ({
@@ -207,10 +233,13 @@ export function VoiceModal({
     }));
 
     // Montar lista: o que a IA entendeu entra direto (aviso com Desfazer); so o que
-    // ficou em duvida volta para a pessoa conferir. Ouvido pelo aparelho (sem IA)
-    // nao entra direto: o interpretador local erra mais, entao tudo e conferido.
-    if (tela === "lista" && !modoLocal) {
-      const certos = linhas.filter((i) => !i.duvida && i.nome.trim().length >= 3);
+    // ficou em duvida volta para a pessoa conferir. Ouvido pelo aparelho (sem IA) nao
+    // ha "duvida" do modelo: ali entra direto so o que a casa ja tem no estoque (nome
+    // conhecido); palavra estranha, que no barulho e o comum, vai para a conferencia.
+    if (tela === "lista") {
+      const certos = linhas.filter(
+        (i) => !i.duvida && i.nome.trim().length >= 3 && (!local || !!findByName(i.nome, stock)),
+      );
       const duvidas = linhas.filter((i) => !certos.includes(i));
       const falharam = certos.length ? await porDireto(certos) : [];
       const resto = [...duvidas, ...falharam].map((i) => ({ ...i, duvida: true }));
@@ -285,17 +314,46 @@ export function VoiceModal({
     const rec = new SR();
     rec.lang = "pt-BR";
     rec.interimResults = false;
-    rec.continuous = false;
+    // Ouve ate a pessoa tocar em parar, e nao so a primeira frase: no mercado ela fala,
+    // pensa, pega o produto, fala de novo. Antes a primeira pausa (ou um barulho) encerrava
+    // a escuta e o resto da lista se perdia.
+    rec.continuous = true;
+    ouvidoRef.current = [];
+    paradaRef.current = false;
+    inicioRef.current = Date.now();
     rec.onresult = (e) => {
-      const frase = e.results[0][0].transcript ?? "";
+      for (let i = e.resultIndex; i < e.results.length; i++)
+        if (e.results[i].isFinal) ouvidoRef.current.push(e.results[i][0].transcript);
+    };
+    rec.onerror = (e) => {
+      // Sem permissao nao adianta insistir; silencio e barulho, sim (ver onend).
+      if (/not-allowed|service-not-allowed|audio-capture/.test(e.error)) {
+        paradaRef.current = true;
+        setErro("Não consegui usar o microfone. Verifique a permissão do navegador.");
+      }
+    };
+    rec.onend = () => {
+      // O aparelho encerra sozinho depois de um silencio ou de ruido que ele nao entende
+      // (iPhone faz muito isso). Se a pessoa nao pediu para parar, volta a ouvir e soma.
+      if (!paradaRef.current && Date.now() - inicioRef.current < MAX_SEGUNDOS * 1000) {
+        try {
+          rec.start();
+          return;
+        } catch {
+          /* nao reabriu: fica com o que ja ouviu */
+        }
+      }
+      falaRef.current = null;
+      // Cada trecho entre pausas costuma ser um item: a virgula ajuda a separar.
+      const frase = ouvidoRef.current.join(", ").trim();
+      if (!frase) {
+        setErro((x) => x || "Não ouvi nada. Fale de novo, com o celular virado para você.");
+        setFase("gravar");
+        return;
+      }
       const r = interpretarLocal(frase);
-      mostrarResultado(frase, r.intencao, r.itens);
+      void mostrarResultado(frase, r.intencao, r.itens, true);
     };
-    rec.onerror = () => {
-      setErro("Não consegui ouvir. Tente de novo, mais perto do microfone.");
-      setFase("gravar");
-    };
-    rec.onend = () => setFase((f) => (f === "gravando" ? "gravar" : f));
     falaRef.current = rec;
     setSegundos(0);
     setErro("");
@@ -386,8 +444,8 @@ export function VoiceModal({
           </p>
           {modoLocal && (
             <p className="mb-4 rounded-[13px] border border-border bg-card-2 p-3 text-[12px] leading-snug text-text-2">
-              Ouvindo pelo próprio aparelho, sem servidor. Funciona bem com frases
-              curtas; confira os itens antes de salvar.
+              Ouvindo pelo próprio aparelho, sem servidor. Pode falar a lista inteira, com
+              pausas; eu só paro quando você tocar. O que eu não reconhecer, você confere.
             </p>
           )}
 

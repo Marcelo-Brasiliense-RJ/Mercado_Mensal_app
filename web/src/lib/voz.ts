@@ -224,6 +224,31 @@ function lePedaco(txt: string): Pedaco {
   return { nome: nome.join(" ").trim(), qtd, preco, unidade };
 }
 
+// Quem dita uma lista nao fala virgula: "um arroz um feijao cinco detergente" chegava
+// como um item so ("arroz feijao detergente", qtd 1, preco 1). Aqui um numero inteiro
+// abre item novo quando o pedaco ja tem nome ou ja tem numero ("carne 2 kg cinco
+// detergente"). "5 reais" continua preco do item (nao quebra) e "2 kg" depois do nome
+// vira pedaco sem nome, que completa o item anterior.
+function quebraPorNumero(trecho: string): string[] {
+  const tk = trecho.trim().split(/\s+/).filter(Boolean);
+  const saida: string[][] = [[]];
+  let temNome = false;
+  let temNumero = false;
+  tk.forEach((t, i) => {
+    const n = Number(t.replace(",", "."));
+    const numero = Number.isFinite(n);
+    const preco = /^(reais|real)$/.test(tk[i + 1] ?? "");
+    if (numero && Number.isInteger(n) && (temNome || temNumero) && !preco) {
+      saida.push([]);
+      temNome = temNumero = false;
+    }
+    saida[saida.length - 1].push(t);
+    if (numero) temNumero = true;
+    else if (!LIXO.has(t) && !UNIDADE_PALAVRA[t]) temNome = true;
+  });
+  return saida.map((p) => p.join(" "));
+}
+
 export function interpretarLocal(texto: string): {
   intencao: VozIntencao;
   itens: VozItem[];
@@ -233,6 +258,7 @@ export function interpretarLocal(texto: string): {
 
   const pedacos = numerosPorExtenso(texto)
     .split(/,| e /)
+    .flatMap(quebraPorNumero)
     .map((p) => p.trim())
     .filter(Boolean)
     .map(lePedaco);
