@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buscas, melhor, nota, urlFoto } from "./fotoPorNome";
+import { buscas, melhor, nota, parecido, urlFoto } from "./fotoPorNome";
 
 describe("foto pelo nome", () => {
   it("prefere o produto com as palavras do item", () => {
@@ -40,6 +40,25 @@ describe("foto pelo nome", () => {
   });
 
   it("endereço versionado: regra nova não usa foto velha guardada", () => {
-    expect(urlFoto(" Hibisco Em Pó ")).toBe("/api/foto?v=3&nome=hibisco%20em%20p%C3%B3");
+    expect(urlFoto(" Hibisco Em Pó ")).toBe("/api/foto?v=4&nome=hibisco%20em%20p%C3%B3");
+  });
+});
+
+describe("parecido (segunda chance)", () => {
+  const c = (nome: string) => ({ nome });
+  it("aceita o mesmo produto de outra marca", () => {
+    expect(parecido("oleo de soja coamo", [c("Óleo Soja Vitaliv 900ml")])?.nome).toBe("Óleo Soja Vitaliv 900ml");
+    expect(parecido("peito de frango moido", [c("Peito de Frango Sadia 1kg")])).not.toBeNull();
+  });
+  it("nome de duas palavras nao tem segunda chance (variedade errada engana)", () => {
+    expect(parecido("xarope de acai", [c("Xarope Dilute Tangerina 500ml")])).toBeNull();
+    expect(parecido("farinha neston", [c("Farinha de Rosca 500g")])).toBeNull();
+  });
+  it("continua exigindo comecar pelo que o item e", () => {
+    expect(parecido("alho", [c("Tempero Alho e Sal")])).toBeNull();
+    expect(parecido("cloro", [c("Agua Sanitaria com Cloro")])).toBeNull();
+  });
+  it("recusa quando bate menos da metade das palavras", () => {
+    expect(parecido("leite condensado moca light", [c("Leite Condensado Itambe")])).toBeNull();
   });
 });
