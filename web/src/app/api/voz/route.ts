@@ -19,7 +19,7 @@ const MAX_BYTES = 8 * 1024 * 1024; // ~1 min de opus sobra; corta antes de gasta
 
 const INSTRUCAO = `Você organiza compras de supermercado de uma família brasileira.
 Recebe uma frase falada e devolve SOMENTE JSON, no formato:
-{"intencao":"lista|carrinho|estoque","itens":[{"nome":"","qtd":1,"unidade":"un","preco_total":null,"duvida":false}]}
+{"intencao":"lista|carrinho|estoque","itens":[{"nome":"","qtd":1,"unidade":"un","preco_total":null,"duvida":false,"nao_precisa":false}]}
 
 Como classificar a intenção, pelo verbo:
 - "carrinho": acabou de pegar/comprar agora ("peguei", "comprei", "botei no carrinho", "custou").
@@ -33,11 +33,15 @@ Regras dos itens:
 - "unidade": un, kg, g, L, ml, pct, cx ou dz. Contável sem medida falada ("5 detergentes", "2 sabonetes") é "un". "2 quilos de carne" é kg. Sem certeza, use "un".
 - "preco_total": o valor falado é o TOTAL daquele item, em reais, como número. Sem preço dito, null.
 - "duvida": true quando você NÃO tem certeza de que entendeu o produto (palavra que não parece produto de mercado, nome cortado ou embolado, só a marca sem dizer o que é). Produto claro = false.
+- "nao_precisa": true quando a pessoa diz que NÃO precisa daquele item ("não precisa comprar macarrão", "não compra creme de leite", "macarrão não, já tem muito"). O "não" vale para os itens seguintes até ela voltar a dizer o que comprar. Esses itens também vão em "itens", com nao_precisa true.
 - Não invente preço, quantidade nem item que não foi falado.
 - Vários produtos na mesma frase viram vários itens.
 
 Exemplo: "tá faltando 1 arroz, 1 feijão, 5 detergentes e arroz da Máximo" =
-{"intencao":"lista","itens":[{"nome":"arroz","qtd":1,"unidade":"un","preco_total":null,"duvida":false},{"nome":"feijão","qtd":1,"unidade":"un","preco_total":null,"duvida":false},{"nome":"detergente","qtd":5,"unidade":"un","preco_total":null,"duvida":false},{"nome":"arroz máximo","qtd":1,"unidade":"un","preco_total":null,"duvida":false}]}`;
+{"intencao":"lista","itens":[{"nome":"arroz","qtd":1,"unidade":"un","preco_total":null,"duvida":false},{"nome":"feijão","qtd":1,"unidade":"un","preco_total":null,"duvida":false},{"nome":"detergente","qtd":5,"unidade":"un","preco_total":null,"duvida":false},{"nome":"arroz máximo","qtd":1,"unidade":"un","preco_total":null,"duvida":false}]}
+
+Exemplo: "tem que comprar arroz, mas não precisa comprar macarrão nem creme de leite" =
+{"intencao":"lista","itens":[{"nome":"arroz","qtd":1,"unidade":"un","preco_total":null,"duvida":false,"nao_precisa":false},{"nome":"macarrão","qtd":1,"unidade":"un","preco_total":null,"duvida":false,"nao_precisa":true},{"nome":"creme de leite","qtd":1,"unidade":"un","preco_total":null,"duvida":false,"nao_precisa":true}]}`;
 
 export async function POST(req: Request) {
   const supabase = await createClient();

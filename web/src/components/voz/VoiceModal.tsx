@@ -67,7 +67,8 @@ export function VoiceModal({
   onClose: () => void;
   tela?: Tela;
 }) {
-  const { addShopItem, addTripItem, addStock, removeItems, showToast, stock } = useStore();
+  const { addShopItem, addTripItem, addStock, removeItems, addNaoPrecisa, removeNaoPrecisa, showToast, stock } =
+    useStore();
   // Dentro de um mercado conhecido (GPS), vale como se estivesse na Lista: carrinho.
   // Montar lista e excecao: la a pessoa diz o que falta, esteja onde estiver.
   const { noMercado } = useLugar();
@@ -221,6 +222,11 @@ export function VoiceModal({
   async function mostrarResultado(frase: string, intencao: VozIntencao, lidos: VozItem[], local = false) {
     setTexto(frase);
     setDestino(destinoDaTela(telaAgora, intencao));
+    // "nao precisa comprar macarrao": vai para "Nao precisa agora" (0053), nao para a
+    // lista nem para a conferencia. No Estoque nao se aplica (la e o que tem em casa).
+    const np = tela === "estoque" ? [] : lidos.filter((i) => i.naoPrecisa);
+    lidos = lidos.filter((i) => !np.includes(i));
+    const naoPrecisa = np.length ? await marcarNaoPrecisa(np.map((i) => i.nome)) : null;
     const linhas: GridItem[] = lidos.map((i) => ({
       nome: i.nome,
       qtd: i.qtd,
@@ -241,16 +247,55 @@ export function VoiceModal({
         (i) => !i.duvida && i.nome.trim().length >= 3 && (!local || !!findByName(i.nome, stock)),
       );
       const duvidas = linhas.filter((i) => !certos.includes(i));
-      const falharam = certos.length ? await porDireto(certos) : [];
+      const falharam = certos.length ? await porDireto(certos, naoPrecisa) : [];
+      if (!certos.length && naoPrecisa) avisar([], [], naoPrecisa);
       const resto = [...duvidas, ...falharam].map((i) => ({ ...i, duvida: true }));
-      if (!resto.length && certos.length) return fechar();
+      if (!resto.length && (certos.length || naoPrecisa)) return fechar();
       setJaForam(certos.length - falharam.length);
       setItens(resto);
       setFase("conferir");
       return;
     }
+    if (naoPrecisa) avisar([], [], naoPrecisa);
+    if (!linhas.length && naoPrecisa) return fechar();
     setItens(linhas);
     setFase("conferir");
+  }
+
+  // Marca cada "nao precisa"; devolve o que entrou (nomes e ids, para o Desfazer).
+  async function marcarNaoPrecisa(nomes: string[]) {
+    const feito = { nomes: [] as string[], ids: [] as number[] };
+    for (const n of nomes) {
+      const r = await addNaoPrecisa(n.trim());
+      if (r.ok) {
+        feito.nomes.push(n.trim());
+        feito.ids.push(r.id);
+      } else showToast(r.erro);
+    }
+    return feito.ids.length ? feito : null;
+  }
+
+  // Um aviso so para a fala inteira: o que entrou na lista e o que ficou como "nao
+  // precisa", com um Desfazer que desfaz os dois.
+  function avisar(foram: string[], novos: string[], np: { nomes: string[]; ids: number[] } | null) {
+    const curto = (l: string[]) => (l.length > 3 ? `${l.slice(0, 3).join(", ")} e mais ${l.length - 3}` : l.join(", "));
+    const partes = [
+      foram.length ? `Na lista: ${curto(foram)}` : "",
+      np ? `Não precisa: ${curto(np.nomes)}` : "",
+    ].filter(Boolean);
+    const desfaz = novos.length || np;
+    showToast(
+      partes.join(" · "),
+      desfaz
+        ? {
+            desfazer: async () => {
+              const r = novos.length ? await removeItems(novos) : { ok: true as const };
+              for (const id of np?.ids ?? []) await removeNaoPrecisa(id);
+              showToast(r.ok ? "Desfeito" : r.erro);
+            },
+          }
+        : undefined,
+    );
   }
 
   // Ids pendentes da lista, para saber depois quais linhas a voz criou (a RPC de
@@ -265,7 +310,10 @@ export function VoiceModal({
   // Poe na lista sem perguntar. Devolve os que o banco recusou, para irem a conferencia.
   // O Desfazer do aviso tira exatamente as linhas criadas agora; o desfazer do banco
   // (0023) nao serve aqui porque incluir pelo app nao grava evento.
-  async function porDireto(certos: GridItem[]): Promise<GridItem[]> {
+  async function porDireto(
+    certos: GridItem[],
+    np: { nomes: string[]; ids: number[] } | null,
+  ): Promise<GridItem[]> {
     setFase("salvando");
     const antes = await pendentes();
     const foram: string[] = [];
@@ -280,22 +328,13 @@ export function VoiceModal({
       if (r.ok) foram.push(it.nome.trim());
       else falharam.push(it);
     }
-    if (!foram.length) return falharam;
+    if (!foram.length) {
+      if (np) avisar([], [], np);
+      return falharam;
+    }
     const depois = antes ? await pendentes() : null;
     const novos = antes && depois ? [...depois].filter((id) => !antes.has(id)) : [];
-    const nomes =
-      foram.length > 3 ? `${foram.slice(0, 3).join(", ")} e mais ${foram.length - 3}` : foram.join(", ");
-    showToast(
-      `Na lista: ${nomes}`,
-      novos.length
-        ? {
-            desfazer: async () => {
-              const r = await removeItems(novos);
-              showToast(r.ok ? "Desfeito: saiu da lista" : r.erro);
-            },
-          }
-        : undefined,
-    );
+    avisar(foram, novos, np);
     return falharam;
   }
 

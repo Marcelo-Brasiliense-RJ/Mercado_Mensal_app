@@ -24,7 +24,12 @@ type Data = {
   savings: SavingRow[];
   months: MonthPoint[];
   trip: Trip | null; // compra em andamento (modo "No mercado"); null se nao houver
+  naoPrecisa: NaoPrecisa[]; // "Nao precisa agora" (0053); [] antes dela
 };
+
+// Item que a casa disse que nao precisa comprar agora (0053). Sai sozinho quando o
+// estoque baixa; estoque/unidade vem do produto, quando existe.
+export type NaoPrecisa = { id: number; nome: string; estoque: number | null; unidade: string | null };
 
 const EMPTY: Data = {
   stock: [],
@@ -33,6 +38,7 @@ const EMPTY: Data = {
   savings: [],
   months: [],
   trip: null,
+  naoPrecisa: [],
 };
 
 // Resultado de uma escrita. `erro` ja vem em portugues, pronto pro toast: quem
@@ -160,6 +166,9 @@ type Store = Data & {
   addStockToList: (item: StockItem) => Promise<RpcResult>;
   buyItems: (ids: string[]) => Promise<RpcResult>;
   removeItems: (ids: string[]) => Promise<RpcResult>;
+  // "Nao precisa agora" (0053). Marcar devolve o id, para o Desfazer da voz tirar.
+  addNaoPrecisa: (nome: string) => Promise<{ ok: true; id: number } | { ok: false; erro: string }>;
+  removeNaoPrecisa: (id: number) => Promise<RpcResult>;
   setBudget: (total: number) => Promise<RpcResult>;
   updateCompra: (id: string, patch: { qty?: number; price?: number }) => Promise<RpcResult>;
   deleteCompra: (id: string) => Promise<RpcResult>;
@@ -200,11 +209,13 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
     setDataLoading(true);
     try {
       const supabase = createClient();
-      const [stockR, listR, ecoR, tripR] = await Promise.all([
+      const [stockR, listR, ecoR, tripR, npR] = await Promise.all([
         supabase.rpc("mercado_stock_web"),
         supabase.rpc("mercado_list_web"),
         supabase.rpc("mercado_economia_web"),
         supabase.rpc("mercado_trip_web"),
+        // sem a 0053 volta erro e a lista fica vazia: o resto do app segue igual
+        supabase.rpc("mercado_nao_precisa_web"),
       ]);
       const eco = (ecoR.data ?? {}) as {
         budget?: { total: number; spent: number };
@@ -218,6 +229,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
         months: eco.months ?? [],
         savings: eco.savings ?? [],
         trip: (tripR.data as Trip | null) ?? null,
+        naoPrecisa: (npR.data as { itens?: NaoPrecisa[] } | null)?.itens ?? [],
       });
       setDataReady(true);
     } catch {
@@ -642,6 +654,29 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
     [reloadData, listaStatusLocal],
   );
 
+  const addNaoPrecisa = useCallback(async (nome: string) => {
+    try {
+      const { data, error } = await createClient().rpc("mercado_nao_precisa_add_web", { p_nome: nome });
+      const r = data as { ok?: boolean; id?: number; erro?: string } | null;
+      if (rpcAusente(error)) return { ok: false as const, erro: "Lista \"Não precisa\" ainda não ativada (falta a 0053)." };
+      if (error || !r?.ok || r.id == null) return { ok: false as const, erro: ERROS[r?.erro ?? ""] ?? "Não deu para salvar. Tente de novo." };
+      void reloadData();
+      return { ok: true as const, id: r.id };
+    } catch {
+      return { ok: false as const, erro: "Sem conexão. Tente de novo." };
+    }
+  }, [reloadData]);
+
+  const removeNaoPrecisa = useCallback(
+    async (id: number) => {
+      setData((d) => ({ ...d, naoPrecisa: d.naoPrecisa.filter((n) => n.id !== id) }));
+      const r = await callRpc("mercado_nao_precisa_remover_web", { p_id: id });
+      void reloadData();
+      return r;
+    },
+    [reloadData],
+  );
+
   const removeItems = useCallback(
     async (ids: string[]) => {
       const r = await callRpc("mercado_list_remove_web", { p_ids: ids });
@@ -765,6 +800,8 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       addStockToList,
       buyItems,
       removeItems,
+      addNaoPrecisa,
+      removeNaoPrecisa,
       setBudget,
       updateCompra,
       deleteCompra,
@@ -809,6 +846,8 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       addStockToList,
       buyItems,
       removeItems,
+      addNaoPrecisa,
+      removeNaoPrecisa,
       setBudget,
       updateCompra,
       deleteCompra,

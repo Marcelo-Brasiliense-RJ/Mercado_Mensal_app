@@ -131,3 +131,35 @@ describe("interpretarLocal sem virgula", () => {
     ]);
   });
 });
+
+describe("nao precisa comprar", () => {
+  it("separa o que comprar do que nao precisa, como a casa fala", () => {
+    const r = interpretarLocal(
+      "tem que comprar arroz, tem que comprar feijão, mas não precisa comprar macarrão, não precisa comprar creme de leite",
+    );
+    expect(r.itens.map((i) => [i.nome, !!i.naoPrecisa])).toEqual([
+      ["arroz", false],
+      ["feijao", false],
+      ["macarrao", true],
+      ["creme de leite", true],
+    ]);
+  });
+
+  it("o nao vale ate voltar um comprar sem nao", () => {
+    const r = interpretarLocal("não precisa de macarrão e creme de leite, mas preciso de café");
+    expect(r.itens.map((i) => [i.nome, !!i.naoPrecisa])).toEqual([
+      ["macarrao", true],
+      ["creme de leite", true],
+      ["cafe", false],
+    ]);
+  });
+
+  it("da IA, so true vale", () => {
+    const [a, b] = normalizaItens([
+      { nome: "macarrao", nao_precisa: true },
+      { nome: "arroz", nao_precisa: "sim" },
+    ]);
+    expect(a.naoPrecisa).toBe(true);
+    expect(b.naoPrecisa).toBeUndefined();
+  });
+});

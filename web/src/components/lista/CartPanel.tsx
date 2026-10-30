@@ -9,6 +9,7 @@ import type { TripItem } from "@/lib/types";
 import { atualizarLugar, useLugar } from "@/lib/lugar";
 import { nomeMercado } from "@/lib/ofertas";
 import { QualMercado } from "./QualMercado";
+import { findByName } from "@/lib/defaults";
 
 // Painel do modo "No mercado". Ate a 0026 a compra so podia ser aberta e
 // alimentada pelo Telegram, e o painel era inalcancavel sem o bot. Agora o ciclo
@@ -22,7 +23,9 @@ export function CartPanel({ onScan }: { onScan?: () => void }) {
     cancelTrip,
     finalizeTrip,
     showToast,
+    naoPrecisa,
   } = useStore();
+  const naoPrecisaNomes = naoPrecisa.map((n) => ({ name: n.nome }));
   const [busy, setBusy] = useState(false);
   const { noMercado, mercado } = useLugar();
   // Item aberto no popup de editar. O preco falado erra com frequencia (a etiqueta
@@ -188,6 +191,12 @@ export function CartPanel({ onScan }: { onScan?: () => void }) {
                   </div>
                 )}
               </div>
+              {/* Disse na voz que nao precisava (0053): fica a vista enquanto estiver no carrinho. */}
+              {findByName(it.name, naoPrecisaNomes) && (
+                <span className="shrink-0 rounded-full bg-warn-soft px-2.5 py-[3px] text-[12px] font-bold text-warn">
+                  não precisava
+                </span>
+              )}
               {it.above_par && (
                 <span className="shrink-0 rounded-full bg-pos-soft px-2.5 py-[3px] text-[12px] font-bold text-pos">
                   já tinha

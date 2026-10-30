@@ -17,6 +17,9 @@ export type VozItem = {
   // O modelo nao teve certeza do produto (palavra que nao e produto, nome cortado,
   // marca sem o que e). Esse item nao entra sozinho: a tela pergunta.
   duvida?: boolean;
+  // "nao precisa comprar macarrao": nao vai para a lista, vai para "Nao precisa agora"
+  // (0053), e o app avisa se alguem puser no carrinho.
+  naoPrecisa?: boolean;
 };
 
 export type VozResposta =
@@ -93,7 +96,11 @@ export function normalizaItens(raw: unknown): VozItem[] {
     const preco = total != null && total > 0 ? +(total / qtd).toFixed(2) : null;
 
     // So `true` vale como duvida: qualquer outra coisa do modelo e "entendi".
-    itens.push({ nome, qtd, unidade, preco, ...(o.duvida === true ? { duvida: true } : {}) });
+    itens.push({
+      nome, qtd, unidade, preco,
+      ...(o.duvida === true ? { duvida: true } : {}),
+      ...(o.nao_precisa === true ? { naoPrecisa: true } : {}),
+    });
   }
   return itens;
 }
@@ -175,12 +182,15 @@ export function numerosPorExtenso(texto: string): string {
 }
 
 const LIXO = new Set([
+  "nao", "precisa", "mas", "nem", "quero", "ja", "tambem",
   "comprei", "peguei", "botei", "coloquei", "custou", "paguei", "preciso",
   "vou", "comprar", "falta", "faltou", "acabou", "anota", "ai", "tenho",
   "sobrou", "ainda", "tem", "conferindo", "conferi", "casa", "em", "de", "do",
   "da", "no", "na", "os", "as", "o", "a", "por", "cada", "reais", "real", "r$",
   "que", "e", "com", "pra", "para", "mais",
 ]);
+
+const CONECTOR = new Set(["de", "do", "da"]);
 
 type Pedaco = { nome: string; qtd: number | null; preco: number | null; unidade: string | null };
 
@@ -219,8 +229,11 @@ function lePedaco(txt: string): Pedaco {
       unidade = un;
       continue;
     }
-    if (!LIXO.has(t)) nome.push(t);
+    // "de/do/da" no meio do nome fica ("creme de leite"): sem ele o nome nao batia com
+    // o do estoque. No comeco ("preciso de cafe") e no fim ("arroz de", antes do preco) sai.
+    if (!LIXO.has(t) || (CONECTOR.has(t) && nome.length > 0)) nome.push(t);
   }
+  while (nome.length && CONECTOR.has(nome[nome.length - 1])) nome.pop();
   return { nome: nome.join(" ").trim(), qtd, preco, unidade };
 }
 
@@ -256,12 +269,20 @@ export function interpretarLocal(texto: string): {
   const cru = semAcento((texto ?? "").toLowerCase());
   const intencao = VERBOS.find(([re]) => re.test(cru))?.[1] ?? "lista";
 
+  // "tem que comprar arroz, mas nao precisa comprar macarrao, creme de leite": o "nao
+  // precisa" vale para os itens seguintes ate aparecer de novo um "comprar/preciso" sem
+  // "nao" na frente.
+  let negando = false;
   const pedacos = numerosPorExtenso(texto)
     .split(/,| e /)
     .flatMap(quebraPorNumero)
     .map((p) => p.trim())
     .filter(Boolean)
-    .map(lePedaco);
+    .map((p) => {
+      if (/\bnao (precisa|preciso|vou|compra|comprar|quero)\b/.test(p)) negando = true;
+      else if (/\b(tem que|preciso|precisa|falta|faltou|acabou|comprar|compra|quero)\b/.test(p)) negando = false;
+      return { ...lePedaco(p), naoPrecisa: negando };
+    });
 
   const itens: VozItem[] = [];
   for (const p of pedacos) {
@@ -286,6 +307,7 @@ export function interpretarLocal(texto: string): {
       qtd,
       unidade: p.unidade ?? unitFor(p.nome),
       preco: p.preco != null && p.preco > 0 ? +(p.preco / qtd).toFixed(2) : null,
+      ...(p.naoPrecisa ? { naoPrecisa: true } : {}),
     });
   }
   return { intencao, itens };

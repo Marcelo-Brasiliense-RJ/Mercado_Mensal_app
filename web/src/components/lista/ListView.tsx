@@ -19,6 +19,7 @@ import { RotaModal } from "./RotaModal";
 import { MontarLista } from "./MontarLista";
 import { useListaOfertas, useOfertas } from "@/components/ofertas/useOfertas";
 import { NaoCompro } from "@/components/ofertas/NaoCompro";
+import { NaoPrecisaAgora } from "./NaoPrecisaAgora";
 import { useLivelo } from "@/components/ofertas/useLivelo";
 import { comPontos, ofertasLivelo } from "@/lib/livelo";
 import { corMercado, corredor, faltaEmCasa, maisBarataPara, nomeMercado, porMercado, resumir } from "@/lib/ofertas";
@@ -240,6 +241,7 @@ export function ListView() {
 
         {/* Nao compro (0045): os produtos ruins, aqui onde a lista e montada. */}
         <NaoCompro ofertas={ofertasMercado} escondidas={escondidas} />
+        <NaoPrecisaAgora />
 
         {/* Lista do mes num toque: o app ja sabe o que falta para completar a casa. */}
         {!trip && doMes.length > 0 && (
