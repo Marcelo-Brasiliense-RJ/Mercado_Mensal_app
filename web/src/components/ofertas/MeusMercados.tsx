@@ -163,11 +163,31 @@ export function MercadosDaCasa() {
 
   return (
     <>
-      <button onClick={() => setAberto(true)} className="-mt-3 flex w-full items-center justify-between gap-2 rounded-xl bg-card-2 px-3 py-2.5 text-left">
-        <span className="min-w-0 truncate text-[13px] text-text-2">
-          🏪 {meus?.length ? meus.map(nomeMercado).join(", ") : "Todos os mercados"}
+      {/* Os mercados da casa: icone, as cores de cada um e Trocar, logo abaixo da busca. */}
+      <button
+        onClick={() => setAberto(true)}
+        className="flex w-full items-center gap-3 rounded-2xl border border-border bg-card px-3.5 py-3 text-left"
+      >
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-brand-soft text-[20px]" aria-hidden>
+          🏪
         </span>
-        <span className="shrink-0 text-[13px] font-bold text-brand">{meus?.length ? "Trocar" : "Escolher os meus"}</span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[15px] font-extrabold">Seus mercados</span>
+          <span className="mt-1 flex flex-wrap gap-1">
+            {meus?.length ? (
+              meus.map((m) => (
+                <span key={m} className="rounded-md px-1.5 py-[1px] text-[11px] font-extrabold text-white" style={{ background: corMercado(m) }}>
+                  {nomeMercado(m)}
+                </span>
+              ))
+            ) : (
+              <span className="text-[12px] text-text-2">Todos os mercados</span>
+            )}
+          </span>
+        </span>
+        <span className="shrink-0 rounded-full bg-card-2 px-3 py-1.5 text-[13px] font-bold text-brand">
+          {meus?.length ? "Trocar" : "Escolher"}
+        </span>
       </button>
       {novo && (
         <div className="flex items-center gap-3 rounded-2xl border-2 border-dashed border-brand/50 bg-card px-3.5 py-3">
