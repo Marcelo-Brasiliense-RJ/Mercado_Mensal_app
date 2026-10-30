@@ -53,6 +53,7 @@ export async function GET(req: Request) {
     return new Response(null, { status: 404, headers: { "cache-control": "public, max-age=86400" } });
   return new Response(null, {
     status: 302,
-    headers: { location: url, "cache-control": `public, max-age=${SEMANA}, s-maxage=${SEMANA}` },
+    // celular guarda 1 dia, a borda 1 semana (troca de regra: muda VERSAO_FOTO no endereco)
+    headers: { location: url, "cache-control": `public, max-age=86400, s-maxage=${SEMANA}` },
   });
 }

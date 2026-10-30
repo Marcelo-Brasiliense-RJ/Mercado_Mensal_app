@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { urlFoto } from "@/lib/fotoPorNome";
 import { categoriaDe, ICONE } from "@/lib/categorias";
 
 // Foto de um item da casa pelo nome (/api/foto). Sem foto, o icone da categoria:
@@ -17,7 +18,7 @@ export function FotoItem({ nome, className = "" }: { nome: string; className?: s
   return (
     // eslint-disable-next-line @next/next/no-img-element -- miniatura da loja, cacheada pela rota
     <img
-      src={`/api/foto?nome=${encodeURIComponent(nome.trim().toLowerCase())}`}
+      src={urlFoto(nome)}
       alt=""
       loading="lazy"
       onError={() => setFalhou(true)}

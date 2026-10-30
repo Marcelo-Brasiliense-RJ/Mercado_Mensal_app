@@ -60,3 +60,10 @@ export function buscas(nome: string): string[] {
   const ps = palavras(nome);
   return [...new Set([nome.trim(), ps.join(" "), ps.slice(0, 3).join(" ")].filter((q) => q.length >= 2))];
 }
+
+// Endereco da foto de um item. A versao muda quando a regra de escolha muda: o celular e
+// a borda guardam a foto por dias, e sem trocar o endereco a foto errada antiga continuava
+// aparecendo (v2: so produto com todas as palavras do item).
+export const VERSAO_FOTO = 2;
+export const urlFoto = (nome: string) =>
+  `/api/foto?v=${VERSAO_FOTO}&nome=${encodeURIComponent(nome.trim().toLowerCase())}`;

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { urlFoto } from "@/lib/fotoPorNome";
 import { brl } from "@/lib/format";
 import { corMercado, nomeMercado, porUnidade, type Oferta } from "@/lib/ofertas";
 import { ICONE } from "@/lib/categorias";
@@ -27,7 +28,7 @@ export function Foto({ o, src, className = "" }: { o?: Oferta | null; src?: stri
     (o?.tem_foto
       ? `/api/oferta-foto?id=${o.id}`
       : o
-        ? `/api/foto?nome=${encodeURIComponent(`${o.produto} ${o.marca}`.trim().toLowerCase())}`
+        ? urlFoto(`${o.produto} ${o.marca}`)
         : null);
   if (!url || falhou) {
     return (

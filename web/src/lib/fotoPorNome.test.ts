@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buscas, melhor, nota } from "./fotoPorNome";
+import { buscas, melhor, nota, urlFoto } from "./fotoPorNome";
 
 describe("foto pelo nome", () => {
   it("prefere o produto com as palavras do item", () => {
@@ -32,5 +32,14 @@ describe("foto pelo nome", () => {
       "detergente liquido odd poder bicarbonato sodio",
       "detergente liquido odd",
     ]);
+  });
+
+  it("palavra em comum não basta (hibisco em pó não é sabão em pó)", () => {
+    expect(melhor("Hibisco Em Pó Puro", [{ nome: "Lava Roupas em Pó Omo Puro Cuidado 800g" }, { nome: "Omo Puro Cuidado" }])).toBeNull();
+    expect(melhor("Hibisco Em Pó Puro", [{ nome: "Hibisco em Pó Puro Kodilar 100g" }])?.nome).toBe("Hibisco em Pó Puro Kodilar 100g");
+  });
+
+  it("endereço versionado: regra nova não usa foto velha guardada", () => {
+    expect(urlFoto(" Hibisco Em Pó ")).toBe("/api/foto?v=2&nome=hibisco%20em%20p%C3%B3");
   });
 });
