@@ -10,7 +10,9 @@ import { buscas, melhor } from "@/lib/fotoPorNome";
 
 export const runtime = "nodejs";
 
-const LOJAS = ["www.savegnago.com.br", "www.mambo.com.br"];
+// Prezunic (RJ) entrou porque acha marca regional que as outras nao tem (arroz Maximo,
+// Skiny, Fofura): de 32 nomes reais da casa, foi de 27 para 30 com foto.
+const LOJAS = ["www.savegnago.com.br", "www.mambo.com.br", "www.prezunic.com.br"];
 const SEMANA = 60 * 60 * 24 * 7;
 
 type Produto = { productName?: string; items?: { images?: { imageUrl?: string }[] }[] };

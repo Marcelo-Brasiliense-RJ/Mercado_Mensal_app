@@ -3,7 +3,8 @@
 import { useMemo, useRef, useState } from "react";
 import { brl } from "@/lib/format";
 import { useStore } from "@/lib/store";
-import { SearchIcon } from "@/components/ui/icons";
+import { MicIcon, SearchIcon } from "@/components/ui/icons";
+import { VoiceModal } from "@/components/voz/VoiceModal";
 import { FotoItem } from "@/components/ui/FotoItem";
 import { Foto } from "@/components/ofertas/pecas";
 import { useListaOfertas } from "@/components/ofertas/useOfertas";
@@ -29,6 +30,7 @@ export function MontarLista({ onClose }: { onClose: () => void }) {
   const [aba, setAba] = useState<Aba>(acabandoTodos.length ? "acabando" : "casa");
   const [busca, setBusca] = useState("");
   const [adicionados, setAdicionados] = useState(0);
+  const [falar, setFalar] = useState(false);
   // Em oferta sao milhares: filtra por mercado e por corredor, e mostra aos poucos.
   const [mercadoF, setMercadoF] = useState<string | null>(null);
   const [catF, setCatF] = useState<string | null>(null);
@@ -323,6 +325,17 @@ export function MontarLista({ onClose }: { onClose: () => void }) {
           </>
         )}
       </div>
+
+      {/* Falar a lista inteira de uma vez ("falta arroz, feijao, 5 detergentes"): o que a
+          IA entende entra direto, o que ficar em duvida ela pergunta (VoiceModal tela="lista"). */}
+      <button
+        onClick={() => setFalar(true)}
+        aria-label="Falar a lista"
+        className="fixed bottom-[calc(92px+env(safe-area-inset-bottom))] right-4 z-10 grid h-[60px] w-[60px] place-items-center rounded-full bg-brand text-brand-ink shadow-[0_10px_26px_var(--shadow-lg)] active:scale-95"
+      >
+        <MicIcon size={28} />
+      </button>
+      <VoiceModal open={falar} onClose={() => setFalar(false)} tela="lista" />
 
       <div className="fixed inset-x-0 bottom-0 border-t border-border bg-card px-4 pb-[max(12px,env(safe-area-inset-bottom))] pt-3">
         <button onClick={onClose} className="h-[52px] w-full rounded-[14px] bg-brand text-[16px] font-extrabold text-brand-ink">

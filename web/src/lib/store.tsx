@@ -170,7 +170,9 @@ type Store = Data & {
     items: { nome: string; marca?: string; qtd: number; preco: number; unidade: string }[],
     meta?: { chave: string; emitente?: string; total?: number },
   ) => Promise<{ ok: boolean; erro?: string; itens?: number }>;
-  showToast: (msg: string, opts?: { desfazer?: boolean }) => void;
+  // desfazer como funcao: quem escreveu sabe o que desfazer (a voz tira da lista os
+  // itens que acabou de por). `true` usa o desfazer do banco (ultimo evento, 0023).
+  showToast: (msg: string, opts?: { desfazer?: boolean | (() => Promise<void>) }) => void;
 };
 
 const Ctx = createContext<Store | null>(null);
@@ -189,6 +191,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   const [toastDesfazer, setToastDesfazer] = useState(false);
   const [receiptOpen, setReceiptOpen] = useState(false);
   const toastT = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const desfazerProprio = useRef<(() => Promise<void>) | null>(null);
 
   const openReceipt = useCallback(() => setReceiptOpen(true), []);
   const closeReceipt = useCallback(() => setReceiptOpen(false), []);
@@ -540,9 +543,10 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
     [reloadTrip],
   );
 
-  const showToast = useCallback((msg: string, opts?: { desfazer?: boolean }) => {
+  const showToast = useCallback((msg: string, opts?: { desfazer?: boolean | (() => Promise<void>) }) => {
     setToast(msg);
     setToastDesfazer(!!opts?.desfazer);
+    desfazerProprio.current = typeof opts?.desfazer === "function" ? opts.desfazer : null;
     if (toastT.current) clearTimeout(toastT.current);
     // Com "Desfazer" o aviso fica mais tempo: da para ler e tocar com calma.
     toastT.current = setTimeout(() => {
@@ -556,6 +560,9 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   // o upgrade e passar o id do evento que a escrita devolve.
   const desfazer = useCallback(async () => {
     setToastDesfazer(false);
+    const proprio = desfazerProprio.current;
+    desfazerProprio.current = null;
+    if (proprio) return proprio();
     try {
       const { data, error } = await createClient().rpc("mercado_desfazer_web");
       const r = data as { ok?: boolean; item?: string } | null;
