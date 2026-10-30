@@ -77,7 +77,7 @@ export function DeOlho({
         >
           <span className="text-[16px] font-extrabold">Quer algo só quando estiver em promoção?</span>
           <span className="text-[13px] text-text-2">
-            Toque aqui ou na ⭐ de uma oferta. Mostro onde está e até quando, e aviso no celular.
+            Toque aqui e diga o produto. Mostro onde está e até quando, e aviso no celular.
           </span>
           <span className="mt-2 rounded-xl bg-brand px-4 py-2 text-[14px] font-bold text-white">⭐ Ficar de olho</span>
         </button>
@@ -383,38 +383,3 @@ export function AvisoCelular() {
     </div>
   );
 }
-
-// Estrela do card: acende quando a oferta ja esta De olho; tocar marca ou desmarca.
-export function Estrela({ o }: { o: Oferta }) {
-  const desejos = useDesejos();
-  const { showToast } = useStore();
-  const [busy, setBusy] = useState(false);
-  if (!desejos) return null;
-  const marcados = desejos.filter((d) => ofertasDo(d, [o]).length);
-  const ligado = marcados.length > 0;
-  return (
-    <button
-      disabled={busy}
-      onClick={async (e) => {
-        e.stopPropagation();
-        setBusy(true);
-        if (ligado) {
-          for (const d of marcados) await removerDesejo(d.id);
-          showToast(`${marcados.map((d) => d.nome).join(", ")} saiu do De olho`);
-        } else {
-          const d = await salvarDesejo(termoDe(o), o.produto, o.id);
-          showToast(d ? `⭐ De olho em ${d.nome}: aviso nas próximas promoções` : "Não deu para guardar.");
-        }
-        setBusy(false);
-      }}
-      aria-label={ligado ? `Parar de vigiar ${o.produto}` : `Ficar de olho em ${o.produto}`}
-      aria-pressed={ligado}
-      className={`absolute right-1 top-1 grid h-11 w-11 place-items-center rounded-full text-[22px] leading-none shadow-[0_1px_4px_var(--shadow)] ${
-        ligado ? "bg-[#FFF4CC] text-[#D99A00]" : "bg-card/90 text-text-3"
-      }`}
-    >
-      {ligado ? "★" : "☆"}
-    </button>
-  );
-}
-

@@ -61,7 +61,7 @@ export function NaoCompro({ ofertas, escondidas = 0 }: { ofertas: Oferta[]; esco
             + Marcar produto ruim
           </button>
           <p className="px-1 text-[12px] text-text-3">
-            Também dá para marcar no 👎 de cada oferta ou no leitor de código.
+            Também dá para marcar no leitor de código ou ao excluir um item do Estoque.
           </p>
         </div>
       )}
@@ -150,27 +150,5 @@ function MarcarRuimModal({ ofertas, onClose }: { ofertas: Oferta[]; onClose: () 
         </div>
       )}
     </Modal>
-  );
-}
-
-// 👎 no canto da foto do card de oferta.
-export function Polegar({ o }: { o: Oferta }) {
-  const { showToast } = useStore();
-  const [busy, setBusy] = useState(false);
-  return (
-    <button
-      disabled={busy}
-      onClick={async (e) => {
-        e.stopPropagation();
-        setBusy(true);
-        const ok = await marcarRuim({ termo: termoEvitar(o.produto, o.marca), nome: nomeCompleto(o), oferta: o.id });
-        setBusy(false);
-        showToast(ok ? `👎 ${o.produto}: não aparece mais (desfaça em Não compro)` : "Não deu para marcar.");
-      }}
-      aria-label={`Marcar ${o.produto} como ruim`}
-      className="absolute left-1 top-1 grid h-11 w-11 place-items-center rounded-full bg-card/90 text-[18px] shadow-[0_1px_4px_var(--shadow)]"
-    >
-      👎
-    </button>
   );
 }
