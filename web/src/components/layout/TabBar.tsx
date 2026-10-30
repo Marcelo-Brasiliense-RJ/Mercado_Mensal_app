@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BoxIcon, ListIcon, ChartIcon, TagIcon } from "@/components/ui/icons";
+import { BoxIcon, ListIcon, ChartIcon, HeartIcon, TagIcon } from "@/components/ui/icons";
 
 const tabs = [
   { href: "/app/estoque", label: "Estoque", Icon: BoxIcon },
   { href: "/app/lista", label: "Lista", Icon: ListIcon },
   { href: "/app/ofertas", label: "Ofertas", Icon: TagIcon },
+  { href: "/app/livelo", label: "Livelo", Icon: HeartIcon },
   { href: "/app/economia", label: "Economia", Icon: ChartIcon },
 ];
 

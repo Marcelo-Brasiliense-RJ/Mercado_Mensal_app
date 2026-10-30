@@ -12,6 +12,7 @@ import {
   MoonIcon,
   RefreshIcon,
   TagIcon,
+  HeartIcon,
 } from "@/components/ui/icons";
 import { BrandMark } from "@/components/ui/BrandMark";
 import { useHousehold } from "@/lib/household";
@@ -23,6 +24,7 @@ const nav = [
   { href: "/app/estoque", label: "Estoque", Icon: BoxIcon },
   { href: "/app/lista", label: "Lista de compras", Icon: ListIcon },
   { href: "/app/ofertas", label: "Ofertas", Icon: TagIcon },
+  { href: "/app/livelo", label: "Livelo", Icon: HeartIcon },
   { href: "/app/economia", label: "Economia", Icon: ChartIcon },
 ];
 

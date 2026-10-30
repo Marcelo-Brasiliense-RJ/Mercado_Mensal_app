@@ -24,22 +24,25 @@ import { marcarFixo, registrarCompraLivelo, salvarConfigLivelo, salvarPrecoLivel
 // Secao Livelo da aba Ofertas, a vista (nao escondida em configuracao): os parceiros com
 // os pontos de hoje (o coletor atualiza de 3 em 3 horas) e os fixos do mes, cada um
 // dizendo se compensa mais no encarte ou pela Livelo.
-export function LiveloSecao({ ofertas }: { ofertas: Oferta[] }) {
+// sempreAberto: na aba propria (/app/livelo) a secao nao fecha.
+export function LiveloSecao({ ofertas, sempreAberto = false }: { ofertas: Oferta[]; sempreAberto?: boolean }) {
   const l = useLivelo();
   const { showToast } = useStore();
   const [config, setConfig] = useState(false);
   const [ligando, setLigando] = useState(false);
   // Fechada por padrao: uma linha de resumo; abrir mostra parceiros, lista e fixos.
-  const [aberto, setAberto] = useState(() => {
+  const [abertoSalvo, setAberto] = useState(() => {
     try {
       return typeof window !== "undefined" && localStorage.getItem("livelo_aberto") === "1";
     } catch {
       return false;
     }
   });
+  const aberto = sempreAberto || abertoSalvo;
   if (!l) return null;
   function alternar() {
-    const n = !aberto;
+    if (sempreAberto) return;
+    const n = !abertoSalvo;
     setAberto(n);
     try {
       localStorage.setItem("livelo_aberto", n ? "1" : "0");
@@ -81,9 +84,11 @@ export function LiveloSecao({ ofertas }: { ofertas: Oferta[] }) {
                 }`}
           </span>
         </span>
-        <span className={`text-[18px] text-text-3 transition-transform ${aberto ? "rotate-180" : ""}`} aria-hidden>
-          ⌄
-        </span>
+        {!sempreAberto && (
+          <span className={`text-[18px] text-text-3 transition-transform ${aberto ? "rotate-180" : ""}`} aria-hidden>
+            ⌄
+          </span>
+        )}
       </button>
       {aberto && l.configurado && meus.length > 0 && (
         <button onClick={() => setConfig(true)} className="-mt-1 self-end text-[13px] font-bold text-brand underline">

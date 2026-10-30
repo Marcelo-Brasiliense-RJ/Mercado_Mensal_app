@@ -99,6 +99,11 @@ export const MicIcon = ({ size, className }: P) => (
     <path d="M12 17.5V21M9 21h6" />
   </svg>
 );
+export const HeartIcon = ({ size, className }: P) => (
+  <svg {...base(size)} className={className}>
+    <path d="M12 20s-7-4.4-9.3-8.6C1 8 3 4.5 6.5 4.5c2 0 3.3 1.1 5.5 3.3 2.2-2.2 3.5-3.3 5.5-3.3C21 4.5 23 8 21.3 11.4 19 15.6 12 20 12 20z" />
+  </svg>
+);
 export const CameraIcon = ({ size, className }: P) => (
   <svg {...base(size)} className={className}>
     <path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z" />
