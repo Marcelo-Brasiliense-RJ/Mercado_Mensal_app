@@ -79,6 +79,7 @@ export function ListView() {
   // resposta para "onde compensa fazer a compra", na cara, sem abrir a aba Ofertas.
   const resumoLista = resumir(ofertas, faltaEmCasa(pendentes, []));
   const [rotaAberta, setRotaAberta] = useState(false);
+  const [ondeAberto, setOndeAberto] = useState(false);
   const [montar, setMontar] = useState(false);
   const [mercadoAberto, setMercadoAberto] = useState<string | null>(null);
   // Produtos do encarte que entram na conta do mercado aberto.
@@ -238,7 +239,7 @@ export function ListView() {
         )}
 
         {/* Nao compro (0045): os produtos ruins, aqui onde a lista e montada. */}
-        {!trip && <NaoCompro ofertas={ofertasMercado} escondidas={escondidas} />}
+        <NaoCompro ofertas={ofertasMercado} escondidas={escondidas} />
 
         {/* Lista do mes num toque: o app ja sabe o que falta para completar a casa. */}
         {!trip && doMes.length > 0 && (
@@ -261,8 +262,30 @@ export function ListView() {
 
         {/* Onde compensa: cada mercado com quantos itens da lista e quanto sai la.
             Tocar filtra a lista por aquele mercado, na ordem dos corredores. */}
-        {!trip && mercadosComOferta.length > 0 && (
+        {/* No mercado (carrinho aberto) fica fechado numa linha: a tela e de pegar. */}
+        {trip && !ondeAberto && mercadosComOferta.length > 0 && resumoLista.mercados[0] && (
+          <button
+            onClick={() => setOndeAberto(true)}
+            aria-expanded={false}
+            className="flex w-full items-center justify-between gap-3 rounded-2xl border border-border bg-card px-3.5 py-3 text-left"
+          >
+            <span className="min-w-0">
+              <span className="block text-[16px] font-extrabold">🏆 Onde compensa comprar</span>
+              <span className="block truncate text-[12px] text-text-2">
+                {nomeMercado(resumoLista.mercados[0].mercado)}: {resumoLista.mercados[0].itens} de {pendentes.length} itens em
+                oferta · {brl(resumoLista.mercados[0].total)}
+              </span>
+            </span>
+            <span className="text-[18px] text-text-3" aria-hidden>⌄</span>
+          </button>
+        )}
+        {(!trip || ondeAberto) && mercadosComOferta.length > 0 && (
           <div className="rounded-[18px] border border-border bg-card p-3.5">
+            {trip && (
+              <button onClick={() => setOndeAberto(false)} className="float-right -mt-1 h-8 px-2 text-[13px] font-bold text-text-3">
+                Fechar
+              </button>
+            )}
             <div className="text-[12px] font-bold uppercase tracking-wide text-text-3">Onde compensa comprar</div>
             {resumoLista.mercados[0] && (
               <div className="mt-1 text-[15px] font-extrabold">
