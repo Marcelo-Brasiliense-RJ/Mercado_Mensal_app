@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { FotoItem } from "@/components/ui/FotoItem";
-import { categoriaDe } from "@/lib/categorias";
+import { categoriaDe, ICONE } from "@/lib/categorias";
+import { CORREDOR } from "@/lib/ofertas";
 import { brl, stockRatio } from "@/lib/format";
 import { ConfirmarExclusao } from "./ConfirmarExclusao";
 import { useStore } from "@/lib/store";
@@ -27,9 +28,12 @@ export function ItemDetailModal({
     baixaStock,
     setPar,
     parSugerido,
+    setCategoria,
     showToast,
   } = useStore();
   const [excluindo, setExcluindo] = useState(false);
+  // Trocar a categoria (0048): quando o palpite pelo nome errou ("Outros").
+  const [trocandoCat, setTrocandoCat] = useState(false);
   const [busy, setBusy] = useState(false);
   const [editPar, setEditPar] = useState(false);
   const [parTxt, setParTxt] = useState("");
@@ -137,11 +141,43 @@ export function ItemDetailModal({
             >
               {repor ? "Repor" : "Em casa"}
             </span>
-            {item.category || categoriaDe(item.name)}
+            <button
+              type="button"
+              onClick={() => setTrocandoCat((t) => !t)}
+              aria-expanded={trocandoCat}
+              className="rounded-full border border-border px-2.5 py-[3px] font-bold text-text-2"
+            >
+              {ICONE[item.category || categoriaDe(item.name)] ?? "🛒"} {item.category || categoriaDe(item.name)} ✎
+            </button>
             <BotaoFixo nome={item.name} />
           </div>
         </div>
       </div>
+      {trocandoCat && (
+        <div className="mb-3 rounded-[14px] border border-border bg-card-2 p-2.5">
+          <div className="mb-1.5 text-[12px] font-bold text-text-2">Em qual corredor fica?</div>
+          <div className="flex flex-wrap gap-1.5">
+            {CORREDOR.map((c) => {
+              const atual = (item.category || categoriaDe(item.name)) === c;
+              return (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={async () => {
+                    setTrocandoCat(false);
+                    const r = await setCategoria(item.id, c);
+                    showToast(r.ok ? `${item.name} em ${c}` : r.erro);
+                  }}
+                  aria-pressed={atual}
+                  className={`h-9 rounded-full px-3 text-[13px] font-bold ${atual ? "bg-brand text-brand-ink" : "border border-border bg-card"}`}
+                >
+                  {ICONE[c] ?? "🛒"} {c}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="mb-2.5 rounded-[14px] bg-card-2 p-3">
         <div className="flex items-baseline justify-between text-[14px]">

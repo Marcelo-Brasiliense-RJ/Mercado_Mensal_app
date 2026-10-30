@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useListaOfertas } from "@/components/ofertas/useOfertas";
 import { corMercado, corredor, maisBarataPara, nomeMercado, type Oferta } from "@/lib/ofertas";
 import { categoriaDe, ICONE } from "@/lib/categorias";
+import { CORREDOR } from "@/lib/ofertas";
+import { Modal } from "@/components/ui/Modal";
 import { Grupo, useRecolhidos } from "@/components/ui/Grupo";
 import type { StockItem } from "@/lib/types";
 import { brl, stockRatio } from "@/lib/format";
@@ -63,6 +65,7 @@ export function StockView() {
     baixaStock,
     mexerLocal,
     reloadData,
+    setCategoria,
     addStock,
     stockToList,
     showToast,
@@ -82,6 +85,8 @@ export function StockView() {
   const [fotoOpen, setFotoOpen] = useState(false);
   // itens a excluir (um pelo card, varios pela selecao): a confirmacao pergunta se vai para o Não compro
   const [excluir, setExcluir] = useState<StockItem[] | null>(null);
+  // Mover os selecionados para um corredor de uma vez (0048).
+  const [mover, setMover] = useState(false);
 
   const filtered = stock
     .filter((i) => i.name.toLowerCase().includes(q.toLowerCase()))
@@ -95,7 +100,7 @@ export function StockView() {
   const { aberto, alternar } = useRecolhidos("estoque_fechados");
   const grupos = Object.entries(
     filtered.reduce<Record<string, StockItem[]>>((g, i) => {
-      (g[categoriaDe(i.name, ofertas)] ??= []).push(i);
+      (g[i.category || categoriaDe(i.name, ofertas)] ??= []).push(i);
       return g;
     }, {}),
   ).sort((a, b) => corredor(a[0]) - corredor(b[0]));
@@ -362,7 +367,37 @@ export function StockView() {
           >
             Excluir ({selected.size})
           </button>
+          <button
+            onClick={() => setMover(true)}
+            disabled={busy}
+            className="h-[50px] w-full rounded-[14px] border border-border bg-card text-[14px] font-bold shadow-[0_8px_24px_var(--shadow-lg)] disabled:opacity-50"
+          >
+            ✎ Mudar categoria ({selected.size})
+          </button>
         </div>
+      )}
+      {mover && (
+        <Modal open onClose={() => setMover(false)} maxWidth={420}>
+          <div className="mb-3 pr-12 text-[19px] font-extrabold">Mover {selected.size} para qual corredor?</div>
+          <div className="flex flex-wrap gap-2">
+            {CORREDOR.map((c) => (
+              <button
+                key={c}
+                onClick={async () => {
+                  const ids = [...selected];
+                  setMover(false);
+                  const rs = await Promise.all(ids.map((id) => setCategoria(id, c)));
+                  const erro = rs.find((r) => !r.ok);
+                  showToast(erro && !erro.ok ? erro.erro : `${ids.length} item(ns) em ${c}`);
+                  exitSel();
+                }}
+                className="h-11 rounded-full border border-border bg-card px-3.5 text-[14px] font-bold"
+              >
+                {ICONE[c] ?? "🛒"} {c}
+              </button>
+            ))}
+          </div>
+        </Modal>
       )}
 
       {/* Mesma barra da Lista: as formas de anotar a um toque, sempre no polegar.
