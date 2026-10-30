@@ -19,3 +19,20 @@ export function parecidos<T extends { name: string }>(nome: string, itens: T[], 
     .slice(0, limite)
     .map((x) => x.i);
 }
+
+// Repetidos no estoque, para o app oferecer juntar sozinho. Mais rigido que `parecidos`:
+// todas as palavras do nome menor estao no maior ("oleo de soja coamo 900ml" e "oleo de
+// soja coamo refinado 900ml"), assim "leite integral italac" e "... piracanjuba" nao entram.
+export function repetidos<T extends { id: string; name: string }>(itens: T[]): T[][] {
+  const ps = itens.map((i) => new Set(palavras(i.name)));
+  const pai = itens.map((_, i) => i);
+  const raiz = (i: number): number => (pai[i] === i ? i : (pai[i] = raiz(pai[i])));
+  for (let i = 0; i < itens.length; i++)
+    for (let j = i + 1; j < itens.length; j++) {
+      const [a, b] = ps[i].size <= ps[j].size ? [ps[i], ps[j]] : [ps[j], ps[i]];
+      if (a.size >= 2 && [...a].every((p) => b.has(p))) pai[raiz(i)] = raiz(j);
+    }
+  const grupos = new Map<number, T[]>();
+  itens.forEach((it, i) => grupos.set(raiz(i), [...(grupos.get(raiz(i)) ?? []), it]));
+  return [...grupos.values()].filter((g) => g.length > 1);
+}

@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useListaOfertas } from "@/components/ofertas/useOfertas";
 import { corMercado, maisBarataPara, nomeMercado, type Oferta } from "@/lib/ofertas";
 import { categoriaDoItem, iconeDe, useCategorias } from "./useCategorias";
+import { repetidos } from "@/lib/parecidos";
 import { Modal } from "@/components/ui/Modal";
 import { Grupo, useRecolhidos } from "@/components/ui/Grupo";
 import type { StockItem } from "@/lib/types";
@@ -89,6 +90,28 @@ export function StockView() {
   const [mover, setMover] = useState(false);
   // Juntar repetidos (0050): qual item fica (nome e unidade dele).
   const [juntar, setJuntar] = useState<StockItem[] | null>(null);
+  // Repetidos achados sozinhos; "Não é" esconde aquele grupo neste aparelho.
+  const chaveGrupo = (g: StockItem[]) => g.map((x) => x.id).sort().join("|");
+  const [ignorados, setIgnorados] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem("repetidos_ignorados") ?? "[]") as string[];
+    } catch {
+      return [];
+    }
+  });
+  const gruposRepetidos = useMemo(
+    () => repetidos(stock).filter((g) => !ignorados.includes(g.map((x) => x.id).sort().join("|"))),
+    [stock, ignorados],
+  );
+  function ignorarGrupo(g: StockItem[]) {
+    const n = [...ignorados, chaveGrupo(g)];
+    setIgnorados(n);
+    try {
+      localStorage.setItem("repetidos_ignorados", JSON.stringify(n));
+    } catch {
+      // sem armazenamento: volta a aparecer na proxima visita
+    }
+  }
 
   const filtered = stock
     .filter((i) => i.name.toLowerCase().includes(q.toLowerCase()))
@@ -224,6 +247,34 @@ export function StockView() {
 
       <div className="space-y-4 pb-[150px] lg:pb-10">
         <PrimeirosPassos onFalar={() => setVoiceOpen(true)} onDigitar={() => setStockAddOpen(true)} />
+
+        {/* Repetidos (o mesmo produto com dois nomes): o app acha e oferece juntar. */}
+        {gruposRepetidos.length > 0 && !selMode && (
+          <div className="rounded-[18px] border-[1.5px] border-warn/50 bg-warn-soft p-3">
+            <div className="text-[15px] font-extrabold text-warn">
+              🔗 {gruposRepetidos.length} {gruposRepetidos.length > 1 ? "produtos parecem repetidos" : "produto parece repetido"}
+            </div>
+            <div className="mt-2 flex flex-col gap-1.5">
+              {gruposRepetidos.map((g) => (
+                <div key={chaveGrupo(g)} className="flex items-center gap-2 rounded-[12px] bg-card px-2.5 py-2">
+                  <span className="min-w-0 flex-1">
+                    {g.map((x) => (
+                      <span key={x.id} className="block truncate text-[13px] font-bold">
+                        {x.name} <span className="font-normal text-text-3">· {fmtQtd(x.current)} {x.unit}</span>
+                      </span>
+                    ))}
+                  </span>
+                  <button onClick={() => setJuntar(g)} className="h-9 shrink-0 rounded-[10px] bg-warn px-3 text-[13px] font-bold text-white">
+                    Juntar
+                  </button>
+                  <button onClick={() => ignorarGrupo(g)} aria-label="Não são o mesmo" className="h-9 shrink-0 px-1.5 text-[12px] font-bold text-text-3 underline">
+                    Não é
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Primeira coisa da tela: o que falta, com a acao junto. Antes o topo
             trazia contagem de itens e valor em reais, que nao fazem ninguem agir. */}
