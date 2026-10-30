@@ -17,7 +17,8 @@ import { FotoItem } from "@/components/ui/FotoItem";
 import { categoriaDe } from "@/lib/categorias";
 import { RotaModal } from "./RotaModal";
 import { MontarLista } from "./MontarLista";
-import { useListaOfertas } from "@/components/ofertas/useOfertas";
+import { useListaOfertas, useOfertas } from "@/components/ofertas/useOfertas";
+import { NaoCompro } from "@/components/ofertas/NaoCompro";
 import { useLivelo } from "@/components/ofertas/useLivelo";
 import { comPontos, ofertasLivelo } from "@/lib/livelo";
 import { corMercado, corredor, faltaEmCasa, maisBarataPara, nomeMercado, porMercado, resumir } from "@/lib/ofertas";
@@ -36,6 +37,8 @@ export function ListView() {
   // Selo "em oferta" em cada item: ao montar a lista ja se ve onde comprar.
   // Precos da Livelo entram como mais um mercado, ja descontando os pontos (0046).
   const ofertasMercado = useListaOfertas();
+  const estadoOfertas = useOfertas();
+  const escondidas = estadoOfertas.fase === "ok" ? (estadoOfertas.dados.escondidas ?? 0) : 0;
   const livelo = useLivelo();
   const ofertas = useMemo(
     () => (livelo ? [...ofertasMercado.map((o) => comPontos(o, livelo)), ...ofertasLivelo(livelo)] : ofertasMercado),
@@ -233,6 +236,9 @@ export function ListView() {
           <span className="text-[22px]" aria-hidden>›</span>
         </button>
         )}
+
+        {/* Nao compro (0045): os produtos ruins, aqui onde a lista e montada. */}
+        {!trip && <NaoCompro ofertas={ofertasMercado} escondidas={escondidas} />}
 
         {/* Lista do mes num toque: o app ja sabe o que falta para completar a casa. */}
         {!trip && doMes.length > 0 && (
