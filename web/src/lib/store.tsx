@@ -113,6 +113,8 @@ type Store = Data & {
   mexerLocal: (id: string, delta: number) => void;
   // Categoria escolhida pela casa (0048); "" volta ao palpite pelo nome.
   setCategoria: (id: string, categoria: string) => Promise<RpcResult>;
+  // Junta itens repetidos num so (0050): quantidade, compras, codigos, lista e carrinho.
+  juntarStock: (destino: string, outros: string[], nome?: string) => Promise<RpcResult>;
   toast: string | null;
   // O aviso de baixo oferece "Desfazer" (so depois de escrita que o banco registra em mercado_events).
   toastDesfazer: boolean;
@@ -236,6 +238,15 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
     setData((d) => ({ ...d, stock: d.stock.map((s) => (s.id === id ? { ...s, category: categoria } : s)) }));
     return callRpc("mercado_stock_categoria_web", { p_id: id, p_categoria: categoria || null });
   }, []);
+
+  const juntarStock = useCallback(
+    async (destino: string, outros: string[], nome?: string) => {
+      const r = await callRpc("mercado_stock_juntar_web", { p_destino: destino, p_outros: outros, p_nome: nome ?? null });
+      if (r.ok) await reloadData();
+      return r;
+    },
+    [reloadData],
+  );
 
   // Lista muda na tela na hora (uma ida ao banco so) e o resto recarrega por tras.
   // Antes cada toque esperava 4 leituras do banco: "Repor" demorava a aparecer na Lista.
@@ -717,6 +728,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       dataReady,
       mexerLocal,
       setCategoria,
+      juntarStock,
       toast,
       toastDesfazer,
       desfazer,
@@ -760,6 +772,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       dataReady,
       mexerLocal,
       setCategoria,
+      juntarStock,
       toast,
       toastDesfazer,
       desfazer,

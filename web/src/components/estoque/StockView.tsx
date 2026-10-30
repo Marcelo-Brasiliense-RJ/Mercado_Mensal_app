@@ -65,6 +65,7 @@ export function StockView() {
     mexerLocal,
     reloadData,
     setCategoria,
+    juntarStock,
     addStock,
     stockToList,
     showToast,
@@ -86,6 +87,8 @@ export function StockView() {
   const [excluir, setExcluir] = useState<StockItem[] | null>(null);
   // Mover os selecionados para um corredor de uma vez (0048).
   const [mover, setMover] = useState(false);
+  // Juntar repetidos (0050): qual item fica (nome e unidade dele).
+  const [juntar, setJuntar] = useState<StockItem[] | null>(null);
 
   const filtered = stock
     .filter((i) => i.name.toLowerCase().includes(q.toLowerCase()))
@@ -372,14 +375,57 @@ export function StockView() {
           >
             Excluir ({selected.size})
           </button>
+          {selected.size >= 2 && (
+            <button
+              onClick={() => setJuntar(stock.filter((i) => selected.has(i.id)))}
+              disabled={busy}
+              className="h-[50px] min-w-[100px] flex-1 rounded-[14px] border border-border bg-card text-[14px] font-bold shadow-[0_8px_24px_var(--shadow-lg)] disabled:opacity-50"
+            >
+              🔗 Juntar ({selected.size})
+            </button>
+          )}
           <button
             onClick={() => setMover(true)}
             disabled={busy}
-            className="h-[50px] w-full rounded-[14px] border border-border bg-card text-[14px] font-bold shadow-[0_8px_24px_var(--shadow-lg)] disabled:opacity-50"
+            className="h-[50px] min-w-[100px] flex-1 rounded-[14px] border border-border bg-card text-[14px] font-bold shadow-[0_8px_24px_var(--shadow-lg)] disabled:opacity-50"
           >
-            ✎ Mudar categoria ({selected.size})
+            ✎ Categoria ({selected.size})
           </button>
         </div>
+      )}
+      {juntar && (
+        <Modal open onClose={() => setJuntar(null)} maxWidth={440}>
+          <div className="pr-12 text-[19px] font-extrabold">🔗 Juntar em um só</div>
+          <p className="mb-3 text-[13px] text-text-2">
+            É o mesmo produto? Escolha qual nome fica. Compras, códigos de barras e lista vão juntos; a quantidade soma
+            quando a unidade é a mesma.
+          </p>
+          <div className="flex flex-col gap-2">
+            {juntar.map((d) => {
+              const outros = juntar.filter((x) => x.id !== d.id);
+              const soma = d.current + outros.filter((x) => x.unit === d.unit).reduce((t, x) => t + x.current, 0);
+              const difere = outros.some((x) => x.unit !== d.unit);
+              return (
+                <button
+                  key={d.id}
+                  onClick={async () => {
+                    setJuntar(null);
+                    const r = await juntarStock(d.id, outros.map((x) => x.id));
+                    showToast(r.ok ? `Juntado em “${d.name}”: ${fmtQtd(soma)} ${d.unit}` : r.erro);
+                    if (r.ok) exitSel();
+                  }}
+                  className="rounded-[14px] border-2 border-border bg-card p-3 text-left active:border-brand"
+                >
+                  <div className="text-[15px] font-extrabold">{d.name}</div>
+                  <div className="text-[12px] text-text-2">
+                    Fica com {fmtQtd(soma)} {d.unit}
+                    {difere ? " · unidade diferente: a dos outros não soma" : ""}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </Modal>
       )}
       {mover && (
         <Modal open onClose={() => setMover(false)} maxWidth={420}>
