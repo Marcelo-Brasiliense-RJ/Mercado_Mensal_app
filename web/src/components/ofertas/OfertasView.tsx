@@ -5,9 +5,8 @@ import { useMemo, useState } from "react";
 import { brl } from "@/lib/format";
 import { useStore } from "@/lib/store";
 import { useOfertas } from "./useOfertas";
-import { AvisoCelular, DeOlho, Estrela } from "./DeOlho";
+import { AvisoCelular, DeOlho } from "./DeOlho";
 import { MercadosDaCasa } from "./MeusMercados";
-import { Polegar } from "./NaoCompro";
 import { Foto, PorUnidade, Selo } from "./pecas";
 import { Grupo, useRecolhidos } from "@/components/ui/Grupo";
 import { ICONE } from "@/lib/categorias";
@@ -264,11 +263,7 @@ function CardOferta({
         {off > 0 && <span className="rounded-md bg-white px-1.5 py-0.5 text-[12px] text-[#0F6B3E]">-{off}%</span>}
       </div>
       <div className="flex flex-1 flex-col gap-1.5 p-3">
-        <div className="relative">
-          <Foto o={o} className="h-24 w-full rounded-xl" />
-          <Estrela o={o} />
-          <Polegar o={o} />
-        </div>
+        <Foto o={o} className="h-24 w-full rounded-xl" />
         {rotulo && (
           <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-[0.06em] text-brand">
             <span>{rotulo}</span>
