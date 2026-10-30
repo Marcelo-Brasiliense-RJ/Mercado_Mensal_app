@@ -8,9 +8,11 @@ import { TabBar } from "./TabBar";
 import { TopBar } from "./TopBar";
 import { ThemeToggle } from "@/theme/ThemeToggle";
 import { ReceiptModal } from "@/components/receipt/ReceiptModal";
-import { RefreshIcon } from "@/components/ui/icons";
+import { MicIcon, RefreshIcon } from "@/components/ui/icons";
 import { AvatarInitial } from "@/components/ui/AvatarInitial";
+import { useState } from "react";
 import { useStore } from "@/lib/store";
+import { VoiceModal } from "@/components/voz/VoiceModal";
 import { useHousehold } from "@/lib/household";
 
 const META: Record<string, { title: string; subtitle: string }> = {
@@ -24,6 +26,8 @@ const META: Record<string, { title: string; subtitle: string }> = {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
+  // Microfone do topo, em toda tela: "preciso de arroz" ja cai na lista e avisa.
+  const [falar, setFalar] = useState(false);
   const { receiptOpen, openReceipt, closeReceipt, reloadData, dataLoading, showToast } =
     useStore();
 
@@ -68,6 +72,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           right={
             <div className="flex items-center">
               <button
+                onClick={() => setFalar(true)}
+                aria-label="Falar"
+                className="grid h-10 w-10 place-items-center rounded-xl text-brand hover:bg-card-2"
+              >
+                <MicIcon size={20} />
+              </button>
+              <button
                 onClick={atualizar}
                 disabled={dataLoading}
                 aria-label="Atualizar"
@@ -91,6 +102,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       <ReceiptModal open={receiptOpen} onClose={closeReceipt} />
       <FilaFotos />
+      <VoiceModal open={falar} onClose={() => setFalar(false)} tela="auto" />
+      {/* Desktop nao tem o topo do celular: o microfone fica no canto. */}
+      <button
+        onClick={() => setFalar(true)}
+        aria-label="Falar"
+        className="fixed bottom-8 right-8 z-30 hidden h-14 w-14 place-items-center rounded-full bg-brand text-brand-ink shadow-lg lg:grid"
+      >
+        <MicIcon size={24} />
+      </button>
     </div>
   );
 }

@@ -35,8 +35,20 @@ export const MIMES_AUDIO = [
 
 // `suportado` entra por parametro para dar pra testar sem navegador (no browser,
 // quem chama passa MediaRecorder.isTypeSupported).
-export function escolherMime(suportado: (m: string) => boolean): string | null {
-  return MIMES_AUDIO.find((m) => suportado(m)) ?? null;
+// `apple`: iPhone/Safari passou a dizer que grava webm, mas o arquivo sai quebrado
+// ou mudo e o Whisper devolve vazio ("nao capta nada"). Ali o mp4 e o formato nativo.
+export function escolherMime(
+  suportado: (m: string) => boolean,
+  apple = false,
+): string | null {
+  const ordem = apple
+    ? ["audio/mp4", ...MIMES_AUDIO.filter((m) => m !== "audio/mp4")]
+    : MIMES_AUDIO;
+  return ordem.find((m) => suportado(m)) ?? null;
+}
+
+export function ehApple(ua: string): boolean {
+  return /iphone|ipad|ipod/i.test(ua) || (/safari/i.test(ua) && !/chrome|chromium|crios|android|fxios/i.test(ua));
 }
 
 // Extensao coerente com o mime, porque a API do Whisper decide o decoder pelo

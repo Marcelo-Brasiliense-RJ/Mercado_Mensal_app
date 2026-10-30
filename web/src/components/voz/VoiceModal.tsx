@@ -12,6 +12,7 @@ import { createClient } from "@/lib/supabase/client";
 import type { ShopItem } from "@/lib/types";
 import {
   ERRO_VOZ,
+  ehApple,
   escolherMime,
   extensaoDe,
   interpretarLocal,
@@ -44,16 +45,18 @@ type Reconhecedor = {
 
 const MAX_SEGUNDOS = 60;
 
-// Destino pela tela de onde a pessoa abriu. No Estoque tudo vai para o estoque,
-// diga o que disser ("comprei arroz" la e guardar a compra). Na Lista vale o que a
-// frase diz entre lista e carrinho; "estoque" so se ela trocar na chave. No Montar
-// lista tudo vai para a lista: ali a pessoa esta dizendo o que falta.
+// Destino pela tela de onde a pessoa abriu. "Preciso de / comprar / falta" vai
+// para a lista EM QUALQUER TELA (pedido do dono). Fora isso: no Estoque vai para o
+// estoque ("comprei arroz" la e guardar a compra), no Mercado vira carrinho, no
+// Montar lista tudo e lista, e no microfone do topo ("auto") vale o que a frase diz.
 function destinoDaTela(tela: Tela, ouvido: VozIntencao): VozIntencao {
-  if (tela === "estoque" || tela === "lista") return tela;
-  return ouvido === "lista" ? "lista" : "carrinho";
+  if (tela === "lista" || ouvido === "lista") return "lista";
+  if (tela === "estoque") return "estoque";
+  if (tela === "auto") return ouvido;
+  return "carrinho";
 }
 
-type Tela = "estoque" | "mercado" | "lista";
+type Tela = "estoque" | "mercado" | "lista" | "auto";
 type Fase = "gravar" | "gravando" | "enviando" | "conferir" | "salvando";
 
 export function VoiceModal({
@@ -70,7 +73,8 @@ export function VoiceModal({
   // Montar lista e excecao: la a pessoa diz o que falta, esteja onde estiver.
   const { noMercado } = useLugar();
   const telaAgora = noMercado && tela !== "lista" ? "mercado" : tela;
-  const inicial: VozIntencao = tela === "mercado" ? "carrinho" : tela;
+  const inicial: VozIntencao =
+    tela === "mercado" ? "carrinho" : tela === "auto" ? "lista" : tela;
 
   const [fase, setFase] = useState<Fase>("gravar");
   const [segundos, setSegundos] = useState(0);
@@ -86,6 +90,7 @@ export function VoiceModal({
   const falaRef = useRef<Reconhecedor | null>(null);
   const recRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  const ouviuRef = useRef(false);
   const streamRef = useRef<MediaStream | null>(null);
 
   // Para a gravacao e solta o microfone quando o popup fecha ou a tela sai do ar:
@@ -131,8 +136,9 @@ export function VoiceModal({
   async function gravar() {
     setErro("");
     if (modoLocal) return escutarNoAparelho();
-    const mime = escolherMime((m) =>
-      typeof MediaRecorder !== "undefined" ? MediaRecorder.isTypeSupported(m) : false,
+    const mime = escolherMime(
+      (m) => (typeof MediaRecorder !== "undefined" ? MediaRecorder.isTypeSupported(m) : false),
+      ehApple(navigator.userAgent),
     );
     if (!mime) return setErro("Este navegador não grava áudio. Use o campo digitado.");
     try {
@@ -143,10 +149,18 @@ export function VoiceModal({
       rec.ondataavailable = (e) => e.data.size > 0 && chunksRef.current.push(e.data);
       rec.onstop = () => {
         stream.getTracks().forEach((t) => t.stop());
-        enviar(new Blob(chunksRef.current, { type: mime }), mime);
+        const blob = new Blob(chunksRef.current, { type: mime });
+        // Gravacao vazia nao vai para o servidor: so viraria "nao entendi" sem motivo.
+        if (blob.size < 1000) {
+          setErro("O microfone não captou som. Confira a permissão do microfone e fale de novo.");
+          setFase("gravar");
+          return;
+        }
+        enviar(blob, mime);
       };
       recRef.current = rec;
-      rec.start();
+      // Pedaco a cada segundo: sem isso o iPhone as vezes entrega o arquivo vazio no stop.
+      rec.start(1000);
       setSegundos(0);
       setFase("gravando");
     } catch {
@@ -209,7 +223,7 @@ export function VoiceModal({
     // Montar lista: o que a IA entendeu entra direto (aviso com Desfazer); so o que
     // ficou em duvida volta para a pessoa conferir. Ouvido pelo aparelho (sem IA)
     // nao entra direto: o interpretador local erra mais, entao tudo e conferido.
-    if (tela === "lista" && !modoLocal) {
+    if ((tela === "lista" || intencao === "lista") && !modoLocal) {
       const certos = linhas.filter((i) => !i.duvida && i.nome.trim().length >= 3);
       const duvidas = linhas.filter((i) => !certos.includes(i));
       const falharam = certos.length ? await porDireto(certos) : [];
@@ -286,7 +300,9 @@ export function VoiceModal({
     rec.lang = "pt-BR";
     rec.interimResults = false;
     rec.continuous = false;
+    ouviuRef.current = false;
     rec.onresult = (e) => {
+      ouviuRef.current = true;
       const frase = e.results[0][0].transcript ?? "";
       const r = interpretarLocal(frase);
       mostrarResultado(frase, r.intencao, r.itens);
@@ -295,7 +311,11 @@ export function VoiceModal({
       setErro("Não consegui ouvir. Tente de novo, mais perto do microfone.");
       setFase("gravar");
     };
-    rec.onend = () => setFase((f) => (f === "gravando" ? "gravar" : f));
+    rec.onend = () => {
+      // Terminou sem frase nenhuma: antes voltava calado e parecia que nao fazia nada.
+      if (!ouviuRef.current) setErro((e) => e || "Não ouvi nada. Toque e fale logo em seguida.");
+      setFase((f) => (f === "gravando" ? "gravar" : f));
+    };
     falaRef.current = rec;
     setSegundos(0);
     setErro("");
@@ -378,7 +398,7 @@ export function VoiceModal({
         <>
           <p className="mb-4 text-[13px] leading-relaxed text-text-2">
             {noMercado && tela === "estoque" && "📍 Você está num mercado: vai para o carrinho. "}
-            {tela === "lista"
+            {tela === "lista" || tela === "auto"
               ? "Fale o que falta: “1 arroz, 1 feijão, 5 detergentes e arroz da Máximo”. O que eu entender entra direto na lista; no que eu ficar em dúvida, eu pergunto."
               : telaAgora === "estoque"
               ? "Fale o que tem em casa: “três leites, dois arroz e um café”. Vai para o estoque; você confere antes de salvar."

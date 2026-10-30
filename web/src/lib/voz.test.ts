@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  ehApple,
   escolherMime,
   interpretarLocal,
   numerosPorExtenso,
@@ -15,6 +16,14 @@ describe("ditado no app", () => {
     // iOS Safari: so mp4
     expect(escolherMime((m) => m === "audio/mp4")).toBe("audio/mp4");
     expect(escolherMime(() => false)).toBe(null);
+    // iPhone que diz gravar webm: mp4 vem primeiro, webm dele sai mudo
+    expect(escolherMime(() => true, true)).toBe("audio/mp4");
+  });
+
+  it("reconhece iPhone e Safari, mas nao Chrome", () => {
+    expect(ehApple("Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit Mobile/15E148")).toBe(true);
+    expect(ehApple("Mozilla/5.0 (Macintosh) AppleWebKit Version/18.0 Safari/605.1.15")).toBe(true);
+    expect(ehApple("Mozilla/5.0 (Linux; Android 14) Chrome/130.0 Mobile Safari/537.36")).toBe(false);
   });
 
   it("casa extensao com o mime, que e como o Whisper escolhe o decoder", () => {

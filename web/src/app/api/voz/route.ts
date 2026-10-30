@@ -82,6 +82,8 @@ export async function POST(req: Request) {
       body: fd,
     });
     if (!tr.ok) {
+      // Aparece no log da Vercel: chave errada (401) ou formato recusado (400).
+      console.error("voz: groq transcricao", tr.status, await tr.text().catch(() => ""));
       return NextResponse.json(
         { ok: false, erro: "transcricao_falhou" },
         { status: 502 },
@@ -89,6 +91,7 @@ export async function POST(req: Request) {
     }
     const texto = String(((await tr.json()) as { text?: string })?.text ?? "").trim();
     if (!texto) {
+      console.error("voz: transcricao vazia", audio.type, audio.size);
       return NextResponse.json({ ok: false, erro: "nao_entendi" }, { status: 422 });
     }
 
