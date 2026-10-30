@@ -2,9 +2,8 @@
 
 import { useState } from "react";
 import { useListaOfertas } from "@/components/ofertas/useOfertas";
-import { corMercado, corredor, maisBarataPara, nomeMercado, type Oferta } from "@/lib/ofertas";
-import { categoriaDe, ICONE } from "@/lib/categorias";
-import { CORREDOR } from "@/lib/ofertas";
+import { corMercado, maisBarataPara, nomeMercado, type Oferta } from "@/lib/ofertas";
+import { categoriaDoItem, iconeDe, useCategorias } from "./useCategorias";
 import { Modal } from "@/components/ui/Modal";
 import { Grupo, useRecolhidos } from "@/components/ui/Grupo";
 import type { StockItem } from "@/lib/types";
@@ -98,12 +97,18 @@ export function StockView() {
   const faltando = acabando.filter((i) => !naLista.has(i.name.trim().toLowerCase()));
   // Por corredor do mercado (mesmas categorias dos encartes), cada um abre e fecha.
   const { aberto, alternar } = useRecolhidos("estoque_fechados");
+  // Categorias da casa (0049), na ordem dela.
+  const cats = useCategorias();
+  const ordem = (c: string) => {
+    const i = cats.findIndex((x) => x.nome === c);
+    return i < 0 ? cats.length : i;
+  };
   const grupos = Object.entries(
     filtered.reduce<Record<string, StockItem[]>>((g, i) => {
-      (g[i.category || categoriaDe(i.name, ofertas)] ??= []).push(i);
+      (g[categoriaDoItem(i, cats, ofertas)] ??= []).push(i);
       return g;
     }, {}),
-  ).sort((a, b) => corredor(a[0]) - corredor(b[0]));
+  ).sort((a, b) => ordem(a[0]) - ordem(b[0]));
   const detail = stock.find((i) => i.id === detailId) ?? null;
 
   function toggleSel(id: string) {
@@ -293,7 +298,7 @@ export function StockView() {
             <Grupo
               key={cat}
               titulo={cat}
-              icone={ICONE[cat] ?? "🛒"}
+              icone={iconeDe(cats, cat)}
               info={`${itens.length} ${itens.length === 1 ? "item" : "itens"}`}
               destaque={acabando ? `${acabando} acabando` : undefined}
               // Buscando, tudo aberto: o item procurado nao pode ficar escondido.
@@ -380,7 +385,7 @@ export function StockView() {
         <Modal open onClose={() => setMover(false)} maxWidth={420}>
           <div className="mb-3 pr-12 text-[19px] font-extrabold">Mover {selected.size} para qual corredor?</div>
           <div className="flex flex-wrap gap-2">
-            {CORREDOR.map((c) => (
+            {cats.map(({ nome: c }) => (
               <button
                 key={c}
                 onClick={async () => {
@@ -393,7 +398,7 @@ export function StockView() {
                 }}
                 className="h-11 rounded-full border border-border bg-card px-3.5 text-[14px] font-bold"
               >
-                {ICONE[c] ?? "🛒"} {c}
+                {iconeDe(cats, c)} {c}
               </button>
             ))}
           </div>

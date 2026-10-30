@@ -7,8 +7,7 @@ import { useStore } from "@/lib/store";
 import { useOfertas } from "./useOfertas";
 import { DeOlho, Estrela } from "./DeOlho";
 import { MercadosDaCasa } from "./MeusMercados";
-import { NaoCompro, Polegar } from "./NaoCompro";
-import { LiveloSecao } from "./Livelo";
+import { Polegar } from "./NaoCompro";
 import { Foto, PorUnidade, Selo } from "./pecas";
 import { Grupo, useRecolhidos } from "@/components/ui/Grupo";
 import { ICONE } from "@/lib/categorias";
@@ -123,8 +122,6 @@ export function OfertasView() {
         <>
           {/* 0. O que a pessoa marcou para pegar em promocao */}
           <DeOlho ofertas={dados.ofertas} onComparar={(titulo, opcoes) => setAberto({ titulo, opcoes })} />
-          <LiveloSecao ofertas={dados.ofertas} />
-          <NaoCompro ofertas={dados.ofertas} escondidas={dados.escondidas} />
 
           {/* A conta da lista (onde vale ir, quanto sai em cada mercado) mora na Lista,
               junto dos itens: aqui fica so o atalho. */}

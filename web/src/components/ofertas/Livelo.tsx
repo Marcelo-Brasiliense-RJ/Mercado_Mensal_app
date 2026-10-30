@@ -24,12 +24,32 @@ import { marcarFixo, registrarCompraLivelo, salvarConfigLivelo, salvarPrecoLivel
 // Secao Livelo da aba Ofertas, a vista (nao escondida em configuracao): os parceiros com
 // os pontos de hoje (o coletor atualiza de 3 em 3 horas) e os fixos do mes, cada um
 // dizendo se compensa mais no encarte ou pela Livelo.
-export function LiveloSecao({ ofertas }: { ofertas: Oferta[] }) {
+// sempreAberto: na aba propria (/app/livelo) a secao nao fecha.
+export function LiveloSecao({ ofertas, sempreAberto = false }: { ofertas: Oferta[]; sempreAberto?: boolean }) {
   const l = useLivelo();
   const { showToast } = useStore();
   const [config, setConfig] = useState(false);
   const [ligando, setLigando] = useState(false);
+  // Fechada por padrao: uma linha de resumo; abrir mostra parceiros, lista e fixos.
+  const [abertoSalvo, setAberto] = useState(() => {
+    try {
+      return typeof window !== "undefined" && localStorage.getItem("livelo_aberto") === "1";
+    } catch {
+      return false;
+    }
+  });
+  const aberto = sempreAberto || abertoSalvo;
   if (!l) return null;
+  function alternar() {
+    if (sempreAberto) return;
+    const n = !abertoSalvo;
+    setAberto(n);
+    try {
+      localStorage.setItem("livelo_aberto", n ? "1" : "0");
+    } catch {
+      // sem armazenamento: so nesta visita
+    }
+  }
 
   // Um toque: Carrefour Mercado, ponto a R$ 0,03. Ajustar fica em "Parceiros".
   async function ligar() {
@@ -42,20 +62,40 @@ export function LiveloSecao({ ofertas }: { ofertas: Oferta[] }) {
 
   const meus = l.parceiros.map((c) => l.paridades.find((p) => p.codigo === c)).filter(Boolean) as Paridade[];
 
-  return (
-    <section className="flex flex-col gap-3">
-      <div className="flex items-baseline justify-between gap-3">
-        <h2 className="text-[20px] font-extrabold">
-          💗 Livelo <span className="text-[14px] font-bold text-text-2">pontos nas compras do mês</span>
-        </h2>
-        {l.configurado && (
-          <button onClick={() => setConfig(true)} className="shrink-0 text-[13px] font-bold text-brand underline">
-            Parceiros
-          </button>
-        )}
-      </div>
+  const ganham = l.fixos.filter((f) => comparar(f, ofertas, l).vence === "livelo").length;
+  const campanha = meus.some((p) => p.promocao);
 
-      {!l.configurado || !meus.length ? (
+  return (
+    <section className="flex flex-col gap-2.5">
+      <button
+        type="button"
+        onClick={alternar}
+        aria-expanded={aberto}
+        className="flex items-center gap-3 rounded-[18px] border border-border bg-card px-3.5 py-3 text-left"
+      >
+        <span className="text-[24px]" aria-hidden>💗</span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[17px] font-extrabold">Livelo{campanha ? " 🔥" : ""}</span>
+          <span className="block truncate text-[13px] text-text-2">
+            {!l.configurado || !meus.length
+              ? "Pontos nas compras do mês: toque para ligar"
+              : `${meus.map((p) => `${p.nome ?? p.codigo} ${ptsCertos(p, l.clube)} pt/R$`).join(" · ")}${
+                  l.fixos.length ? ` · ${ganham}/${l.fixos.length} fixos compensam` : ""
+                }`}
+          </span>
+        </span>
+        {!sempreAberto && (
+          <span className={`text-[18px] text-text-3 transition-transform ${aberto ? "rotate-180" : ""}`} aria-hidden>
+            ⌄
+          </span>
+        )}
+      </button>
+      {aberto && l.configurado && meus.length > 0 && (
+        <button onClick={() => setConfig(true)} className="-mt-1 self-end text-[13px] font-bold text-brand underline">
+          Parceiros e valor do ponto
+        </button>
+      )}
+      {!aberto ? null : !l.configurado || !meus.length ? (
         <div className="rounded-[18px] border-2 border-dashed p-4" style={{ borderColor: COR_LIVELO }}>
           <div className="text-[15px] font-extrabold">Ponto também é desconto</div>
           <p className="mt-1 text-[13px] text-text-2">
@@ -78,7 +118,7 @@ export function LiveloSecao({ ofertas }: { ofertas: Oferta[] }) {
         </div>
       ) : (
         <>
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-wrap gap-1.5">
             {meus.map((p) => (
               <ParceiroLinha key={p.codigo} p={p} clube={l.clube} />
             ))}
@@ -170,27 +210,20 @@ function DaLista({ l, ofertas }: { l: LiveloT; ofertas: Oferta[] }) {
   );
 }
 
+// Um parceiro numa pilula: nome, pontos garantidos e o "ate N" da campanha.
 function ParceiroLinha({ p, clube }: { p: Paridade; clube: boolean }) {
   const certos = ptsCertos(p, clube);
   const max = ptsMax(p, clube);
   return (
-    <div className="rounded-[14px] border border-border bg-card px-3 py-2">
-      <div className="flex items-center gap-2">
-        <span className="rounded-md px-2 py-0.5 text-[12px] font-extrabold text-white" style={{ background: COR_LIVELO }}>
-          {p.nome ?? p.codigo}
-        </span>
-        <span className="flex-1 text-[13px] text-text-2">
-          <b className="text-text">{certos} pt/R$</b>
-          {max > certos && <span> · até {max} em parte dos produtos</span>}
-        </span>
-        {p.promocao && (
-          <span className="rounded-full bg-[#FCE4F1] px-2 py-[2px] text-[11px] font-extrabold" style={{ color: COR_LIVELO }}>
-            🔥 campanha
-          </span>
-        )}
-      </div>
-      {p.promocao && p.regra && <div className="mt-1 line-clamp-2 text-[11px] text-text-3">{p.regra}</div>}
-    </div>
+    <span
+      title={p.regra ?? undefined}
+      className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] font-bold"
+      style={{ borderColor: COR_LIVELO }}
+    >
+      <span style={{ color: COR_LIVELO }}>{p.nome ?? p.codigo}</span>
+      <span>{certos} pt/R$</span>
+      {max > certos && <span className="text-text-3">🔥 até {max}</span>}
+    </span>
   );
 }
 
@@ -201,8 +234,8 @@ function Fixos({ l, ofertas }: { l: LiveloT; ofertas: Oferta[] }) {
   const sugestoes = [
     ...new Set(shopping.filter((i) => i.status !== "removed").map((i) => i.name.trim().toLowerCase())),
   ]
-    .filter((n) => !l.fixos.includes(n))
-    .slice(0, 10);
+    .filter((n) => !l.fixos.includes(n));
+  const [todas, setTodas] = useState(false);
 
   async function adicionar() {
     const n = novo.trim();
@@ -225,18 +258,24 @@ function Fixos({ l, ofertas }: { l: LiveloT; ofertas: Oferta[] }) {
         <div>
           <div className="mb-1 text-[12px] font-bold text-text-3">Da sua lista: toque no que vocês compram todo mês</div>
           <div className="flex flex-wrap gap-1.5">
-            {sugestoes.map((n) => (
+            {(todas ? sugestoes : sugestoes.slice(0, 6)).map((n) => (
               <button
                 key={n}
                 onClick={async () => {
                   const r = await marcarFixo(n, true);
                   if (!r.ok) showToast(r.erro!);
                 }}
-                className="h-9 rounded-full border border-border bg-card px-3 text-[13px] font-bold capitalize"
+                title={n}
+                className="h-8 max-w-[48%] truncate rounded-full border border-border bg-card px-2.5 text-[12px] font-bold capitalize"
               >
                 ☆ {n}
               </button>
             ))}
+            {sugestoes.length > 6 && (
+              <button onClick={() => setTodas((t) => !t)} className="h-8 rounded-full px-2.5 text-[12px] font-bold text-brand underline">
+                {todas ? "menos" : `+${sugestoes.length - 6}`}
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -272,6 +311,8 @@ function FixoCard({ item, l, ofertas }: { item: string; l: LiveloT; ofertas: Ofe
   const c = comparar(item, ofertas, l);
   const [parceiro, setParceiro] = useState(c.livelo?.parceiro ?? l.parceiros[0]);
   const [editando, setEditando] = useState(!c.livelo);
+  // Linha compacta; tocar abre a comparacao e o preco.
+  const [aberto, setAberto] = useState(false);
   const doSite = !!c.livelo?.oferta; // preco que o coletor trouxe do site, sem digitar
   const [preco, setPreco] = useState("");
   const busca = linkBusca(parceiro, item);
@@ -288,15 +329,21 @@ function FixoCard({ item, l, ofertas }: { item: string; l: LiveloT; ofertas: Ofe
 
   return (
     <div
-      className="rounded-[18px] border-2 bg-card p-3"
+      className="rounded-[14px] border-2 bg-card p-2"
       style={{ borderColor: c.vence === "livelo" ? COR_LIVELO : "var(--border)" }}
     >
-      <div className="flex items-center gap-3">
-        <FotoItem nome={item} className="h-12 w-12 rounded-xl border border-border" />
-        <div className="min-w-0 flex-1">
-          <div className="text-[15px] font-extrabold capitalize leading-tight">{item}</div>
-          <div className="text-[12px] text-text-3">todo mês</div>
-        </div>
+      <div className="flex items-center gap-2.5">
+        <button type="button" onClick={() => setAberto((a) => !a)} aria-expanded={aberto} className="flex min-w-0 flex-1 items-center gap-2.5 text-left">
+          <FotoItem nome={item} className="h-10 w-10 rounded-lg border border-border" />
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-[14px] font-extrabold capitalize leading-tight">{item}</span>
+            <span className="block truncate text-[12px] text-text-3">
+              {c.mercado ? `${nomeMercado(c.mercado.mercado)} ${brl(c.mercado.preco_por)}` : "sem encarte"}
+              {" · "}
+              {c.livelo ? `Livelo ${brl(c.livelo.liquido)}` : "Livelo: falta o preço"}
+            </span>
+          </span>
+        </button>
         {c.vence && c.mercado && c.livelo && (
           <span
             className={`shrink-0 rounded-full px-2.5 py-[3px] text-[12px] font-extrabold ${
@@ -315,6 +362,8 @@ function FixoCard({ item, l, ofertas }: { item: string; l: LiveloT; ofertas: Ofe
         </button>
       </div>
 
+      {aberto && (
+      <>
       <div className="mt-2.5 grid grid-cols-2 gap-2">
         <div className={`rounded-[12px] border-2 p-2 ${c.vence === "mercado" ? "border-pos bg-pos-soft/40" : "border-border"}`}>
           <div className="text-[11px] text-text-3">Melhor encarte</div>
@@ -431,6 +480,8 @@ function FixoCard({ item, l, ofertas }: { item: string; l: LiveloT; ofertas: Ofe
             </button>
           )}
         </div>
+      )}
+      </>
       )}
     </div>
   );

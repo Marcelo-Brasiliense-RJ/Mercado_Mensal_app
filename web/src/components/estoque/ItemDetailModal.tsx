@@ -3,8 +3,7 @@
 import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { FotoItem } from "@/components/ui/FotoItem";
-import { categoriaDe, ICONE } from "@/lib/categorias";
-import { CORREDOR } from "@/lib/ofertas";
+import { categoriaDoItem, iconeDe, useCategorias } from "./useCategorias";
 import { brl, stockRatio } from "@/lib/format";
 import { ConfirmarExclusao } from "./ConfirmarExclusao";
 import { useStore } from "@/lib/store";
@@ -34,6 +33,7 @@ export function ItemDetailModal({
   const [excluindo, setExcluindo] = useState(false);
   // Trocar a categoria (0048): quando o palpite pelo nome errou ("Outros").
   const [trocandoCat, setTrocandoCat] = useState(false);
+  const cats = useCategorias();
   const [busy, setBusy] = useState(false);
   const [editPar, setEditPar] = useState(false);
   const [parTxt, setParTxt] = useState("");
@@ -59,6 +59,7 @@ export function ItemDetailModal({
     onClose();
   }
   if (!item) return null;
+  const minhaCat = categoriaDoItem(item, cats);
 
   // par_level 0 significa "ninguem definiu", nao "acabou": stockRatio devolve 1
   // nesse caso, entao mostrar a barra pintaria 100% para um dado que nao existe.
@@ -147,7 +148,7 @@ export function ItemDetailModal({
               aria-expanded={trocandoCat}
               className="rounded-full border border-border px-2.5 py-[3px] font-bold text-text-2"
             >
-              {ICONE[item.category || categoriaDe(item.name)] ?? "🛒"} {item.category || categoriaDe(item.name)} ✎
+              {iconeDe(cats, minhaCat)} {minhaCat} ✎
             </button>
             <BotaoFixo nome={item.name} />
           </div>
@@ -157,8 +158,8 @@ export function ItemDetailModal({
         <div className="mb-3 rounded-[14px] border border-border bg-card-2 p-2.5">
           <div className="mb-1.5 text-[12px] font-bold text-text-2">Em qual corredor fica?</div>
           <div className="flex flex-wrap gap-1.5">
-            {CORREDOR.map((c) => {
-              const atual = (item.category || categoriaDe(item.name)) === c;
+            {cats.map(({ nome: c }) => {
+              const atual = minhaCat === c;
               return (
                 <button
                   key={c}
@@ -171,7 +172,7 @@ export function ItemDetailModal({
                   aria-pressed={atual}
                   className={`h-9 rounded-full px-3 text-[13px] font-bold ${atual ? "bg-brand text-brand-ink" : "border border-border bg-card"}`}
                 >
-                  {ICONE[c] ?? "🛒"} {c}
+                  {iconeDe(cats, c)} {c}
                 </button>
               );
             })}

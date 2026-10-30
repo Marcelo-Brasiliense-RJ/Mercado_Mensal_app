@@ -10,6 +10,8 @@ import { useTheme } from "@/theme/useTheme";
 import { MeusMercadosModal } from "@/components/ofertas/MeusMercados";
 import { AvisoCelular } from "@/components/ofertas/DeOlho";
 import { BudgetModal } from "@/components/economia/BudgetModal";
+import { CategoriasEditor } from "@/components/estoque/CategoriasEditor";
+import { useCategorias } from "@/components/estoque/useCategorias";
 import { ScreenHeader } from "@/components/layout/ScreenHeader";
 import { useStore } from "@/lib/store";
 import { useHousehold } from "@/lib/household";
@@ -25,6 +27,8 @@ const btn2 = "h-11 rounded-[12px] border border-border bg-card-2 px-4 text-[14px
 // o que o app faz sozinho (avisos, localizacao), o dinheiro (orcamento) e o resto.
 
 export function FamiliaView() {
+  const cats = useCategorias();
+  const [categoriasAberto, setCategoriasAberto] = useState(false);
   const { household, reload } = useHousehold();
   const { showToast, budget } = useStore();
   const { theme, toggle } = useTheme();
@@ -142,6 +146,27 @@ export function FamiliaView() {
             )}
           </div>
         </div>
+
+        {/* Categorias do estoque (0049) */}
+        <div className={cardCls}>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-[16px] font-extrabold">🗂 Categorias do estoque</div>
+              <div className="text-[13px] text-text-2">Como a despensa se organiza. Crie, renomeie ou exclua.</div>
+            </div>
+            <button onClick={() => setCategoriasAberto(true)} className={`${btn2} shrink-0`}>
+              Editar
+            </button>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {cats.map((c) => (
+              <span key={c.nome} className="rounded-full bg-card-2 px-2.5 py-1 text-[12px] font-bold">
+                {c.icone} {c.nome}
+              </span>
+            ))}
+          </div>
+        </div>
+        {categoriasAberto && <CategoriasEditor onClose={() => setCategoriasAberto(false)} />}
 
         <div className={secao}>O que o app faz sozinho</div>
         {/* Avisos no celular */}
