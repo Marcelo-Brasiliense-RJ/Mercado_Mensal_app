@@ -22,6 +22,7 @@ import {
   type Oferta,
 } from "@/lib/ofertas";
 import { desligarPush, estadoPush, ligarPush, type EstadoPush } from "@/lib/push";
+import { Interruptor } from "@/components/ui/Interruptor";
 import { Foto, PorUnidade, Selo } from "./pecas";
 import { removerDesejo, salvarDesejo, useDesejos } from "./useDesejos";
 
@@ -88,7 +89,6 @@ export function DeOlho({
         </div>
       )}
 
-      {desejos.length > 0 && <AvisoCelular />}
 
       {/* Monta so aberto: o campo comeca vazio toda vez */}
       {vigiar && <VigiarModal open onClose={() => setVigiar(false)} ofertas={ofertas} />}
@@ -342,54 +342,45 @@ export function AvisoCelular() {
   }, []);
   if (!estado || estado === "sem-suporte") return null;
 
-  if (estado === "ligado") {
-    return (
-      <div className="flex items-center justify-between gap-3 px-1 text-[13px] text-text-2">
-        <span>🔔 Aviso ligado neste celular</span>
-        <button
-          onClick={async () => {
-            await desligarPush();
-            setEstado("desligado");
-            showToast("Avisos desligados neste celular");
-          }}
-          className="h-10 px-2 font-bold text-text-2 underline"
-        >
-          Desligar
-        </button>
-      </div>
-    );
+  async function trocar(v: boolean) {
+    setBusy(true);
+    if (v) {
+      const r = await ligarPush();
+      setBusy(false);
+      if (!r.ok) return showToast(r.erro);
+      setEstado("ligado");
+      showToast("🔔 Pronto! Aviso quando entrar em promoção");
+    } else {
+      await desligarPush();
+      setBusy(false);
+      setEstado("desligado");
+      showToast("Avisos desligados neste celular");
+    }
   }
-  if (estado === "instalar") {
-    return (
-      <div className="rounded-2xl bg-card-2 px-4 py-3 text-[13px] leading-snug">
-        <div className="text-[14px] font-extrabold">🔔 Quer o aviso no iPhone?</div>
-        Toque em <b>Compartilhar</b> (quadrado com seta ⬆️) → <b>Adicionar à Tela de Início</b>. Abra o app pelo ícone
-        novo e ligue o aviso aqui.
-      </div>
-    );
-  }
-  if (estado === "negado") {
-    return (
-      <div className="rounded-2xl bg-card-2 px-4 py-3 text-[13px] leading-snug">
-        🔕 Avisos bloqueados. Para ligar: <b>Ajustes</b> → <b>Notificações</b> → <b>Despensa</b> → Permitir.
-      </div>
-    );
-  }
+
+  const ajuda =
+    estado === "instalar"
+      ? "No iPhone: Compartilhar ⬆️ → Adicionar à Tela de Início, e abra pelo ícone."
+      : estado === "negado"
+        ? "Bloqueado: Ajustes do celular → Notificações → Despensa → Permitir."
+        : "Quando um produto De olho entrar em promoção.";
+
   return (
-    <button
-      disabled={busy}
-      onClick={async () => {
-        setBusy(true);
-        const r = await ligarPush();
-        setBusy(false);
-        if (!r.ok) return showToast(r.erro);
-        setEstado("ligado");
-        showToast("🔔 Pronto! Aviso quando entrar em promoção");
-      }}
-      className="flex h-14 items-center justify-center gap-2 rounded-2xl bg-brand text-[15px] font-extrabold text-white disabled:opacity-60"
-    >
-      {busy ? "Ligando…" : "🔔 Avisar no celular quando entrar em promoção"}
-    </button>
+    <div className="flex items-center gap-3 rounded-2xl border border-border bg-card px-3.5 py-3">
+      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-brand-soft text-[20px]" aria-hidden>
+        {estado === "ligado" ? "🔔" : "🔕"}
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="text-[15px] font-extrabold">Aviso no celular</div>
+        <div className="text-[12px] leading-snug text-text-2">{ajuda}</div>
+      </div>
+      <Interruptor
+        ligado={estado === "ligado"}
+        disabled={busy || estado === "instalar" || estado === "negado"}
+        onChange={(v) => void trocar(v)}
+        rotulo="Aviso de promoção no celular"
+      />
+    </div>
   );
 }
 

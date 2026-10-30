@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 import { brl } from "@/lib/format";
 import { useStore } from "@/lib/store";
 import { useOfertas } from "./useOfertas";
-import { DeOlho, Estrela } from "./DeOlho";
+import { AvisoCelular, DeOlho, Estrela } from "./DeOlho";
 import { MercadosDaCasa } from "./MeusMercados";
 import { Polegar } from "./NaoCompro";
 import { Foto, PorUnidade, Selo } from "./pecas";
@@ -89,7 +89,6 @@ export function OfertasView() {
   return (
     <div className="flex flex-col gap-6">
       <ScreenHeader title="Ofertas" subtitle="Promoções dos seus mercados" />
-      <MercadosDaCasa />
 
       {/* Busca: o unico campo da tela */}
       <label className="relative block">
@@ -104,6 +103,12 @@ export function OfertasView() {
           autoComplete="off"
         />
       </label>
+
+      {/* Logo abaixo da busca: os mercados da casa e o aviso no celular, juntos. */}
+      <div className="-mt-3 flex flex-col gap-2">
+        <MercadosDaCasa />
+        <AvisoCelular />
+      </div>
 
       {achadosBusca ? (
         <section className="flex flex-col gap-3">

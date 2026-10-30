@@ -170,13 +170,7 @@ export function FamiliaView() {
 
         <div className={secao}>O que o app faz sozinho</div>
         {/* Avisos no celular */}
-        <div className={cardCls}>
-          <div className="text-[16px] font-extrabold">🔔 Aviso no celular</div>
-          <div className="mb-3 text-[13px] text-text-2">
-            Quando um produto De olho entrar em promoção nos seus mercados.
-          </div>
-          <AvisoCelular />
-        </div>
+        <AvisoCelular />
 
         {/* Localizacao */}
         <div className={cardCls}>
