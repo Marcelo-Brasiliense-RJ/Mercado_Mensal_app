@@ -3,22 +3,32 @@
 import { useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { useStore } from "@/lib/store";
+import { createClient } from "@/lib/supabase/client";
+import { nomeMes } from "@/lib/economia";
 
 export function BudgetModal({
   open,
   onClose,
+  mes,
 }: {
   open: boolean;
   onClose: () => void;
+  mes?: string; // YYYY-MM-01 do mes que vem; sem ele, o mes corrente
 }) {
   const { budget, setBudget, showToast } = useStore();
-  const [valor, setValor] = useState(String(budget.total || ""));
+  const [valor, setValor] = useState(mes ? "" : String(budget.total || ""));
 
   async function save() {
     const n = Number(valor.replace(/[^0-9,.-]/g, "").replace(",", "."));
     if (!n || n <= 0) return;
-    const r = await setBudget(n);
-    if (!r.ok) return showToast(r.erro);
+    if (mes) {
+      const { data, error } = await createClient().rpc("mercado_budget_mes_set_web", { p_total: n, p_mes: mes });
+      if (error || !(data as { ok?: boolean } | null)?.ok)
+        return showToast(error?.code === "PGRST202" ? "Falta rodar a migration 0051." : "Não deu para salvar. Tente de novo.");
+    } else {
+      const r = await setBudget(n);
+      if (!r.ok) return showToast(r.erro);
+    }
     showToast("Orçamento atualizado");
     onClose();
   }
@@ -30,7 +40,7 @@ export function BudgetModal({
       <form onSubmit={(e) => { e.preventDefault(); save(); }}>
       <div className="mb-1.5 text-[19px] font-extrabold">Definir orçamento</div>
       <div className="mb-[18px] text-[14px] text-text-2">
-        Quanto você quer gastar de mercado neste mês?
+        Quanto você quer gastar de mercado {mes ? `em ${nomeMes(mes)}` : "neste mês"}?
       </div>
       <label className="mb-1.5 block text-xs font-bold text-text-2">
         Valor do orçamento

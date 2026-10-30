@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { AvisoParecido } from "@/components/ui/AvisoParecido";
 import { Modal } from "@/components/ui/Modal";
 import { QtyStepper } from "@/components/ui/QtyStepper";
 import { DestinoSwitch } from "@/components/ui/Destino";
@@ -164,6 +165,16 @@ function Conferir({ x, resta, onDepois }: { x: FotoFila; resta: number; onDepois
         </div>
       </div>
 
+      {passo === "conferir" && (
+        <AvisoParecido
+          nome={nome}
+          onUsar={(n, u) => {
+            setNome(n);
+            setUnidade(u);
+            setEditando(false);
+          }}
+        />
+      )}
       {passo === "conferir" ? (
         <div data-rodape className="flex flex-col gap-2">
           {editando ? (

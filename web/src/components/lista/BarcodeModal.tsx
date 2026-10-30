@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { AvisoParecido } from "@/components/ui/AvisoParecido";
 import { AvisoMaisBarato } from "@/components/ofertas/AvisoMaisBarato";
 import { AvisoPrecoSubiu } from "@/components/ofertas/AvisoPrecoSubiu";
 import { Modal } from "@/components/ui/Modal";
@@ -423,6 +424,16 @@ export function BarcodeModal({
               />
             )}
           </div>
+
+          {!conhecido && (
+            <AvisoParecido
+              nome={nome}
+              onUsar={(n, u) => {
+                setNome(n);
+                setUnidade(u);
+              }}
+            />
+          )}
 
           {(() => {
             const ruim = nome ? ehRuim(nome, evitar, codigo) : null;

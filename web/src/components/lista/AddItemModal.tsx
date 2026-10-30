@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { AvisoParecido } from "@/components/ui/AvisoParecido";
 import { Modal } from "@/components/ui/Modal";
 import { QtyStepper } from "@/components/ui/QtyStepper";
 import { useStore } from "@/lib/store";
@@ -153,6 +154,7 @@ export function AddItemModal({
           }}
         />
       )}
+      {!conhecido && !sugerir && <AvisoParecido nome={nome} onUsar={(n) => onNome(n)} />}
       {conhecido && (
         <p className="mb-3.5 text-[12px] text-text-2">
           {conhecido.current > 0
