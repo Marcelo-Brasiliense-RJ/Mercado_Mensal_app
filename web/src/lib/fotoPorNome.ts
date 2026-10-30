@@ -63,7 +63,8 @@ export function buscas(nome: string): string[] {
 
 // Endereco da foto de um item. A versao muda quando a regra de escolha muda: o celular e
 // a borda guardam a foto por dias, e sem trocar o endereco a foto errada antiga continuava
-// aparecendo (v2: so produto com todas as palavras do item).
-export const VERSAO_FOTO = 2;
+// aparecendo (v2: so produto com todas as palavras do item; v3: entrou
+// a loja Prezunic, entao o "sem foto" guardado precisa ser buscado de novo).
+export const VERSAO_FOTO = 3;
 export const urlFoto = (nome: string) =>
   `/api/foto?v=${VERSAO_FOTO}&nome=${encodeURIComponent(nome.trim().toLowerCase())}`;

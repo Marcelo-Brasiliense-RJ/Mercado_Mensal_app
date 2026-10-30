@@ -95,3 +95,16 @@ describe("entender a frase sem servidor (plano B)", () => {
     ]);
   });
 });
+
+describe("normalizaItens duvida", () => {
+  it("so marca duvida quando o modelo diz true; o resto entra direto", () => {
+    const [a, b, c] = normalizaItens([
+      { nome: "arroz", qtd: 1, duvida: false },
+      { nome: "trem azul", qtd: 1, duvida: true },
+      { nome: "feijao", qtd: 1, duvida: "sim" },
+    ]);
+    expect(a.duvida).toBeUndefined();
+    expect(b.duvida).toBe(true);
+    expect(c.duvida).toBeUndefined();
+  });
+});
