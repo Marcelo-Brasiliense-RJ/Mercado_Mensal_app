@@ -93,6 +93,9 @@ export function EconomiaView() {
   const anterior = d.meses[d.meses.length - 2];
   const podeVoltar = !!d.primeiro_mes && d.mes > d.primeiro_mes;
   const vazio = d.compras.length === 0;
+  // Da para ir ate o mes que vem: ele ainda nao comecou, mas ja da para combinar o orcamento.
+  const seguinte = somarMes(mesDeHoje(), 1);
+  const futuro = d.mes >= seguinte;
 
   return (
     <>
@@ -114,10 +117,11 @@ export function EconomiaView() {
               {nomeMes(d.mes).charAt(0).toUpperCase() + nomeMes(d.mes).slice(1)} de {d.mes.slice(0, 4)}
             </div>
             {d.atual && <div className="text-[12px] font-bold text-brand">este mês</div>}
+            {futuro && <div className="text-[12px] font-bold text-brand">mês que vem</div>}
           </div>
           <button
-            onClick={() => setMes(d.atual ? null : somarMes(d.mes, 1))}
-            disabled={d.atual}
+            onClick={() => setMes(somarMes(d.mes, 1))}
+            disabled={futuro}
             aria-label="Próximo mês"
             className="grid h-12 w-12 place-items-center rounded-xl text-[24px] font-bold disabled:opacity-25"
           >
@@ -125,10 +129,14 @@ export function EconomiaView() {
           </button>
         </div>
 
-        <Resumo d={d} anterior={anterior} itens={contas.itens.length} onOrcamento={() => setOrcamentoAberto(true)} />
+        {futuro ? (
+          <Planejar d={d} onOrcamento={() => setOrcamentoAberto(true)} />
+        ) : (
+          <Resumo d={d} anterior={anterior} itens={contas.itens.length} onOrcamento={() => setOrcamentoAberto(true)} />
+        )}
         {d.atual && <LiveloMes />}
 
-        {vazio ? (
+        {futuro ? null : vazio ? (
           <p className="px-4 py-6 text-center text-[15px] leading-relaxed text-text-2">
             Nenhuma compra registrada em {nomeMes(d.mes)}. Quando você fechar uma compra na aba Lista, ela aparece aqui.
           </p>
@@ -142,17 +150,20 @@ export function EconomiaView() {
 
         <MesAMes meses={d.meses} atual={d.mes} onEscolher={(m) => setMes(m)} />
 
-        <ComprasDoMes
-          compras={d.compras}
-          podeIncluir={d.atual}
-          titulo={`Compras de ${nomeMes(d.mes)}`}
-          recarregar={() => carregar(mes)}
-        />
+        {!futuro && (
+          <ComprasDoMes
+            compras={d.compras}
+            podeIncluir={d.atual}
+            titulo={`Compras de ${nomeMes(d.mes)}`}
+            recarregar={() => carregar(mes)}
+          />
+        )}
       </div>
 
       {orcamentoAberto && (
         <BudgetModal
           open
+          mes={futuro ? d.mes : undefined}
           onClose={() => {
             setOrcamentoAberto(false);
             carregar(mes);
@@ -219,6 +230,34 @@ function Resumo({
           {orc ? "Mudar orçamento" : "Definir orçamento"}
         </button>
       )}
+    </div>
+  );
+}
+
+const mesDeHoje = () => {
+  const h = new Date();
+  return `${h.getFullYear()}-${String(h.getMonth() + 1).padStart(2, "0")}-01`;
+};
+
+// Mes que vem: ainda nao tem compra, so o orcamento combinado (o que valer hoje segue
+// valendo ate alguem mudar, 0040).
+function Planejar({ d, onOrcamento }: { d: MesEconomia; onOrcamento: () => void }) {
+  const orc = d.orcamento ? Number(d.orcamento) : null;
+  return (
+    <div className={card}>
+      <div className={rotulo}>Orçamento de {nomeMes(d.mes)}</div>
+      {orc ? (
+        <div className="mt-1 text-[40px] font-extrabold leading-none tracking-[-0.02em] tabular-nums">{brl(orc)}</div>
+      ) : (
+        <p className="mt-2 text-[14px] text-text-2">Ainda sem orçamento. Combine agora quanto a casa vai gastar.</p>
+      )}
+      <p className="mt-2 text-[13px] text-text-2">
+        {nomeMes(d.mes).charAt(0).toUpperCase() + nomeMes(d.mes).slice(1)} ainda não começou. As compras aparecem aqui
+        quando você fechar a primeira.
+      </p>
+      <button onClick={onOrcamento} className="mt-3 h-11 text-[14px] font-bold text-brand">
+        {orc ? `Mudar orçamento de ${nomeMes(d.mes)}` : `Definir orçamento de ${nomeMes(d.mes)}`}
+      </button>
     </div>
   );
 }
