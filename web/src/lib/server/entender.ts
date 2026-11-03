@@ -5,6 +5,7 @@
 // So no servidor.
 import { intencaoValida, interpretarLocal, normalizaItens, type VozIntencao, type VozItem } from "@/lib/voz";
 import { gemini, type RespostaGemini } from "./gemini";
+import { vocabularioParaIA } from "@/lib/sinonimos";
 
 const GROQ = "https://api.groq.com/openai/v1";
 // Em ordem: se a Groq desligar um modelo, o proximo assume. O llama-3.3-70b foi
@@ -49,6 +50,15 @@ Exemplo: "tá faltando 1 arroz, 5 detergentes e arroz da Máximo" =
 Exemplo: "comprei arroz vinte reais, dois pacotes" =
 {"intencao":"carrinho","itens":[{"nome":"arroz","qtd":2,"unidade":"pct","preco_total":20,"duvida":false,"acao":"carrinho","motivo":null}]}`;
 
+// Cada um fala de um jeito: a mesma tabela da regra local (lib/sinonimos.ts) vai
+// para a IA, para as duas entenderem igual.
+const JEITOS = `
+
+Cada pessoa fala de um jeito (gíria, regionalismo, frase pela metade, erro de transcrição). Estes jeitos querem dizer a mesma coisa:
+${vocabularioParaIA()}
+Quantidade dita com NÚMERO ("tenho 5 kg de arroz", "tem 3 pacotes") = "estoque". Dizer que tem MUITO sem número ("tenho bastante sabonete", "a despensa tá cheia de macarrão", "tem um monte") = "remover" com motivo "excesso".
+Entenda pelo SENTIDO, não pela palavra exata: qualquer outro jeito de dizer isso vale igual. Lugar da casa ("despensa", "armário", "geladeira") não é produto.`;
+
 // A tela de onde a pessoa mandou ajuda a desempatar ("arroz" sozinho na despensa e estoque).
 function contexto(tela: Tela | undefined): string {
   if (tela === "estoque") return "\n\nContexto: a pessoa está na tela do ESTOQUE (despensa). Item sem verbo = estoque.";
@@ -70,7 +80,7 @@ function ler(txt: string | undefined): { intencao?: unknown; itens?: unknown } |
 // Texto -> itens. Groq primeiro (se tiver chave), Gemini de reserva, e a regra local
 // por ultimo: frase ouvida nunca volta vazia.
 export async function entenderTexto(texto: string, tela?: Tela): Promise<Entendido> {
-  const sistema = INSTRUCAO + contexto(tela);
+  const sistema = INSTRUCAO + JEITOS + contexto(tela);
   const key = process.env.GROQ_API_KEY;
   if (key) {
     for (const modelo of MODELOS_TEXTO) {
@@ -134,7 +144,7 @@ export async function entenderFoto(
   if (!m) return { ok: false, erro: "ia_falhou" };
   const g = await gemini(
     {
-      systemInstruction: { parts: [{ text: INSTRUCAO + contexto(tela) }] },
+      systemInstruction: { parts: [{ text: INSTRUCAO + JEITOS + contexto(tela) }] },
       contents: [{ parts: [{ inline_data: { mime_type: m[1], data: m[2] } }, { text: FOTO }] }],
       generationConfig: { responseMimeType: "application/json", temperature: 0 },
     },

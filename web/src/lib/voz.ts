@@ -3,6 +3,7 @@
 // modelo devolveu), que sao as que erram calado e por isso tem teste.
 
 import { unitFor } from "./defaults";
+import { normalizarFala } from "./sinonimos";
 
 export type VozIntencao = "lista" | "carrinho" | "estoque";
 
@@ -209,9 +210,9 @@ export function numerosPorExtenso(texto: string): string {
 const LIXO = new Set([
   "comprei", "peguei", "botei", "coloquei", "custou", "paguei", "preciso",
   "vou", "comprar", "falta", "faltou", "acabou", "anota", "ai", "tenho",
-  "sobrou", "ainda", "tem", "conferindo", "conferi", "casa", "em", "de", "do",
-  "da", "no", "na", "os", "as", "o", "a", "por", "cada", "reais", "real", "r$",
-  "que", "e", "com", "pra", "para", "mais", "quero", "nao", "precisa", "precisamos",
+  "sobrou", "ainda", "tem", "conferindo", "conferi", "casa",
+  "os", "as", "o", "a", "por", "cada", "reais", "real", "r$",
+  "que", "e", "pra", "para", "mais", "quero", "nao", "precisa", "precisamos",
   "tira", "tirar", "tire", "remove", "remover", "cancela", "cancelar", "lista",
   "coloca", "colocar", "bota", "botar", "poe", "por", "adiciona", "adicionar",
   "compra", "compre", "mas", "agora", "tambem", "so", "isso", "aquele", "aquela",
@@ -219,8 +220,11 @@ const LIXO = new Set([
   // tempo falado junto ("leite esse mes"): nunca e parte do nome do produto
   "esse", "essa", "este", "esta", "nesse", "nessa", "neste", "nesta", "mes",
   "semana", "hoje", "amanha", "proximo", "proxima", "dia", "dias",
-  "eu", "nos", "gente", "muito", "muita", "muitos", "muitas", "demais", "bastante",
+  "eu", "nos", "gente", "ruim", "aqui", "ai", "la", "muito", "muita", "muitos", "muitas", "demais", "bastante",
   "sobrando", "sobra", "olha", "entao", "ne", "tipo", "assim",
+  // lugar da casa, nao produto ("a despensa ta cheia de macarrao")
+  "despensa", "dispensa", "armario", "geladeira", "freezer", "prateleira", "cozinha",
+  "cheia", "cheio", "lotada", "lotado",
 ]);
 
 // Negacao: "nao quero", "tira", "nao precisa mais". Vale para os itens seguintes
@@ -228,6 +232,8 @@ const LIXO = new Set([
 // quero leite": cafe e acucar saem, leite entra).
 const NEGA = /\b(nao (quero|precisa|preciso|vou|compra|comprar|precisamos)|tira|tirar|tire|remove|remover|cancela|cancelar|nao)\b/;
 const AFIRMA = /\b(quero|preciso|precisamos|compra|comprar|falta|anota|coloca|bota|adiciona)\b/;
+
+const CONECTOR = new Set(["em", "de", "do", "da", "dos", "das", "no", "na", "com"]);
 
 type Pedaco = { nome: string; qtd: number | null; preco: number | null; unidade: string | null };
 
@@ -273,6 +279,10 @@ function lePedaco(txt: string): Pedaco {
     }
     if (!LIXO.has(t)) nome.push(t);
   }
+  // Ligacao fica DENTRO do nome ("sabao em po", "pao de forma") e sai das pontas
+  // ("preciso de arroz", "5 quilos de arroz", "ruim do iogurte").
+  while (nome.length && CONECTOR.has(nome[0])) nome.shift();
+  while (nome.length && CONECTOR.has(nome[nome.length - 1])) nome.pop();
   return { nome: nome.join(" ").trim(), qtd, preco, unidade };
 }
 
@@ -280,13 +290,16 @@ export function interpretarLocal(texto: string): {
   intencao: VozIntencao;
   itens: VozItem[];
 } {
-  const cru = semAcento((texto ?? "").toLowerCase());
+  // Cada um fala de um jeito: "ta faltando", "cabou", "risca", "tem um monte" viram a
+  // forma padrao antes de ler (lib/sinonimos.ts).
+  const cru = normalizarFala(semAcento((texto ?? "").toLowerCase()));
   // "nao quero cafe" sozinho e assunto de lista, nao de estoque.
   const intencao = /\bnao (quero|precisa)|\btira\b/.test(cru)
     ? "lista"
     : (VERBOS.find(([re]) => re.test(cru))?.[1] ?? "lista");
 
-  const brutos = numerosPorExtenso(texto)
+  // Jeito de falar ANTES dos numeros: "tem um monte" nao pode virar "tem 1 monte".
+  const brutos = numerosPorExtenso(normalizarFala(semAcento((texto ?? "").toLowerCase())))
     .replace(/\b(mas|porem)\b/g, ", mas")
     .split(/,| e /)
     .map((p) => p.trim())
@@ -298,7 +311,9 @@ export function interpretarLocal(texto: string): {
   let acao: VozIntencao | "remover" = intencao;
   const pedacos = brutos.map((b) => {
     const excesso = /\b(muito|muita|demais|bastante|sobrando|de sobra)\b/.test(b);
-    if (/\b(nao tenho|nao tem mais|acabou|faltou|falta)\b/.test(b)) acao = "lista";
+    // Falou mal do produto: nao comprar, ruim (antes de tudo: "nao presta" tem um "nao").
+    if (/\bruim\b/.test(b)) acao = "remover";
+    else if (/\b(nao tenho|nao tem mais|acabou|faltou|falta)\b/.test(b)) acao = "lista";
     else if (NEGA.test(b)) acao = "remover";
     else if (excesso && (acao === "remover" || /\bja tem\b/.test(b))) acao = "remover";
     else if (/\b(comprei|peguei|botei|coloquei|custou|paguei)\b/.test(b)) acao = "carrinho";
@@ -390,7 +405,7 @@ export function achaNaLista<T extends { id: string; name: string; status: string
 // estoque baixar. Pela fala: falou mal do produto = ruim; o resto = excesso.
 export function motivoNaoComprar(frase: string): "ruim" | "excesso" {
   return /\b(ruim|nao presta|pessim|horrivel|nao gost|nao prest|porcaria|aguad|vagabund|qualidade)/.test(
-    semAcento((frase ?? "").toLowerCase()),
+    normalizarFala(semAcento((frase ?? "").toLowerCase())),
   )
     ? "ruim"
     : "excesso";
