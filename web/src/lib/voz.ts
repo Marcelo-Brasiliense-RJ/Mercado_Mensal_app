@@ -204,7 +204,10 @@ const LIXO = new Set([
   "tira", "tirar", "tire", "remove", "remover", "cancela", "cancelar", "lista",
   "coloca", "colocar", "bota", "botar", "poe", "por", "adiciona", "adicionar",
   "compra", "compre", "mas", "agora", "tambem", "so", "isso", "aquele", "aquela",
-  "um", "uma", "uns", "umas", "ja",
+  "um", "uma", "uns", "umas", "ja", "pegar", "favor", "enquanto", "vez",
+  // tempo falado junto ("leite esse mes"): nunca e parte do nome do produto
+  "esse", "essa", "este", "esta", "nesse", "nessa", "neste", "nesta", "mes",
+  "semana", "hoje", "amanha", "proximo", "proxima", "dia", "dias",
 ]);
 
 // Negacao: "nao quero", "tira", "nao precisa mais". Vale para os itens seguintes

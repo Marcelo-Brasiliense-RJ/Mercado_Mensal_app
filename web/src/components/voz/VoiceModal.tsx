@@ -439,11 +439,17 @@ export function VoiceModal({
     rec.onstart = () => {
       comecou = true;
     };
+    let calado: ReturnType<typeof setTimeout> | null = null;
     rec.onresult = (e) => {
       let t = "";
       for (let k = 0; k < e.results.length; k++) t += e.results[k][0]?.transcript ?? "";
       fraseRef.current = t.trim();
       setParcial(fraseRef.current);
+      // O iPhone nao encerra sozinho: sem palavra nova por um instante, a fala acabou.
+      if (calado) clearTimeout(calado);
+      calado = setTimeout(() => {
+        if (falaRef.current === rec) parar();
+      }, SILENCIO_MS);
     };
     rec.onerror = (e) => {
       if (e?.error === "not-allowed" || e?.error === "service-not-allowed") {

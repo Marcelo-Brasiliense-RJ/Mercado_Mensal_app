@@ -152,3 +152,10 @@ describe("comprar e nao comprar na mesma frase", () => {
     expect(achaNaLista("sabão", lista)).toEqual([]);
   });
 });
+
+describe("frase do dono no iPhone", () => {
+  it("'nao comprar leite esse mes' tira so o leite", () => {
+    const r = interpretarLocal("Não comprar leite esse mês");
+    expect(r.itens).toEqual([expect.objectContaining({ nome: "leite", remover: true })]);
+  });
+});
