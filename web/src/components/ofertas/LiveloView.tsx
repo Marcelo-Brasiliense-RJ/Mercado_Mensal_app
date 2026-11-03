@@ -7,7 +7,7 @@ import { brl } from "@/lib/format";
 import { findByName } from "@/lib/defaults";
 import { casaItem, COR_LIVELO, maisBarato, nomeMercado, pontuaNaLivelo, type Oferta } from "@/lib/ofertas";
 import { LINK_LIVELO, parceiroCarrefour, ptsCertos } from "@/lib/livelo";
-import { linha, resumo, vezes, type Linha, type ProdutoCarrefour } from "@/lib/comparar";
+import { linha, MARGEM_PADRAO, resumo, veredito, vezes, type Linha, type ProdutoCarrefour } from "@/lib/comparar";
 import type { ShopItem } from "@/lib/types";
 import { ConfigLivelo } from "./Livelo";
 import { useLivelo } from "./useLivelo";
@@ -64,6 +64,23 @@ export function LiveloView() {
   const ofertas = useListaOfertas();
   const [filtro, setFiltro] = useState<"todos" | "carrefour" | "mercado">("todos");
   const [config, setConfig] = useState(false);
+  // Margem e preferencia deste aparelho: quanto a mais vale pagar para pontuar.
+  const [margem, setMargemEstado] = useState(() => {
+    try {
+      const v = Number(localStorage.getItem("livelo_margem"));
+      return Number.isFinite(v) && localStorage.getItem("livelo_margem") !== null ? v : MARGEM_PADRAO;
+    } catch {
+      return MARGEM_PADRAO;
+    }
+  });
+  function setMargem(v: number) {
+    setMargemEstado(v);
+    try {
+      localStorage.setItem("livelo_margem", String(v));
+    } catch {
+      /* so nesta visita */
+    }
+  }
 
   const pendentes = useMemo(() => shopping.filter((i) => i.status === "pending"), [shopping]);
   // "Ja tem em casa": marcado na lista ou com saldo no estoque. Fica fora da conta.
@@ -106,7 +123,8 @@ export function LiveloView() {
 
   const r = resumo(itens.map((i) => i.l));
   const buscando = itens.some((i) => i.carregando);
-  const economiaMisto = +(r.tudoMercado - r.melhorDeCada).toFixed(2);
+  const v = veredito(r, margem);
+  const valorPts = +(r.tudoCarrefour - r.tudoLiquido).toFixed(2);
   const visiveis = itens.filter((i) => filtro === "todos" || i.l.vence === filtro);
 
   async function naoPreciso(i: ShopItem) {
@@ -156,14 +174,27 @@ export function LiveloView() {
               />
             </div>
             <div className="mt-3 rounded-[14px] bg-card-2 p-3">
-              {economiaMisto > 0.01 ? (
+              {v.tipo === "online" ? (
+                <p className="text-[15px] font-extrabold text-pos">
+                  ✓ Compre tudo online pela Livelo
+                  <span className="block text-[13px] font-bold">
+                    {v.aMais > 0.01
+                      ? `Paga ${brl(v.aMais)} a mais no caixa (dentro da sua margem de ${brl(margem)}) e ganha ${r.pontos} pts ≈ ${brl(valorPts)}`
+                      : `Sai mais barato e ainda ganha ${r.pontos} pts ≈ ${brl(valorPts)}`}
+                  </span>
+                </p>
+              ) : v.tipo === "misto" ? (
                 <p className="text-[15px] font-extrabold text-pos">
                   ✓ Melhor: {r.ganhaCarrefour} {r.ganhaCarrefour === 1 ? "item" : "itens"} online e o resto no mercado ={" "}
                   {brl(r.melhorDeCada)}
-                  <span className="block text-[13px] font-bold">economiza {brl(economiaMisto)} e ganha {r.pontos} pts</span>
+                  <span className="block text-[13px] font-bold">
+                    economiza {brl(v.economia)} · tudo online passaria {brl(r.tudoCarrefour - r.tudoMercado)} da conta do mercado
+                  </span>
                 </p>
               ) : (
-                <p className="text-[15px] font-extrabold text-pos">✓ Compre tudo no mercado: o online não compensa agora.</p>
+                <p className="text-[15px] font-extrabold text-pos">
+                  ✓ Compre no mercado: online passa {brl(r.tudoCarrefour - r.tudoMercado)} da sua margem de {brl(margem)}.
+                </p>
               )}
             </div>
             {r.comparados < precisa.length && !buscando && (
@@ -235,6 +266,23 @@ export function LiveloView() {
           </div>
         </section>
       )}
+
+      <label className="flex items-center gap-3 rounded-[14px] border border-border bg-card px-3.5 py-3">
+        <span className="min-w-0 flex-1 text-[13px] text-text-2">
+          <span className="block text-[14px] font-bold text-text">Pago a mais pra pontuar</span>
+          Até quanto o online pode custar a mais que o mercado e ainda valer
+        </span>
+        <span className="text-[14px] font-bold">R$</span>
+        <input
+          type="number"
+          inputMode="decimal"
+          min={0}
+          step={1}
+          value={margem}
+          onChange={(e) => setMargem(Math.max(0, Number(e.target.value) || 0))}
+          className="h-10 w-16 rounded-lg border border-border bg-card-2 text-center text-[16px] font-bold"
+        />
+      </label>
 
       <button
         onClick={() => lv && setConfig(true)}

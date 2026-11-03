@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { linha, produtoCasa, resumo, vezes } from "./comparar";
+import { linha, produtoCasa, resumo, veredito, vezes } from "./comparar";
 
 describe("mercado x carrefour com livelo", () => {
   it("casa o produto do site com o item da lista", () => {
@@ -33,5 +33,21 @@ describe("mercado x carrefour com livelo", () => {
     ]);
     expect(r).toMatchObject({ comparados: 2, semPreco: 1, tudoMercado: 15, tudoCarrefour: 18, ganhaCarrefour: 1 });
     expect(r.melhorDeCada).toBe(14.1); // 9,10 + 5
+  });
+});
+
+describe("margem pelos pontos", () => {
+  const r = (mercado: number, caixa: number) =>
+    resumo([linha({ nome: "x", vezes: 1, precoMercado: mercado, precoCarrefour: caixa, ptsPorReal: 3, valorPonto: 0.03 })]);
+
+  it("ate R$ 5 a mais no caixa, compra online", () => {
+    expect(veredito(r(100, 104.9), 5)).toEqual({ tipo: "online", aMais: 4.9 });
+    expect(veredito(r(100, 90), 5)).toEqual({ tipo: "online", aMais: 0 });
+  });
+
+  it("passou da margem, volta para o mercado", () => {
+    expect(veredito(r(100, 120), 5).tipo).toBe("mercado");
+    // sem margem, quem decide e o preco ja descontando os pontos
+    expect(veredito(r(100, 104.9), 0).tipo).toBe("misto");
   });
 });

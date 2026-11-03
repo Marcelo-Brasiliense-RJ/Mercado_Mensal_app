@@ -105,3 +105,22 @@ export function resumo(linhas: Linha[]): Resumo {
   for (const k of ["tudoMercado", "tudoCarrefour", "tudoLiquido", "melhorDeCada"] as const) r[k] = +r[k].toFixed(2);
   return r;
 }
+
+// Margem do dono: pagar ate R$ X a mais no caixa do Carrefour ainda vale, porque a
+// compra pontua na Livelo e isso rende no longo prazo. A margem compara o que sai do
+// bolso no caixa (sem descontar pontos), senao os pontos contariam duas vezes.
+export const MARGEM_PADRAO = 5;
+
+export type Veredito =
+  | { tipo: "online"; aMais: number } // tudo online; aMais = quanto paga a mais no caixa (0 se mais barato)
+  | { tipo: "misto"; economia: number } // separar: cada item onde sai mais barato
+  | { tipo: "mercado" }
+  | { tipo: "nada" }; // sem item comparavel
+
+export function veredito(r: Resumo, margem: number): Veredito {
+  if (!r.comparados) return { tipo: "nada" };
+  const aMais = +(r.tudoCarrefour - r.tudoMercado).toFixed(2);
+  if (aMais <= margem) return { tipo: "online", aMais: Math.max(0, aMais) };
+  const economia = +(r.tudoMercado - r.melhorDeCada).toFixed(2);
+  return economia > 0.01 ? { tipo: "misto", economia } : { tipo: "mercado" };
+}
