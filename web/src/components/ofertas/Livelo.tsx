@@ -487,7 +487,7 @@ function FixoCard({ item, l, ofertas }: { item: string; l: LiveloT; ofertas: Ofe
   );
 }
 
-function ConfigLivelo({ l, onClose }: { l: LiveloT; onClose: () => void }) {
+export function ConfigLivelo({ l, onClose }: { l: LiveloT; onClose: () => void }) {
   const { showToast } = useStore();
   const conhecidos = l.paridades.filter((p) => p.nome);
   const [escolhidos, setEscolhidos] = useState<string[]>(l.parceiros.length ? l.parceiros : conhecidos.slice(0, 1).map((p) => p.codigo));
