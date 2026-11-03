@@ -4,6 +4,7 @@ import {
   ehApple,
   escolherMime,
   interpretarLocal,
+  motivoNaoComprar,
   numerosPorExtenso,
   extensaoDe,
   intencaoValida,
@@ -157,5 +158,17 @@ describe("frase do dono no iPhone", () => {
   it("'nao comprar leite esse mes' tira so o leite", () => {
     const r = interpretarLocal("Não comprar leite esse mês");
     expect(r.itens).toEqual([expect.objectContaining({ nome: "leite", remover: true })]);
+  });
+});
+
+describe("nao comprar: ruim ou excesso", () => {
+  it("pontuacao do ditado nao gruda no nome", () => {
+    expect(interpretarLocal("Não. Biscoito plus vita").itens[0]).toMatchObject({ nome: "biscoito plus vita", remover: true });
+  });
+  it("classifica pela fala", () => {
+    expect(motivoNaoComprar("não comprar leite esse mês")).toBe("excesso");
+    expect(motivoNaoComprar("tem leite demais, não compra")).toBe("excesso");
+    expect(motivoNaoComprar("não compra mais esse café, é ruim")).toBe("ruim");
+    expect(motivoNaoComprar("detergente Ypê não presta")).toBe("ruim");
   });
 });

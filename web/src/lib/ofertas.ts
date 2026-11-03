@@ -365,6 +365,16 @@ export function termoEvitar(produto: string, marca = ""): string {
   return p.slice(0, 3).join(" ");
 }
 
+// "Nao comprar" tem dois tipos na mesma tabela (0045): RUIM (some das ofertas) e
+// EXCESSO (tem demais em casa, so em observacao). O tipo vai no comeco do motivo.
+// ponytail: coluna propria quando a proxima migration da tabela sair.
+export const MOTIVO_EXCESSO = "excesso";
+export const ehExcesso = (e: Pick<Evitar, "motivo">) =>
+  (e.motivo ?? "").trim().toLowerCase().startsWith(MOTIVO_EXCESSO);
+// O texto do motivo sem a marca do tipo ("excesso: 6 caixas em casa" -> "6 caixas em casa").
+export const textoMotivo = (e: Pick<Evitar, "motivo">) =>
+  (ehExcesso(e) ? (e.motivo ?? "").trim().slice(MOTIVO_EXCESSO.length).replace(/^[\s:·-]+/, "") : (e.motivo ?? "")).trim();
+
 // Oferta (ou produto lido) que a casa marcou como ruim: todas as palavras do termo no nome.
 export function ehRuim(nome: string, evitar: Evitar[], barcode?: string | null): Evitar | null {
   if (barcode) {

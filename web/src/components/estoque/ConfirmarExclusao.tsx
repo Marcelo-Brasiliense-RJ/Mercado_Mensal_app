@@ -29,7 +29,7 @@ export function ConfirmarExclusao({
     if (r.ok && ruim) for (const i of itens) await marcarRuim({ termo: termoEvitar(i.name), nome: i.name });
     setBusy(false);
     if (!r.ok) return showToast(r.erro);
-    showToast(ruim ? `👎 ${titulo}: excluído e no Não compro` : `${titulo} excluído do estoque`);
+    showToast(ruim ? `👎 ${titulo}: excluído e no Não comprar` : `${titulo} excluído do estoque`);
     onFeito?.();
     onClose();
   }
@@ -38,7 +38,7 @@ export function ConfirmarExclusao({
     <Modal open onClose={onClose} maxWidth={400}>
       <div className="pr-10 text-[20px] font-extrabold capitalize">Excluir {titulo}?</div>
       <p className="mb-4 text-[13px] text-text-2">
-        {um ? "Sai do estoque." : "Saem do estoque."} Se for porque é ruim, ponha no Não compro: some das ofertas.
+        {um ? "Sai do estoque." : "Saem do estoque."} Se for porque é ruim, ponha no Não comprar: some das ofertas.
       </p>
       <div className="flex flex-col gap-2.5">
         <button
@@ -53,7 +53,7 @@ export function ConfirmarExclusao({
           disabled={busy}
           className="h-[52px] rounded-[14px] border-2 border-neg bg-card text-[15px] font-bold text-neg disabled:opacity-50"
         >
-          👎 Excluir e pôr no Não compro
+          👎 Excluir e pôr no Não comprar
         </button>
         <button onClick={onClose} className="h-12 rounded-[14px] border border-border bg-card text-[15px] font-bold">
           Cancelar

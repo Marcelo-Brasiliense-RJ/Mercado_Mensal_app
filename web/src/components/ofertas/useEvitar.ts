@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useSyncExternalStore } from "react";
 import { createClient } from "@/lib/supabase/client";
-import type { Evitar } from "@/lib/ofertas";
+import { ehExcesso, MOTIVO_EXCESSO, termoEvitar, type Evitar } from "@/lib/ofertas";
 
 // Lista "Não compro" (0045), compartilhada pelo app inteiro: ofertas, leitor e Lista
 // leem o mesmo estado. Vazia enquanto carrega ou sem a 0045: nada fica escondido.
@@ -38,6 +38,23 @@ export function useEvitar(): Evitar[] {
     void carregar();
   }, []);
   return v;
+}
+
+// So os RUINS: os que somem das ofertas e geram aviso no leitor. Excesso nao esconde nada.
+export function useRuins(): Evitar[] {
+  const todos = useEvitar();
+  return useMemo(() => todos.filter((e) => !ehExcesso(e)), [todos]);
+}
+
+// "Nao comprar" pela voz ou pela tela, com o tipo.
+export function marcarNaoComprar(nome: string, tipo: "ruim" | "excesso", texto = ""): Promise<boolean> {
+  const n = nome.trim();
+  const t = texto.trim();
+  return marcarRuim({
+    termo: termoEvitar(n) || n.toLowerCase(),
+    nome: n,
+    motivo: tipo === "excesso" ? (t ? `${MOTIVO_EXCESSO}: ${t}` : MOTIVO_EXCESSO) : t || null,
+  });
 }
 
 export async function marcarRuim(p: {

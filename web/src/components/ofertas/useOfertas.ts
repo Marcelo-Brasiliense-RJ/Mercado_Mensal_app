@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { ehRuim, nomeCompleto } from "@/lib/ofertas";
-import { useEvitar } from "./useEvitar";
+import { useRuins } from "./useEvitar";
 import { createClient } from "@/lib/supabase/client";
 import type { ItemFalta, Oferta } from "@/lib/ofertas";
 
@@ -70,7 +70,7 @@ export function useOfertas(): EstadoOfertas {
   }, [v]);
   // Produto marcado como ruim sai daqui, e por isso de toda recomendacao do app
   // (mais barato, onde compensa, aviso no carrinho), nao so da tela de Ofertas.
-  const evitar = useEvitar();
+  const evitar = useRuins();
   return useMemo(() => {
     if (estado.fase !== "ok" || !evitar.length) return estado;
     const boas = estado.dados.ofertas.filter((o) => !ehRuim(nomeCompleto(o), evitar));

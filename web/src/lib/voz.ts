@@ -219,7 +219,12 @@ const AFIRMA = /\b(quero|preciso|precisamos|compra|comprar|falta|anota|coloca|bo
 type Pedaco = { nome: string; qtd: number | null; preco: number | null; unidade: string | null };
 
 function lePedaco(txt: string): Pedaco {
-  const tk = txt.trim().split(/\s+/).filter(Boolean);
+  // Pontuacao do ditado ("Nao. Biscoito") nao pode grudar no nome.
+  const tk = txt
+    .trim()
+    .split(/\s+/)
+    .map((w) => w.replace(/^["“”']+|[.!?;:"“”']+$/g, ""))
+    .filter(Boolean);
   let qtd: number | null = null;
   let preco: number | null = null;
   let unidade: string | null = null;
@@ -346,4 +351,15 @@ export function achaNaLista<T extends { id: string; name: string; status: string
     const k = chave(i.name);
     return k.startsWith(`${n} `) || k.startsWith(`${singular} `) || k === singular;
   });
+}
+
+// "Nao comprar" tem dois motivos, e eles fazem coisas diferentes: produto RUIM some
+// das ofertas para sempre; EXCESSO (tem demais em casa) so fica em observacao ate o
+// estoque baixar. Pela fala: falou mal do produto = ruim; o resto = excesso.
+export function motivoNaoComprar(frase: string): "ruim" | "excesso" {
+  return /\b(ruim|nao presta|pessim|horrivel|nao gost|nao prest|porcaria|aguad|vagabund|qualidade)/.test(
+    semAcento((frase ?? "").toLowerCase()),
+  )
+    ? "ruim"
+    : "excesso";
 }

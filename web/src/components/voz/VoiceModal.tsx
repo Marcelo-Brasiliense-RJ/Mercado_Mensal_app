@@ -9,6 +9,7 @@ import { useLugar } from "@/lib/lugar";
 import { useStore } from "@/lib/store";
 import { findByName, unitFor } from "@/lib/defaults";
 import { createClient } from "@/lib/supabase/client";
+import { marcarNaoComprar } from "@/components/ofertas/useEvitar";
 import type { ShopItem } from "@/lib/types";
 import {
   achaNaLista,
@@ -17,6 +18,7 @@ import {
   escolherMime,
   extensaoDe,
   interpretarLocal,
+  motivoNaoComprar,
   reconhecimentoDoNavegador,
   segundosFmt,
   type VozIntencao,
@@ -298,8 +300,11 @@ export function VoiceModal({
     }
   }
 
-  // "Nao quero cafe": tira da lista o que estava pendente. Devolve o aviso.
-  async function tirarDaLista(nomes: string[]): Promise<string> {
+  // "Nao comprar leite": tira da lista o que estava pendente E guarda em "Nao comprar"
+  // (excesso, ou ruim se falou mal do produto), para ninguem por de volta sem ver.
+  async function tirarDaLista(nomes: string[], frase: string): Promise<string> {
+    const tipo = motivoNaoComprar(frase);
+    const guardou = (await Promise.all(nomes.map((n) => marcarNaoComprar(n, tipo)))).some(Boolean);
     const ids: string[] = [];
     const tirados: string[] = [];
     const nemEstava: string[] = [];
@@ -316,7 +321,11 @@ export function VoiceModal({
       if (r.ok) partes.push(`Tirei: ${tirados.join(", ")}`);
       else partes.push(`Não consegui tirar ${tirados.join(", ")}`);
     }
-    if (nemEstava.length) partes.push(`Não estava na lista: ${nemEstava.join(", ")}`);
+    if (guardou) {
+      partes.push(`${tipo === "ruim" ? "👎" : "📦"} Não comprar: ${nomes.join(", ")} (${tipo === "ruim" ? "produto ruim" : "em excesso"})`);
+    } else if (nemEstava.length) {
+      partes.push(`Não estava na lista: ${nemEstava.join(", ")}`);
+    }
     return partes.join(" · ");
   }
 
@@ -329,7 +338,7 @@ export function VoiceModal({
     let avisoTirar = "";
     if (tirar.length) {
       setFase("salvando");
-      avisoTirar = await tirarDaLista(tirar);
+      avisoTirar = await tirarDaLista(tirar, frase);
       if (!lidos.length) {
         showToast(avisoTirar);
         return fechar();
