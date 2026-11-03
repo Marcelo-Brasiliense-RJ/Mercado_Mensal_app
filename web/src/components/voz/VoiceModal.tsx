@@ -12,6 +12,7 @@ import { createClient } from "@/lib/supabase/client";
 import { marcarNaoComprar, marcarRuim } from "@/components/ofertas/useEvitar";
 import { termoEvitar } from "@/lib/ofertas";
 import { reduzir } from "@/lib/reconhecer";
+import { Gravador } from "./Gravador";
 import type { ShopItem } from "@/lib/types";
 import {
   achaNaLista,
@@ -22,7 +23,6 @@ import {
   interpretarLocal,
   motivoNaoComprar,
   reconhecimentoDoNavegador,
-  segundosFmt,
   type VozIntencao,
   type VozItem,
   type VozResposta,
@@ -124,6 +124,7 @@ export function VoiceModal({
   const streamRef = useRef<MediaStream | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const [nivel, setNivel] = useState(0); // 0..1, a barra que prova que o microfone capta
+  const [historico, setHistorico] = useState<number[]>([]); // volume recente, para as barras
   const [parcial, setParcial] = useState(""); // o que o aparelho ja ouviu, ao vivo
   const [pergunta, setPergunta] = useState<Pergunta | null>(null);
   const [marcas, setMarcas] = useState<Marca[] | null>(null); // null = buscando
@@ -183,6 +184,7 @@ export function VoiceModal({
     setDestino(inicial);
     setJaForam(0);
     setNivel(0);
+    setHistorico([]);
     setParcial("");
     setPergunta(null);
     setMarcas(null);
@@ -263,14 +265,21 @@ export function VoiceModal({
       const inicio = Date.now();
       let falou = false;
       let ultimaVoz = Date.now();
+      let ultimaBarra = 0;
       const passo = () => {
         if (rec.state !== "recording" || audioCtxRef.current !== ctx) return;
         an.getByteTimeDomainData(buf);
         let soma = 0;
         for (const v of buf) soma += ((v - 128) / 128) ** 2;
         const rms = Math.sqrt(soma / buf.length);
-        setNivel(Math.min(1, rms * 6));
+        const v = Math.min(1, rms * 6);
         const agora = Date.now();
+        setNivel(v);
+        // ~20 quadros por segundo nas barras: suave sem pesar no celular
+        if (agora - ultimaBarra > 50) {
+          ultimaBarra = agora;
+          setHistorico((h) => [...h.slice(-40), v]);
+        }
         if (rms > 0.03) {
           falou = true;
           ultimaVoz = agora;
@@ -809,47 +818,20 @@ export function VoiceModal({
             </p>
           )}
 
-          <div className="mb-4 flex flex-col items-center gap-3">
-            <button
-              type="button"
-              onClick={gravando ? parar : gravar}
+          <div className="mb-4 flex flex-col items-center gap-2">
+            <Gravador
+              estado={fase === "enviando" ? "entendendo" : gravando ? "gravando" : "parado"}
+              nivel={nivel}
+              historico={modoLocal ? null : historico}
+              segundos={segundos}
+              onToggle={gravando ? parar : gravar}
               disabled={ocupado}
-              aria-label={gravando ? "Parar gravação" : "Gravar"}
-              className={`grid h-[92px] w-[92px] place-items-center rounded-full text-brand-ink transition-transform disabled:opacity-50 ${
-                gravando ? "scale-105 animate-pulse bg-neg" : "bg-brand"
-              }`}
-            >
-              {gravando ? (
-                <span className="h-7 w-7 rounded-[6px] bg-brand-ink" />
-              ) : (
-                <MicIcon size={38} />
-              )}
-            </button>
-            <div className="text-[15px] font-bold">
-              {fase === "enviando"
-                ? "Entendendo…"
-                : gravando
-                  ? `${segundosFmt(segundos)} · toque para parar`
-                  : "Toque para falar"}
-            </div>
-            {gravando && !modoLocal && (
-              <div
-                className="h-2 w-40 overflow-hidden rounded-full bg-card-2"
-                aria-label="Volume do microfone"
-              >
-                <div
-                  className="h-full rounded-full bg-brand transition-[width] duration-75"
-                  style={{ width: `${Math.round(nivel * 100)}%` }}
-                />
-              </div>
-            )}
+            />
             {gravando && parcial && (
               <p className="text-center text-[14px] text-text-2">“{parcial}”</p>
             )}
             {gravando && (
-              <div className="text-[12px] text-text-3">
-                Paro sozinho quando você terminar de falar
-              </div>
+              <div className="text-[12px] text-text-3">Paro sozinho quando você terminar · toque para parar</div>
             )}
           </div>
 

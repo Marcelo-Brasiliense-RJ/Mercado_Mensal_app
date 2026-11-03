@@ -92,11 +92,11 @@ export const BarcodeIcon = ({ size, className }: P) => (
     <path d="M7 8v8M10.5 8v8M14 8v8M17 8v8" />
   </svg>
 );
+// Capsula cheia + arco, o mesmo desenho do botao grande do Gravador.
 export const MicIcon = ({ size, className }: P) => (
   <svg {...base(size)} className={className}>
-    <rect x="9" y="2.5" width="6" height="11" rx="3" />
-    <path d="M5.5 11a6.5 6.5 0 0 0 13 0" />
-    <path d="M12 17.5V21M9 21h6" />
+    <rect x="8.25" y="2.75" width="7.5" height="12" rx="3.75" fill="currentColor" stroke="none" />
+    <path d="M5.25 11.25a6.75 6.75 0 0 0 13.5 0M12 18v3" />
   </svg>
 );
 export const HeartIcon = ({ size, className }: P) => (
