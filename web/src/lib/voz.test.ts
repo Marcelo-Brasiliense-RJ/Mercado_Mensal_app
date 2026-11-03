@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  achaNaLista,
   ehApple,
   escolherMime,
   interpretarLocal,
@@ -82,7 +83,7 @@ describe("entender a frase sem servidor (plano B)", () => {
     expect(r.itens).toHaveLength(2);
     // cinco reais era o total dos dois pacotes: 2,50 cada
     expect(r.itens[0]).toMatchObject({ nome: "arroz", qtd: 2, preco: 2.5 });
-    expect(r.itens[1]).toMatchObject({ nome: "cafe", qtd: 1, preco: 12.9 });
+    expect(r.itens[1]).toMatchObject({ nome: "café", qtd: 1, preco: 12.9 });
   });
 
   it("classifica pelo verbo", () => {
@@ -115,5 +116,39 @@ describe("normalizaItens duvida", () => {
     expect(a.duvida).toBeUndefined();
     expect(b.duvida).toBe(true);
     expect(c.duvida).toBeUndefined();
+  });
+});
+
+describe("comprar e nao comprar na mesma frase", () => {
+  it("separa o que entra e o que sai da lista", () => {
+    const r = interpretarLocal("quero arroz e feijão, mas não quero café e açúcar");
+    expect(r.intencao).toBe("lista");
+    const por = Object.fromEntries(r.itens.map((i) => [i.nome, !!i.remover]));
+    expect(por).toEqual({ arroz: false, "feijão": false, "café": true, "açúcar": true });
+  });
+
+  it("negacao primeiro, depois o que quer", () => {
+    const r = interpretarLocal("tira o leite da lista, mas preciso de 2 detergentes");
+    expect(r.itens.map((i) => [i.nome, !!i.remover, i.qtd])).toEqual([
+      ["leite", true, 1],
+      ["detergentes", false, 2],
+    ]);
+  });
+
+  it("o modelo pode marcar remover", () => {
+    const [i] = normalizaItens([{ nome: "café", qtd: 1, remover: true }]);
+    expect(i.remover).toBe(true);
+  });
+
+  it("acha na lista pelo nome falado", () => {
+    const lista = [
+      { id: "1", name: "Café Pilão", status: "pending" },
+      { id: "2", name: "cafeteira", status: "pending" },
+      { id: "3", name: "café", status: "bought" },
+      { id: "4", name: "leite", status: "pending" },
+    ];
+    expect(achaNaLista("café", lista).map((i) => i.id)).toEqual(["1"]);
+    expect(achaNaLista("leites", lista).map((i) => i.id)).toEqual(["4"]);
+    expect(achaNaLista("sabão", lista)).toEqual([]);
   });
 });

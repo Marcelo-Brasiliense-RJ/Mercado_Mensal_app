@@ -11,6 +11,7 @@ import { findByName, unitFor } from "@/lib/defaults";
 import { createClient } from "@/lib/supabase/client";
 import type { ShopItem } from "@/lib/types";
 import {
+  achaNaLista,
   ERRO_VOZ,
   ehApple,
   escolherMime,
@@ -30,10 +31,20 @@ type Reconhecedor = {
   continuous: boolean;
   start: () => void;
   stop: () => void;
-  onresult: ((e: { results: { 0: { 0: { transcript: string } } } }) => void) | null;
-  onerror: (() => void) | null;
+  abort: () => void;
+  onresult:
+    | ((e: { results: ArrayLike<ArrayLike<{ transcript: string }> & { isFinal: boolean }> }) => void)
+    | null;
+  onerror: ((e: { error?: string }) => void) | null;
+  onstart: (() => void) | null;
   onend: (() => void) | null;
 };
+
+// Silencio que encerra a fala sozinho, depois que a pessoa ja falou algo. Antes a
+// gravacao so parava no toque, e quem nao tocava achava que o app tinha travado.
+const SILENCIO_MS = 1800;
+// Ninguem falou nada: desiste, em vez de ficar ouvindo um minuto.
+const SEM_FALA_MS = 8000;
 
 // Falar dentro do app, sem passar pelo Telegram.
 //
@@ -68,7 +79,8 @@ export function VoiceModal({
   onClose: () => void;
   tela?: Tela;
 }) {
-  const { addShopItem, addTripItem, addStock, removeItems, showToast, stock } = useStore();
+  const { addShopItem, addTripItem, addStock, removeItems, showToast, stock, shopping } =
+    useStore();
   // Dentro de um mercado conhecido (GPS), vale como se estivesse na Lista: carrinho.
   // Montar lista e excecao: la a pessoa diz o que falta, esteja onde estiver.
   const { noMercado } = useLugar();
@@ -90,16 +102,38 @@ export function VoiceModal({
   const falaRef = useRef<Reconhecedor | null>(null);
   const recRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
-  const ouviuRef = useRef(false);
+  const fraseRef = useRef("");
   const streamRef = useRef<MediaStream | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const [nivel, setNivel] = useState(0); // 0..1, a barra que prova que o microfone capta
+  const [parcial, setParcial] = useState(""); // o que o aparelho ja ouviu, ao vivo
+
+  // Sabe ANTES do primeiro toque se o servidor de voz existe. Ligar o reconhecimento
+  // do aparelho depois de uma resposta do servidor (fora do toque) e bloqueado calado
+  // pelo iPhone: era o "fica gravando e nao para nem reconhece nada".
+  useEffect(() => {
+    if (!open) return;
+    let vivo = true;
+    fetch("/api/voz")
+      .then((r) => r.json())
+      .then((d: { disponivel?: boolean }) => {
+        if (vivo && d?.disponivel === false && reconhecimentoDoNavegador()) setModoLocal(true);
+      })
+      .catch(() => {});
+    return () => {
+      vivo = false;
+    };
+  }, [open]);
 
   // Para a gravacao e solta o microfone quando o popup fecha ou a tela sai do ar:
   // microfone aberto sem tela e a pior falha possivel de privacidade.
   useEffect(() => {
     if (open) return;
-    falaRef.current?.stop();
+    falaRef.current?.abort();
     if (recRef.current?.state === "recording") recRef.current.stop();
     streamRef.current?.getTracks().forEach((t) => t.stop());
+    void audioCtxRef.current?.close().catch(() => {});
+    audioCtxRef.current = null;
   }, [open]);
 
   useEffect(() => {
@@ -122,13 +156,20 @@ export function VoiceModal({
     setErro("");
     setDestino(inicial);
     setJaForam(0);
+    setNivel(0);
+    setParcial("");
   }
 
   function fechar() {
-    falaRef.current?.stop();
+    falaRef.current?.abort();
     falaRef.current = null;
-    if (recRef.current?.state === "recording") recRef.current.stop();
+    if (recRef.current?.state === "recording") {
+      recRef.current.onstop = null;
+      recRef.current.stop();
+    }
     streamRef.current?.getTracks().forEach((t) => t.stop());
+    void audioCtxRef.current?.close().catch(() => {});
+    audioCtxRef.current = null;
     onClose();
     limpar();
   }
@@ -142,13 +183,18 @@ export function VoiceModal({
     );
     if (!mime) return setErro("Este navegador não grava áudio. Use o campo digitado.");
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      });
       streamRef.current = stream;
       const rec = new MediaRecorder(stream, { mimeType: mime });
       chunksRef.current = [];
       rec.ondataavailable = (e) => e.data.size > 0 && chunksRef.current.push(e.data);
       rec.onstop = () => {
         stream.getTracks().forEach((t) => t.stop());
+        void audioCtxRef.current?.close().catch(() => {});
+        audioCtxRef.current = null;
+        setNivel(0);
         const blob = new Blob(chunksRef.current, { type: mime });
         // Gravacao vazia nao vai para o servidor: so viraria "nao entendi" sem motivo.
         if (blob.size < 1000) {
@@ -163,14 +209,60 @@ export function VoiceModal({
       rec.start(1000);
       setSegundos(0);
       setFase("gravando");
+      vigiarSilencio(stream, rec);
     } catch {
       setErro("Não consegui abrir o microfone. Verifique a permissão do navegador.");
     }
   }
 
+  // Mede o volume do microfone: mostra a barra e para sozinho quando a pessoa
+  // termina de falar (ou desiste se ninguem falou).
+  function vigiarSilencio(stream: MediaStream, rec: MediaRecorder) {
+    try {
+      const W = window as unknown as { AudioContext?: typeof AudioContext; webkitAudioContext?: typeof AudioContext };
+      const Ctx = W.AudioContext ?? W.webkitAudioContext;
+      if (!Ctx) return;
+      const ctx = new Ctx();
+      audioCtxRef.current = ctx;
+      const an = ctx.createAnalyser();
+      an.fftSize = 1024;
+      ctx.createMediaStreamSource(stream).connect(an);
+      const buf = new Uint8Array(an.fftSize);
+      const inicio = Date.now();
+      let falou = false;
+      let ultimaVoz = Date.now();
+      const passo = () => {
+        if (rec.state !== "recording" || audioCtxRef.current !== ctx) return;
+        an.getByteTimeDomainData(buf);
+        let soma = 0;
+        for (const v of buf) soma += ((v - 128) / 128) ** 2;
+        const rms = Math.sqrt(soma / buf.length);
+        setNivel(Math.min(1, rms * 6));
+        const agora = Date.now();
+        if (rms > 0.03) {
+          falou = true;
+          ultimaVoz = agora;
+        }
+        if (falou && agora - ultimaVoz > SILENCIO_MS) return parar();
+        if (!falou && agora - inicio > SEM_FALA_MS) return parar();
+        requestAnimationFrame(passo);
+      };
+      requestAnimationFrame(passo);
+    } catch {
+      /* sem medidor: continua gravando, para no toque ou no minuto */
+    }
+  }
+
   function parar() {
     if (falaRef.current) {
-      falaRef.current.stop();
+      const rec = falaRef.current;
+      rec.stop();
+      // Alguns celulares nao disparam o fim depois do stop: nao deixa a tela presa.
+      setTimeout(() => {
+        if (falaRef.current !== rec) return;
+        rec.abort();
+        terminarFala();
+      }, 1500);
       return;
     }
     if (recRef.current?.state === "recording") {
@@ -188,11 +280,11 @@ export function VoiceModal({
       const data = (await r.json().catch(() => null)) as VozResposta | null;
       if (!data?.ok) {
         // Sem chave ou Groq fora do ar: em vez de travar, passa a ouvir pelo aparelho.
+        // Nao liga o reconhecimento sozinho aqui: fora do toque o iPhone bloqueia.
         if ((data?.erro === "voz_indisponivel" || data?.erro === "transcricao_falhou") && reconhecimentoDoNavegador()) {
           setModoLocal(true);
-          setErro("");
+          setErro("O servidor de voz falhou. Toque no microfone de novo: agora ouço pelo próprio celular.");
           setFase("gravar");
-          escutarNoAparelho();
           return;
         }
         setErro(ERRO_VOZ[data?.erro ?? ""] ?? "Não deu para entender agora. Tente de novo.");
@@ -206,9 +298,44 @@ export function VoiceModal({
     }
   }
 
-  async function mostrarResultado(frase: string, intencao: VozIntencao, lidos: VozItem[]) {
+  // "Nao quero cafe": tira da lista o que estava pendente. Devolve o aviso.
+  async function tirarDaLista(nomes: string[]): Promise<string> {
+    const ids: string[] = [];
+    const tirados: string[] = [];
+    const nemEstava: string[] = [];
+    for (const n of nomes) {
+      const achados = achaNaLista(n, shopping);
+      if (achados.length) {
+        ids.push(...achados.map((a) => a.id));
+        tirados.push(n);
+      } else nemEstava.push(n);
+    }
+    const partes: string[] = [];
+    if (ids.length) {
+      const r = await removeItems([...new Set(ids)]);
+      if (r.ok) partes.push(`Tirei: ${tirados.join(", ")}`);
+      else partes.push(`Não consegui tirar ${tirados.join(", ")}`);
+    }
+    if (nemEstava.length) partes.push(`Não estava na lista: ${nemEstava.join(", ")}`);
+    return partes.join(" · ");
+  }
+
+  async function mostrarResultado(frase: string, intencao: VozIntencao, lidosTodos: VozItem[]) {
     setTexto(frase);
     setDestino(destinoDaTela(telaAgora, intencao));
+
+    const tirar = lidosTodos.filter((i) => i.remover).map((i) => i.nome.trim()).filter(Boolean);
+    const lidos = lidosTodos.filter((i) => !i.remover);
+    let avisoTirar = "";
+    if (tirar.length) {
+      setFase("salvando");
+      avisoTirar = await tirarDaLista(tirar);
+      if (!lidos.length) {
+        showToast(avisoTirar);
+        return fechar();
+      }
+    }
+
     const linhas: GridItem[] = lidos.map((i) => ({
       nome: i.nome,
       qtd: i.qtd,
@@ -220,13 +347,13 @@ export function VoiceModal({
       duvida: i.duvida,
     }));
 
-    // Montar lista: o que a IA entendeu entra direto (aviso com Desfazer); so o que
-    // ficou em duvida volta para a pessoa conferir. Ouvido pelo aparelho (sem IA)
-    // nao entra direto: o interpretador local erra mais, entao tudo e conferido.
-    if ((tela === "lista" || intencao === "lista") && !modoLocal) {
-      const certos = linhas.filter((i) => !i.duvida && i.nome.trim().length >= 3);
+    // Lista: o que foi entendido entra direto (aviso com Desfazer); so o que ficou
+    // em duvida volta para a pessoa conferir. Vale tambem ouvindo pelo aparelho:
+    // o dono quer falar e ver entrar, sem tela no meio.
+    if (tela === "lista" || intencao === "lista") {
+      const certos = linhas.filter((i) => !i.duvida && i.nome.trim().length >= 2);
       const duvidas = linhas.filter((i) => !certos.includes(i));
-      const falharam = certos.length ? await porDireto(certos) : [];
+      const falharam = certos.length ? await porDireto(certos, avisoTirar) : [];
       const resto = [...duvidas, ...falharam].map((i) => ({ ...i, duvida: true }));
       if (!resto.length && certos.length) return fechar();
       setJaForam(certos.length - falharam.length);
@@ -234,6 +361,7 @@ export function VoiceModal({
       setFase("conferir");
       return;
     }
+    if (avisoTirar) showToast(avisoTirar);
     setItens(linhas);
     setFase("conferir");
   }
@@ -250,7 +378,7 @@ export function VoiceModal({
   // Poe na lista sem perguntar. Devolve os que o banco recusou, para irem a conferencia.
   // O Desfazer do aviso tira exatamente as linhas criadas agora; o desfazer do banco
   // (0023) nao serve aqui porque incluir pelo app nao grava evento.
-  async function porDireto(certos: GridItem[]): Promise<GridItem[]> {
+  async function porDireto(certos: GridItem[], extra = ""): Promise<GridItem[]> {
     setFase("salvando");
     const antes = await pendentes();
     const foram: string[] = [];
@@ -265,13 +393,16 @@ export function VoiceModal({
       if (r.ok) foram.push(it.nome.trim());
       else falharam.push(it);
     }
-    if (!foram.length) return falharam;
+    if (!foram.length) {
+      if (extra) showToast(extra);
+      return falharam;
+    }
     const depois = antes ? await pendentes() : null;
     const novos = antes && depois ? [...depois].filter((id) => !antes.has(id)) : [];
     const nomes =
       foram.length > 3 ? `${foram.slice(0, 3).join(", ")} e mais ${foram.length - 3}` : foram.join(", ");
     showToast(
-      `Na lista: ${nomes}`,
+      `Na lista: ${nomes}${extra ? ` · ${extra}` : ""}`,
       novos.length
         ? {
             desfazer: async () => {
@@ -298,29 +429,69 @@ export function VoiceModal({
     }
     const rec = new SR();
     rec.lang = "pt-BR";
-    rec.interimResults = false;
+    // Parcial ligado: o iPhone muitas vezes so entrega o texto parcial antes de
+    // encerrar, e sem isso a frase se perdia ("nao reconhece nada").
+    rec.interimResults = true;
     rec.continuous = false;
-    ouviuRef.current = false;
-    rec.onresult = (e) => {
-      ouviuRef.current = true;
-      const frase = e.results[0][0].transcript ?? "";
-      const r = interpretarLocal(frase);
-      mostrarResultado(frase, r.intencao, r.itens);
+    fraseRef.current = "";
+    setParcial("");
+    let comecou = false;
+    rec.onstart = () => {
+      comecou = true;
     };
-    rec.onerror = () => {
-      setErro("Não consegui ouvir. Tente de novo, mais perto do microfone.");
-      setFase("gravar");
+    rec.onresult = (e) => {
+      let t = "";
+      for (let k = 0; k < e.results.length; k++) t += e.results[k][0]?.transcript ?? "";
+      fraseRef.current = t.trim();
+      setParcial(fraseRef.current);
+    };
+    rec.onerror = (e) => {
+      if (e?.error === "not-allowed" || e?.error === "service-not-allowed") {
+        setErro("O celular bloqueou o reconhecimento de voz. Libere Microfone e Reconhecimento de Fala para o navegador nos Ajustes.");
+      } else if (e?.error === "no-speech") {
+        setErro("Não ouvi nada. Toque e fale logo em seguida.");
+      } else if (e?.error !== "aborted") {
+        setErro("Não consegui ouvir. Tente de novo, mais perto do microfone.");
+      }
     };
     rec.onend = () => {
-      // Terminou sem frase nenhuma: antes voltava calado e parecia que nao fazia nada.
-      if (!ouviuRef.current) setErro((e) => e || "Não ouvi nada. Toque e fale logo em seguida.");
-      setFase((f) => (f === "gravando" ? "gravar" : f));
+      if (falaRef.current === rec) terminarFala();
     };
     falaRef.current = rec;
     setSegundos(0);
     setErro("");
     setFase("gravando");
-    rec.start();
+    try {
+      rec.start();
+    } catch {
+      falaRef.current = null;
+      setErro("Não consegui ligar o reconhecimento de voz. Toque de novo.");
+      setFase("gravar");
+      return;
+    }
+    // Nunca comecou de verdade: solta a tela em vez de ficar "gravando" pra sempre.
+    setTimeout(() => {
+      if (falaRef.current === rec && !comecou) {
+        rec.abort();
+        falaRef.current = null;
+        setErro("O reconhecimento de voz do celular não respondeu. Toque de novo.");
+        setFase("gravar");
+      }
+    }, 4000);
+  }
+
+  // Fim da fala pelo aparelho (sozinho, pelo toque ou pelo vigia): usa o que ouviu.
+  function terminarFala() {
+    falaRef.current = null;
+    const frase = fraseRef.current;
+    fraseRef.current = "";
+    if (!frase) {
+      setErro((e) => e || "Não ouvi nada. Toque e fale logo em seguida.");
+      setFase("gravar");
+      return;
+    }
+    const r = interpretarLocal(frase);
+    void mostrarResultado(frase, r.intencao, r.itens);
   }
 
   function patch(i: number, campo: "nome" | "qtd" | "preco", valor: string) {
@@ -399,7 +570,7 @@ export function VoiceModal({
           <p className="mb-4 text-[13px] leading-relaxed text-text-2">
             {noMercado && tela === "estoque" && "📍 Você está num mercado: vai para o carrinho. "}
             {tela === "lista" || tela === "auto"
-              ? "Fale o que falta: “1 arroz, 1 feijão, 5 detergentes e arroz da Máximo”. O que eu entender entra direto na lista; no que eu ficar em dúvida, eu pergunto."
+              ? "Fale o que quer e o que não quer: “quero arroz, feijão e 5 detergentes, mas não quero mais café”. Entra e sai da lista direto; no que eu ficar em dúvida, eu pergunto."
               : telaAgora === "estoque"
               ? "Fale o que tem em casa: “três leites, dois arroz e um café”. Vai para o estoque; você confere antes de salvar."
               : "Fale normal, como você contaria pra alguém: “comprei arroz vinte reais, dois pacotes, e café doze e noventa”. Você confere antes de salvar."}
@@ -434,9 +605,23 @@ export function VoiceModal({
                   ? `${segundosFmt(segundos)} · toque para parar`
                   : "Toque para falar"}
             </div>
+            {gravando && !modoLocal && (
+              <div
+                className="h-2 w-40 overflow-hidden rounded-full bg-card-2"
+                aria-label="Volume do microfone"
+              >
+                <div
+                  className="h-full rounded-full bg-brand transition-[width] duration-75"
+                  style={{ width: `${Math.round(nivel * 100)}%` }}
+                />
+              </div>
+            )}
+            {gravando && parcial && (
+              <p className="text-center text-[14px] text-text-2">“{parcial}”</p>
+            )}
             {gravando && (
               <div className="text-[12px] text-text-3">
-                Paro sozinho em {segundosFmt(MAX_SEGUNDOS)}
+                Paro sozinho quando você terminar de falar
               </div>
             )}
           </div>

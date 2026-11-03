@@ -17,6 +17,8 @@ export type VozItem = {
   // O modelo nao teve certeza do produto (palavra que nao e produto, nome cortado,
   // marca sem o que e). Esse item nao entra sozinho: a tela pergunta.
   duvida?: boolean;
+  // "Nao quero mais cafe", "tira o leite": sai da lista em vez de entrar.
+  remover?: boolean;
 };
 
 export type VozResposta =
@@ -105,7 +107,14 @@ export function normalizaItens(raw: unknown): VozItem[] {
     const preco = total != null && total > 0 ? +(total / qtd).toFixed(2) : null;
 
     // So `true` vale como duvida: qualquer outra coisa do modelo e "entendi".
-    itens.push({ nome, qtd, unidade, preco, ...(o.duvida === true ? { duvida: true } : {}) });
+    itens.push({
+      nome,
+      qtd,
+      unidade,
+      preco,
+      ...(o.duvida === true ? { duvida: true } : {}),
+      ...(o.remover === true ? { remover: true } : {}),
+    });
   }
   return itens;
 }
@@ -191,8 +200,18 @@ const LIXO = new Set([
   "vou", "comprar", "falta", "faltou", "acabou", "anota", "ai", "tenho",
   "sobrou", "ainda", "tem", "conferindo", "conferi", "casa", "em", "de", "do",
   "da", "no", "na", "os", "as", "o", "a", "por", "cada", "reais", "real", "r$",
-  "que", "e", "com", "pra", "para", "mais",
+  "que", "e", "com", "pra", "para", "mais", "quero", "nao", "precisa", "precisamos",
+  "tira", "tirar", "tire", "remove", "remover", "cancela", "cancelar", "lista",
+  "coloca", "colocar", "bota", "botar", "poe", "por", "adiciona", "adicionar",
+  "compra", "compre", "mas", "agora", "tambem", "so", "isso", "aquele", "aquela",
+  "um", "uma", "uns", "umas", "ja",
 ]);
+
+// Negacao: "nao quero", "tira", "nao precisa mais". Vale para os itens seguintes
+// ate aparecer um "quero"/"preciso"/"mas" de novo ("nao quero cafe e acucar, mas
+// quero leite": cafe e acucar saem, leite entra).
+const NEGA = /\b(nao (quero|precisa|preciso|vou|compra|comprar|precisamos)|tira|tirar|tire|remove|remover|cancela|cancelar|nao)\b/;
+const AFIRMA = /\b(quero|preciso|precisamos|compra|comprar|falta|anota|coloca|bota|adiciona)\b/;
 
 type Pedaco = { nome: string; qtd: number | null; preco: number | null; unidade: string | null };
 
@@ -241,13 +260,33 @@ export function interpretarLocal(texto: string): {
   itens: VozItem[];
 } {
   const cru = semAcento((texto ?? "").toLowerCase());
-  const intencao = VERBOS.find(([re]) => re.test(cru))?.[1] ?? "lista";
+  // "nao quero cafe" sozinho e assunto de lista, nao de estoque.
+  const intencao = /\bnao (quero|precisa)|\btira\b/.test(cru)
+    ? "lista"
+    : (VERBOS.find(([re]) => re.test(cru))?.[1] ?? "lista");
 
-  const pedacos = numerosPorExtenso(texto)
+  const brutos = numerosPorExtenso(texto)
+    .replace(/\b(mas|porem)\b/g, ", mas")
     .split(/,| e /)
     .map((p) => p.trim())
-    .filter(Boolean)
-    .map(lePedaco);
+    .filter(Boolean);
+
+  let negando = false;
+  const pedacos = brutos.map((b) => {
+    if (NEGA.test(b)) negando = true;
+    else if (AFIRMA.test(b) || /^mas\b/.test(b)) negando = false;
+    return { ...lePedaco(b), remover: negando };
+  });
+
+  // A conta toda roda sem acento; o nome volta com o acento que foi falado
+  // ("feijao" -> "feijão"), senao a lista ganhava "pao" e "acucar".
+  const acento = new Map<string, string>();
+  for (const w of (texto ?? "").toLowerCase().split(/[^\p{L}\d]+/u)) {
+    if (w) acento.set(semAcento(w), w);
+  }
+  for (const p of pedacos) {
+    p.nome = p.nome.split(" ").map((w) => acento.get(w) ?? w).join(" ");
+  }
 
   const itens: VozItem[] = [];
   for (const p of pedacos) {
@@ -272,6 +311,7 @@ export function interpretarLocal(texto: string): {
       qtd,
       unidade: p.unidade ?? unitFor(p.nome),
       preco: p.preco != null && p.preco > 0 ? +(p.preco / qtd).toFixed(2) : null,
+      ...(p.remover ? { remover: true } : {}),
     });
   }
   return { intencao, itens };
@@ -283,4 +323,24 @@ export function reconhecimentoDoNavegador(): boolean {
   if (typeof window === "undefined") return false;
   const w = window as unknown as Record<string, unknown>;
   return Boolean(w.SpeechRecognition || w.webkitSpeechRecognition);
+}
+
+// Linhas pendentes da lista que a pessoa quis tirar falando so o produto ("tira o
+// cafe" tira "cafe" e "cafe pilao"). Nome exato ganha; sem exato, vale o que
+// comeca com a palavra falada.
+export function achaNaLista<T extends { id: string; name: string; status: string }>(
+  nome: string,
+  lista: T[],
+): T[] {
+  const n = semAcento(nome.toLowerCase()).trim();
+  if (!n) return [];
+  const pend = lista.filter((i) => i.status === "pending");
+  const chave = (s: string) => semAcento(s.toLowerCase()).trim();
+  const exato = pend.filter((i) => chave(i.name) === n);
+  if (exato.length) return exato;
+  const singular = n.replace(/s$/, "");
+  return pend.filter((i) => {
+    const k = chave(i.name);
+    return k.startsWith(`${n} `) || k.startsWith(`${singular} `) || k === singular;
+  });
 }

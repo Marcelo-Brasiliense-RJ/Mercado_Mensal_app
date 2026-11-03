@@ -21,13 +21,19 @@ const MAX_BYTES = 8 * 1024 * 1024; // ~1 min de opus sobra; corta antes de gasta
 
 const INSTRUCAO = `Você organiza compras de supermercado de uma família brasileira.
 Recebe uma frase falada e devolve SOMENTE JSON, no formato:
-{"intencao":"lista|carrinho|estoque","itens":[{"nome":"","qtd":1,"unidade":"un","preco_total":null,"duvida":false}]}
+{"intencao":"lista|carrinho|estoque","itens":[{"nome":"","qtd":1,"unidade":"un","preco_total":null,"duvida":false,"remover":false}]}
 
 Como classificar a intenção, pelo verbo:
 - "carrinho": acabou de pegar/comprar agora ("peguei", "comprei", "botei no carrinho", "custou").
 - "lista": ainda vai comprar ("preciso de", "vou comprar", "falta", "acabou o", "anota aí").
 - "estoque": está conferindo o que tem em casa ("tenho", "sobrou", "ainda tem", "conferindo").
 Na dúvida entre lista e carrinho, use "lista".
+Se a frase só fala do que NÃO quer comprar, a intenção é "lista".
+
+O que a pessoa NÃO quer comprar também vira item, com "remover": true:
+"não quero", "não precisa (mais)", "tira", "remove", "cancela", "esquece o", "já tem / já tenho, não precisa comprar".
+A negação vale para os itens seguintes até ela voltar a pedir ("mas quero", "preciso", "e compra").
+O resto dos itens tem "remover": false.
 
 Regras dos itens:
 - "nome": o produto em minúsculo e singular. Se a pessoa disser a marca, ela vem depois do produto, sem tamanho nem tipo ("arroz da Máximo" = "arroz máximo"; "arroz" sem marca = "arroz"; nunca "arroz máximo tipo 1 5kg").
@@ -37,9 +43,24 @@ Regras dos itens:
 - "duvida": true quando você NÃO tem certeza de que entendeu o produto (palavra que não parece produto de mercado, nome cortado ou embolado, só a marca sem dizer o que é). Produto claro = false.
 - Não invente preço, quantidade nem item que não foi falado.
 - Vários produtos na mesma frase viram vários itens.
+- Ignore palavras que não são produto ("é", "aí", "também", "então", "lista").
 
 Exemplo: "tá faltando 1 arroz, 1 feijão, 5 detergentes e arroz da Máximo" =
-{"intencao":"lista","itens":[{"nome":"arroz","qtd":1,"unidade":"un","preco_total":null,"duvida":false},{"nome":"feijão","qtd":1,"unidade":"un","preco_total":null,"duvida":false},{"nome":"detergente","qtd":5,"unidade":"un","preco_total":null,"duvida":false},{"nome":"arroz máximo","qtd":1,"unidade":"un","preco_total":null,"duvida":false}]}`;
+{"intencao":"lista","itens":[{"nome":"arroz","qtd":1,"unidade":"un","preco_total":null,"duvida":false},{"nome":"feijão","qtd":1,"unidade":"un","preco_total":null,"duvida":false},{"nome":"detergente","qtd":5,"unidade":"un","preco_total":null,"duvida":false},{"nome":"arroz máximo","qtd":1,"unidade":"un","preco_total":null,"duvida":false}]}
+
+Exemplo: "quero leite e 2 pães, mas não quero mais café nem açúcar" =
+{"intencao":"lista","itens":[{"nome":"leite","qtd":1,"unidade":"un","preco_total":null,"duvida":false,"remover":false},{"nome":"pão","qtd":2,"unidade":"un","preco_total":null,"duvida":false,"remover":false},{"nome":"café","qtd":1,"unidade":"un","preco_total":null,"duvida":false,"remover":true},{"nome":"açúcar","qtd":1,"unidade":"un","preco_total":null,"duvida":false,"remover":true}]}`;
+
+// Vocabulario para o Whisper: com contexto de mercado ele erra menos nome de
+// produto e marca falados rapido no corredor.
+const VOCABULARIO =
+  "Lista de compras do mercado. Preciso de arroz, feijão, café, açúcar, leite, " +
+  "pão, ovos, detergente, sabão em pó, papel higiênico. Não quero mais refrigerante.";
+
+// Diagnostico sem login: so diz se a chave existe. Nao gasta cota nem expoe nada.
+export async function GET() {
+  return NextResponse.json({ disponivel: Boolean(process.env.GROQ_API_KEY) });
+}
 
 export async function POST(req: Request) {
   const supabase = await createClient();
@@ -81,6 +102,7 @@ export async function POST(req: Request) {
       fd.append("model", modelo);
       fd.append("language", "pt");
       fd.append("temperature", "0");
+      fd.append("prompt", VOCABULARIO);
       const tr = await fetch(`${GROQ}/audio/transcriptions`, {
         method: "POST",
         headers: { authorization: `Bearer ${key}` },
