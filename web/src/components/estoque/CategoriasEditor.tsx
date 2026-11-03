@@ -53,6 +53,13 @@ export function CategoriasEditor({ onClose }: { onClose: () => void }) {
         categoria pelo nome, ou Outros.
       </p>
 
+      {/* Nova categoria no TOPO e a linha nova nasce em cima: embaixo sumia com a lista grande. */}
+      <button
+        onClick={() => setLinhas((l) => [{ nome: "", icone: "🛒", chave: Date.now() }, ...l])}
+        className="mb-2 h-11 w-full rounded-[12px] border-2 border-dashed border-brand text-[14px] font-bold text-brand"
+      >
+        + Nova categoria
+      </button>
       <div className="flex flex-col gap-1.5">
         {linhas.map((x, i) => {
           const outros = x.antigo === "Outros";
@@ -99,12 +106,6 @@ export function CategoriasEditor({ onClose }: { onClose: () => void }) {
         })}
       </div>
 
-      <button
-        onClick={() => setLinhas((l) => [...l.slice(0, -1), { nome: "", icone: "🛒", chave: Date.now() }, ...l.slice(-1)])}
-        className="mt-2 h-11 w-full rounded-[12px] border-2 border-dashed border-brand text-[14px] font-bold text-brand"
-      >
-        + Nova categoria
-      </button>
       <button
         onClick={() => setLinhas(PADRAO.map((c, i) => ({ ...c, antigo: cats.some((x) => x.nome === c.nome) ? c.nome : undefined, chave: 1000 + i })))}
         className="mt-1 h-9 w-full text-[13px] font-bold text-text-2 underline"

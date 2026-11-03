@@ -57,6 +57,13 @@ export function NaoCompro({ ofertas, escondidas = 0 }: { ofertas: Oferta[]; esco
 
       {aberto && (
         <div className="flex flex-col gap-3">
+          {/* Adicionar no TOPO: com a lista crescendo, embaixo ele sumia (pedido do dono). */}
+          <button
+            onClick={() => setMarcar(true)}
+            className="h-12 rounded-2xl border-2 border-brand bg-card text-[15px] font-bold text-brand"
+          >
+            + Adicionar em Não comprar
+          </button>
           <Grupo
             icone="📦"
             titulo="Em excesso"
@@ -71,12 +78,6 @@ export function NaoCompro({ ofertas, escondidas = 0 }: { ofertas: Oferta[]; esco
             vazio="Nenhum produto ruim marcado."
             itens={ruins}
           />
-          <button
-            onClick={() => setMarcar(true)}
-            className="h-12 rounded-2xl border-2 border-dashed border-border text-[14px] font-bold text-text-2"
-          >
-            + Adicionar em Não comprar
-          </button>
         </div>
       )}
       {marcar && <MarcarRuimModal ofertas={ofertas} onClose={() => setMarcar(false)} />}
