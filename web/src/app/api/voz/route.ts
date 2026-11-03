@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { intencaoValida, normalizaItens } from "@/lib/voz";
+import { intencaoValida, interpretarLocal, normalizaItens } from "@/lib/voz";
 
 // Ditado do app: audio -> texto (Groq Whisper) -> itens (Groq LLM) -> a tela
 // confirma antes de gravar. Roda no servidor pelos mesmos dois motivos da rota de
@@ -13,8 +13,10 @@ import { intencaoValida, normalizaItens } from "@/lib/voz";
 export const runtime = "nodejs";
 
 const GROQ = "https://api.groq.com/openai/v1";
-const MODELO_TRANSCRICAO = "whisper-large-v3";
-const MODELO_TEXTO = "llama-3.3-70b-versatile";
+// Em ordem: se a Groq desligar um modelo, o proximo assume. O llama-3.3-70b foi
+// desligado em ago/2026 e a voz passou a "ouvir mas nao por nada na lista".
+const MODELOS_TRANSCRICAO = ["whisper-large-v3", "whisper-large-v3-turbo"];
+const MODELOS_TEXTO = ["openai/gpt-oss-120b", "qwen/qwen3.6-27b", "openai/gpt-oss-20b"];
 const MAX_BYTES = 8 * 1024 * 1024; // ~1 min de opus sobra; corta antes de gastar cota
 
 const INSTRUCAO = `Você organiza compras de supermercado de uma família brasileira.
@@ -71,67 +73,87 @@ export async function POST(req: Request) {
 
   try {
     // ============ 1. TRANSCREVER ============
-    const fd = new FormData();
-    fd.append("file", audio, audio.name || "audio.webm");
-    fd.append("model", MODELO_TRANSCRICAO);
-    fd.append("language", "pt");
-    fd.append("temperature", "0");
-    const tr = await fetch(`${GROQ}/audio/transcriptions`, {
-      method: "POST",
-      headers: { authorization: `Bearer ${key}` },
-      body: fd,
-    });
-    if (!tr.ok) {
-      // Aparece no log da Vercel: chave errada (401) ou formato recusado (400).
-      console.error("voz: groq transcricao", tr.status, await tr.text().catch(() => ""));
-      return NextResponse.json(
-        { ok: false, erro: "transcricao_falhou" },
-        { status: 502 },
-      );
+    let texto = "";
+    let transcreveu = false;
+    for (const modelo of MODELOS_TRANSCRICAO) {
+      const fd = new FormData();
+      fd.append("file", audio, audio.name || "audio.webm");
+      fd.append("model", modelo);
+      fd.append("language", "pt");
+      fd.append("temperature", "0");
+      const tr = await fetch(`${GROQ}/audio/transcriptions`, {
+        method: "POST",
+        headers: { authorization: `Bearer ${key}` },
+        body: fd,
+      });
+      if (!tr.ok) {
+        // Aparece no log da Vercel: chave errada (401), modelo desligado ou formato recusado (400).
+        console.error("voz: groq transcricao", modelo, tr.status, await tr.text().catch(() => ""));
+        if (tr.status === 401) break;
+        continue;
+      }
+      transcreveu = true;
+      texto = String(((await tr.json()) as { text?: string })?.text ?? "").trim();
+      break;
     }
-    const texto = String(((await tr.json()) as { text?: string })?.text ?? "").trim();
+    if (!transcreveu) {
+      return NextResponse.json({ ok: false, erro: "transcricao_falhou" }, { status: 502 });
+    }
     if (!texto) {
       console.error("voz: transcricao vazia", audio.type, audio.size);
       return NextResponse.json({ ok: false, erro: "nao_entendi" }, { status: 422 });
     }
 
     // ============ 2. SEPARAR EM ITENS ============
-    const ct = await fetch(`${GROQ}/chat/completions`, {
-      method: "POST",
-      headers: {
-        authorization: `Bearer ${key}`,
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        model: MODELO_TEXTO,
-        temperature: 0,
-        response_format: { type: "json_object" },
-        messages: [
-          { role: "system", content: INSTRUCAO },
-          { role: "user", content: texto },
-        ],
-      }),
-    });
-    if (!ct.ok) {
-      // Transcreveu mas nao interpretou: devolve o texto assim mesmo, porque ver o
-      // que foi ouvido ja vale (a pessoa digita o resto) e evita perder a gravacao.
-      return NextResponse.json({ ok: true, texto, intencao: "lista", itens: [] });
+    let json: { intencao?: unknown; itens?: unknown } | null = null;
+    for (const modelo of MODELOS_TEXTO) {
+      const ct = await fetch(`${GROQ}/chat/completions`, {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${key}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          model: modelo,
+          temperature: 0,
+          response_format: { type: "json_object" },
+          ...(modelo.includes("gpt-oss") ? { reasoning_effort: "low" } : {}),
+          messages: [
+            { role: "system", content: INSTRUCAO },
+            { role: "user", content: texto },
+          ],
+        }),
+      });
+      if (!ct.ok) {
+        console.error("voz: groq texto", modelo, ct.status, await ct.text().catch(() => ""));
+        continue;
+      }
+      const bruto = (await ct.json()) as {
+        choices?: { message?: { content?: string } }[];
+      };
+      try {
+        json = JSON.parse(bruto.choices?.[0]?.message?.content ?? "");
+        break;
+      } catch {
+        /* modelo fugiu do formato: tenta o proximo */
+      }
     }
-    const bruto = (await ct.json()) as {
-      choices?: { message?: { content?: string } }[];
-    };
-    let json: { intencao?: unknown; itens?: unknown } = {};
-    try {
-      json = JSON.parse(bruto.choices?.[0]?.message?.content ?? "{}");
-    } catch {
-      /* modelo fugiu do formato: cai no fallback abaixo */
+
+    // Nenhum modelo respondeu: a frase ja foi ouvida, entao separa por regra aqui
+    // mesmo em vez de devolver lista vazia (que era o "nao pos nada na lista").
+    const itens = normalizaItens(json?.itens);
+    if (!json || !itens.length) {
+      const local = interpretarLocal(texto);
+      if (local.itens.length) {
+        return NextResponse.json({ ok: true, texto, ...local, local: true });
+      }
     }
 
     return NextResponse.json({
       ok: true,
       texto,
-      intencao: intencaoValida(json.intencao),
-      itens: normalizaItens(json.itens),
+      intencao: intencaoValida(json?.intencao),
+      itens,
     });
   } catch {
     return NextResponse.json({ ok: false, erro: "transcricao_falhou" }, { status: 502 });

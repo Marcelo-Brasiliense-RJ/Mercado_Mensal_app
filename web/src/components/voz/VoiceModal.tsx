@@ -187,8 +187,8 @@ export function VoiceModal({
       const r = await fetch("/api/voz", { method: "POST", body: fd });
       const data = (await r.json().catch(() => null)) as VozResposta | null;
       if (!data?.ok) {
-        // Sem chave no servidor: em vez de travar, passa a ouvir pelo aparelho.
-        if (data?.erro === "voz_indisponivel" && reconhecimentoDoNavegador()) {
+        // Sem chave ou Groq fora do ar: em vez de travar, passa a ouvir pelo aparelho.
+        if ((data?.erro === "voz_indisponivel" || data?.erro === "transcricao_falhou") && reconhecimentoDoNavegador()) {
           setModoLocal(true);
           setErro("");
           setFase("gravar");
