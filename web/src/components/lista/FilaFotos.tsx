@@ -9,6 +9,7 @@ import { quantoPedir, TambemNaLista } from "@/components/ui/TambemNaLista";
 import { useStore } from "@/lib/store";
 import { brl } from "@/lib/format";
 import { findByName, unitFor } from "@/lib/defaults";
+import { NaoComprarBotoes } from "@/components/ui/NaoComprarBotoes";
 import { reverFoto, tirarDaFila, useDescanso, useFilaFotos, type FotoFila } from "@/lib/filaFotos";
 
 // O que volta da fila de fotos: um aviso no topo enquanto a IA trabalha e, com o
@@ -202,6 +203,9 @@ function Conferir({ x, resta, onDepois }: { x: FotoFila; resta: number; onDepois
               🔄 {x.motivo ? "Tentar de novo" : "Pedir pra rever"}
             </button>
           </div>
+          {!editando && (
+            <NaoComprarBotoes nome={nome} marca={x.marca ?? ""} barcode={x.codigo || null} onFeito={() => tirarDaFila(x.id)} />
+          )}
           <button
             onClick={() => {
               tirarDaFila(x.id);

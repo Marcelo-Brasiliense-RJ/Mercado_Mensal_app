@@ -16,11 +16,12 @@ import { DestinoSwitch, type Destino } from "@/components/ui/Destino";
 import { quantoPedir, TambemNaLista } from "@/components/ui/TambemNaLista";
 import { useLugar } from "@/lib/lugar";
 import { useListaOfertas } from "@/components/ofertas/useOfertas";
-import { ehRuim, nomeMercado, termoEvitar } from "@/lib/ofertas";
-import { marcarRuim, useRuins } from "@/components/ofertas/useEvitar";
+import { ehRuim, nomeMercado } from "@/lib/ofertas";
+import { useRuins } from "@/components/ofertas/useEvitar";
 import { precoNoMercado } from "@/lib/precoMercado";
 import { usePrecosVistos } from "@/lib/precosVistos";
 import { enfileirarFoto, marcarLeitor, useFilaFotos } from "@/lib/filaFotos";
+import { NaoComprarBotoes } from "@/components/ui/NaoComprarBotoes";
 
 // Ler o codigo, dizer a quantidade, pronto: o item cai no carrinho.
 //
@@ -443,16 +444,9 @@ export function BarcodeModal({
                 <div className="text-[13px]">{ruim.motivo ?? "Está no Não comprar como produto ruim."}</div>
               </div>
             ) : nome ? (
-              <button
-                type="button"
-                onClick={async () => {
-                  const ok = await marcarRuim({ termo: termoEvitar(nome, marca), nome, barcode: codigo, foto });
-                  showToast(ok ? `👎 ${nome} no Não comprar` : "Não deu para marcar.");
-                }}
-                className="-mt-2 mb-3 text-[13px] font-bold text-text-2 underline"
-              >
-                👎 Produto ruim? Marcar para não comprar
-              </button>
+              <div className="-mt-2 mb-3">
+                <NaoComprarBotoes nome={nome} marca={marca} barcode={codigo} foto={foto} />
+              </div>
             ) : null;
           })()}
 

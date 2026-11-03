@@ -11,6 +11,7 @@ import { findByName, unitFor } from "@/lib/defaults";
 import { createClient } from "@/lib/supabase/client";
 import { marcarNaoComprar, marcarRuim } from "@/components/ofertas/useEvitar";
 import { termoEvitar } from "@/lib/ofertas";
+import { reduzir } from "@/lib/reconhecer";
 import type { ShopItem } from "@/lib/types";
 import {
   achaNaLista,
@@ -127,6 +128,11 @@ export function VoiceModal({
   const [pergunta, setPergunta] = useState<Pergunta | null>(null);
   const [marcas, setMarcas] = useState<Marca[] | null>(null); // null = buscando
   const [outraMarca, setOutraMarca] = useState("");
+  const [escrito, setEscrito] = useState(""); // caminho digitado, mesmo entendimento da voz
+  const [escrevendo, setEscrevendo] = useState(false);
+  const fotoRef = useRef<HTMLInputElement>(null);
+  // Tela que vai junto para a IA desempatar ("arroz" sozinho no Estoque e estoque).
+  const telaIA = telaAgora === "estoque" ? "estoque" : telaAgora === "lista" ? "lista" : telaAgora === "auto" ? "auto" : "mercado";
 
   // Sabe ANTES do primeiro toque se o servidor de voz existe. Ligar o reconhecimento
   // do aparelho depois de uma resposta do servidor (fora do toque) e bloqueado calado
@@ -181,6 +187,8 @@ export function VoiceModal({
     setPergunta(null);
     setMarcas(null);
     setOutraMarca("");
+    setEscrito("");
+    setEscrevendo(false);
   }
 
   function fechar() {
@@ -300,6 +308,7 @@ export function VoiceModal({
     try {
       const fd = new FormData();
       fd.append("audio", blob, `audio.${extensaoDe(mime)}`);
+      fd.append("tela", telaIA);
       const r = await fetch("/api/voz", { method: "POST", body: fd });
       const data = (await r.json().catch(() => null)) as VozResposta | null;
       if (!data?.ok) {
@@ -636,8 +645,63 @@ export function VoiceModal({
       setFase("gravar");
       return;
     }
-    const r = interpretarLocal(frase);
-    void mostrarResultado(frase, r.intencao, r.itens);
+    void entenderTexto(frase);
+  }
+
+  // Texto (digitado, ou o que o proprio celular transcreveu) -> mesmo cerebro do
+  // audio no servidor. Sem rede ou sem IA, a regra local entende o que der.
+  async function entenderTexto(frase: string) {
+    const f = frase.trim();
+    if (!f) return;
+    setFase("enviando");
+    setErro("");
+    try {
+      const r = await fetch("/api/entender", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ texto: f, tela: telaIA }),
+      });
+      const d = (await r.json().catch(() => null)) as VozResposta | null;
+      if (d?.ok) return mostrarResultado(d.texto, d.intencao, d.itens);
+    } catch {
+      /* cai na regra local */
+    }
+    const local = interpretarLocal(f);
+    await mostrarResultado(f, local.intencao, local.itens);
+  }
+
+  // Foto da despensa, de uma lista escrita ou do carrinho: varios produtos de uma vez,
+  // pelo mesmo caminho (estoque, lista, nao comprar com pergunta).
+  async function entenderFoto(arquivo: File | undefined) {
+    if (!arquivo) return;
+    setFase("enviando");
+    setErro("");
+    try {
+      const foto = await reduzir(arquivo, 1600);
+      const r = await fetch("/api/entender", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ foto, tela: telaIA }),
+      });
+      const d = (await r.json().catch(() => null)) as (VozResposta & { espera?: number }) | null;
+      if (d?.ok) {
+        if (!d.itens.length) {
+          setErro("Não reconheci produtos nessa foto. Tente mais de perto, com os rótulos aparecendo.");
+          return setFase("gravar");
+        }
+        return mostrarResultado(`📷 ${d.texto}`, d.intencao, d.itens);
+      }
+      setErro(
+        d && !d.ok && d.erro === "limite"
+          ? `A IA está no limite agora. Tente de novo em ${d.espera ?? 30}s.`
+          : d && !d.ok && d.erro === "ia_indisponivel"
+            ? "A IA de fotos não está configurada."
+            : "Não consegui ler a foto. Tente de novo.",
+      );
+    } catch {
+      setErro("Sem conexão. Tente de novo.");
+    }
+    setFase("gravar");
   }
 
   function patch(i: number, campo: "nome" | "qtd" | "preco", valor: string) {
@@ -700,7 +764,7 @@ export function VoiceModal({
       <div className="mb-[18px]">
         <div className="flex items-center gap-2 text-[13px] font-bold text-brand">
           <MicIcon size={18} />
-          Falar aqui no app
+          Falar, escrever ou fotografar
         </div>
         <div className="text-[19px] font-extrabold">
           {pergunta
@@ -763,7 +827,7 @@ export function VoiceModal({
             </button>
             <div className="text-[15px] font-bold">
               {fase === "enviando"
-                ? "Ouvindo o que você falou…"
+                ? "Entendendo…"
                 : gravando
                   ? `${segundosFmt(segundos)} · toque para parar`
                   : "Toque para falar"}
@@ -793,6 +857,70 @@ export function VoiceModal({
             <p className="mb-4 rounded-[13px] border border-border bg-card-2 p-3 text-[13px] leading-snug text-text-2">
               {erro}
             </p>
+          )}
+
+          {/* Os outros dois jeitos de dizer a mesma coisa, com o mesmo entendimento. */}
+          {!gravando && fase !== "enviando" && (
+            <div className="mb-3 flex flex-col gap-2">
+              {escrevendo ? (
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void entenderTexto(escrito);
+                  }}
+                  className="flex flex-col gap-2"
+                >
+                  <textarea
+                    autoFocus
+                    value={escrito}
+                    onChange={(e) => setEscrito(e.target.value)}
+                    rows={3}
+                    placeholder="Escreva como falaria: tenho 5 kg de arroz, preciso de café, não comprar leite esse mês"
+                    className="w-full rounded-[13px] border border-border bg-card-2 p-3 text-[15px] leading-snug"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!escrito.trim()}
+                    className="h-12 rounded-[14px] bg-brand text-[15px] font-bold text-brand-ink disabled:opacity-50"
+                  >
+                    Entender e registrar
+                  </button>
+                </form>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEscrevendo(true)}
+                    className="h-12 rounded-[14px] border-2 border-border bg-card text-[14px] font-bold"
+                  >
+                    ⌨️ Escrever
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => fotoRef.current?.click()}
+                    className="h-12 rounded-[14px] border-2 border-border bg-card text-[14px] font-bold"
+                  >
+                    📷 Foto da despensa
+                  </button>
+                </div>
+              )}
+              <input
+                ref={fotoRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                aria-label="Foto da despensa ou de uma lista"
+                onChange={(e) => {
+                  void entenderFoto(e.target.files?.[0]);
+                  e.target.value = "";
+                }}
+              />
+              {!escrevendo && (
+                <p className="text-center text-[11px] text-text-3">
+                  Foto de prateleira, geladeira ou de uma lista escrita: leio vários produtos de uma vez.
+                </p>
+              )}
+            </div>
           )}
 
           <button
