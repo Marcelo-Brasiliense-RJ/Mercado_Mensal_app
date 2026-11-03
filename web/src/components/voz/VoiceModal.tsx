@@ -9,7 +9,8 @@ import { useLugar } from "@/lib/lugar";
 import { useStore } from "@/lib/store";
 import { findByName, unitFor } from "@/lib/defaults";
 import { createClient } from "@/lib/supabase/client";
-import { marcarNaoComprar } from "@/components/ofertas/useEvitar";
+import { marcarNaoComprar, marcarRuim } from "@/components/ofertas/useEvitar";
+import { termoEvitar } from "@/lib/ofertas";
 import type { ShopItem } from "@/lib/types";
 import {
   achaNaLista,
@@ -70,7 +71,20 @@ function destinoDaTela(tela: Tela, ouvido: VozIntencao): VozIntencao {
 }
 
 type Tela = "estoque" | "mercado" | "lista" | "auto";
-type Fase = "gravar" | "gravando" | "enviando" | "conferir" | "salvando";
+type Fase = "gravar" | "gravando" | "enviando" | "conferir" | "salvando" | "motivo" | "marca";
+
+// "Nao comprar X": antes de guardar, pergunta o motivo, um item por vez. O resto da
+// frase (o que era para comprar) espera e segue depois das respostas.
+type Pergunta = {
+  fila: string[];
+  i: number;
+  frase: string;
+  intencao: VozIntencao;
+  lidos: VozItem[];
+  aviso: string; // "Tirei: leite" (saiu da lista)
+  feitos: string[]; // "📦 leite", "👎 café Pilão"
+};
+type Marca = { marca: string; foto: string | null };
 
 export function VoiceModal({
   open,
@@ -109,6 +123,9 @@ export function VoiceModal({
   const audioCtxRef = useRef<AudioContext | null>(null);
   const [nivel, setNivel] = useState(0); // 0..1, a barra que prova que o microfone capta
   const [parcial, setParcial] = useState(""); // o que o aparelho ja ouviu, ao vivo
+  const [pergunta, setPergunta] = useState<Pergunta | null>(null);
+  const [marcas, setMarcas] = useState<Marca[] | null>(null); // null = buscando
+  const [outraMarca, setOutraMarca] = useState("");
 
   // Sabe ANTES do primeiro toque se o servidor de voz existe. Ligar o reconhecimento
   // do aparelho depois de uma resposta do servidor (fora do toque) e bloqueado calado
@@ -160,6 +177,9 @@ export function VoiceModal({
     setJaForam(0);
     setNivel(0);
     setParcial("");
+    setPergunta(null);
+    setMarcas(null);
+    setOutraMarca("");
   }
 
   function fechar() {
@@ -300,33 +320,83 @@ export function VoiceModal({
     }
   }
 
-  // "Nao comprar leite": tira da lista o que estava pendente E guarda em "Nao comprar"
-  // (excesso, ou ruim se falou mal do produto), para ninguem por de volta sem ver.
-  async function tirarDaLista(nomes: string[], frase: string): Promise<string> {
-    const tipo = motivoNaoComprar(frase);
-    const guardou = (await Promise.all(nomes.map((n) => marcarNaoComprar(n, tipo)))).some(Boolean);
+  // "Nao comprar leite": tira da lista o que estava pendente. Guardar em "Nao
+  // comprar" vem depois, quando a pessoa disser o motivo (excesso ou ruim).
+  async function tirarDaLista(nomes: string[]): Promise<string> {
     const ids: string[] = [];
     const tirados: string[] = [];
-    const nemEstava: string[] = [];
     for (const n of nomes) {
       const achados = achaNaLista(n, shopping);
       if (achados.length) {
         ids.push(...achados.map((a) => a.id));
         tirados.push(n);
-      } else nemEstava.push(n);
+      }
     }
-    const partes: string[] = [];
-    if (ids.length) {
-      const r = await removeItems([...new Set(ids)]);
-      if (r.ok) partes.push(`Tirei: ${tirados.join(", ")}`);
-      else partes.push(`Não consegui tirar ${tirados.join(", ")}`);
+    if (!ids.length) return "";
+    const r = await removeItems([...new Set(ids)]);
+    return r.ok ? `Tirei da lista: ${tirados.join(", ")}` : `Não consegui tirar ${tirados.join(", ")}`;
+  }
+
+  // Resposta de uma pergunta: guarda e passa para o proximo item, ou segue a frase.
+  async function responder(feito: string | null) {
+    const p = pergunta;
+    if (!p) return;
+    const feitos = feito ? [...p.feitos, feito] : p.feitos;
+    setOutraMarca("");
+    setMarcas(null);
+    if (p.i + 1 < p.fila.length) {
+      setPergunta({ ...p, i: p.i + 1, feitos });
+      setFase("motivo");
+      return;
     }
-    if (guardou) {
-      partes.push(`${tipo === "ruim" ? "👎" : "📦"} Não comprar: ${nomes.join(", ")} (${tipo === "ruim" ? "produto ruim" : "em excesso"})`);
-    } else if (nemEstava.length) {
-      partes.push(`Não estava na lista: ${nemEstava.join(", ")}`);
+    setPergunta(null);
+    const aviso = [p.aviso, feitos.length ? `Não comprar: ${feitos.join(", ")}` : ""].filter(Boolean).join(" · ");
+    if (!p.lidos.length) {
+      if (aviso) showToast(aviso);
+      return fechar();
     }
-    return partes.join(" · ");
+    await seguir(p.frase, p.intencao, p.lidos, aviso);
+  }
+
+  async function escolherMotivo(tipo: "excesso" | "ruim") {
+    const p = pergunta;
+    if (!p) return;
+    const nome = p.fila[p.i];
+    // Ruim sem marca falada ("leite"): pergunta a marca, que e o que de fato e ruim.
+    if (tipo === "ruim" && nome.trim().split(/\s+/).length < 2) {
+      setFase("marca");
+      setMarcas(null);
+      try {
+        const r = await fetch(`/api/busca?q=${encodeURIComponent(nome)}`);
+        const d = (await r.json()) as { itens?: { marca: string; foto: string | null }[] };
+        const vistas = new Map<string, Marca>();
+        for (const it of d.itens ?? []) {
+          const m = (it.marca ?? "").trim();
+          if (m && !vistas.has(m.toLowerCase())) vistas.set(m.toLowerCase(), { marca: m, foto: it.foto });
+        }
+        setMarcas([...vistas.values()]);
+      } catch {
+        setMarcas([]);
+      }
+      return;
+    }
+    setFase("salvando");
+    const ok = await marcarNaoComprar(nome, tipo);
+    if (!ok) showToast(`Não deu para guardar ${nome}.`);
+    await responder(ok ? `${tipo === "ruim" ? "👎" : "📦"} ${nome}` : null);
+  }
+
+  async function escolherMarca(marca: string | null, foto: string | null = null) {
+    const p = pergunta;
+    if (!p) return;
+    const produto = p.fila[p.i].trim();
+    const m = (marca ?? "").trim();
+    const base = produto.charAt(0).toUpperCase() + produto.slice(1);
+    const nome = m ? `${base} ${m}` : base;
+    setFase("salvando");
+    const ok = await marcarRuim({ termo: termoEvitar(produto, m), nome, motivo: null, foto });
+    if (!ok) showToast(`Não deu para guardar ${nome}.`);
+    await responder(ok ? `👎 ${nome}` : null);
   }
 
   async function mostrarResultado(frase: string, intencao: VozIntencao, lidosTodos: VozItem[]) {
@@ -335,16 +405,18 @@ export function VoiceModal({
 
     const tirar = lidosTodos.filter((i) => i.remover).map((i) => i.nome.trim()).filter(Boolean);
     const lidos = lidosTodos.filter((i) => !i.remover);
-    let avisoTirar = "";
     if (tirar.length) {
       setFase("salvando");
-      avisoTirar = await tirarDaLista(tirar, frase);
-      if (!lidos.length) {
-        showToast(avisoTirar);
-        return fechar();
-      }
+      const aviso = await tirarDaLista(tirar);
+      setPergunta({ fila: tirar, i: 0, frase, intencao, lidos, aviso, feitos: [] });
+      setFase("motivo");
+      return;
     }
+    await seguir(frase, intencao, lidos, "");
+  }
 
+  // O que era para comprar/registrar: lista direto, ou conferencia.
+  async function seguir(frase: string, intencao: VozIntencao, lidos: VozItem[], avisoTirar: string) {
     const linhas: GridItem[] = lidos.map((i) => ({
       nome: i.nome,
       qtd: i.qtd,
@@ -572,7 +644,11 @@ export function VoiceModal({
           Falar aqui no app
         </div>
         <div className="text-[19px] font-extrabold">
-          {fase === "conferir" && jaForam > 0
+          {pergunta
+            ? fase === "marca"
+              ? `Qual marca de ${pergunta.fila[pergunta.i]} é ruim?`
+              : `Por que não comprar ${pergunta.fila[pergunta.i]}?`
+            : fase === "conferir" && jaForam > 0
             ? "Fiquei em dúvida nestes"
             : fase === "conferir" || fase === "salvando"
               ? "Confere e salva"
@@ -580,7 +656,20 @@ export function VoiceModal({
         </div>
       </div>
 
-      {fase !== "conferir" && fase !== "salvando" ? (
+      {pergunta ? (
+        <PerguntaNaoComprar
+          p={pergunta}
+          fase={fase}
+          sugerido={motivoNaoComprar(pergunta.frase)}
+          marcas={marcas}
+          outraMarca={outraMarca}
+          setOutraMarca={setOutraMarca}
+          onMotivo={escolherMotivo}
+          onMarca={escolherMarca}
+          onVoltar={() => setFase("motivo")}
+          onPular={() => responder(null)}
+        />
+      ) : fase !== "conferir" && fase !== "salvando" ? (
         <>
           <p className="mb-4 text-[13px] leading-relaxed text-text-2">
             {noMercado && tela === "estoque" && "📍 Você está num mercado: vai para o carrinho. "}
@@ -716,5 +805,161 @@ export function VoiceModal({
         </>
       )}
     </Modal>
+  );
+}
+
+// Pergunta do "Nao comprar": o motivo (dois botoes grandes) e, se for ruim sem
+// marca falada, a marca, com foto, tirada do catalogo das lojas (/api/busca).
+function PerguntaNaoComprar({
+  p,
+  fase,
+  sugerido,
+  marcas,
+  outraMarca,
+  setOutraMarca,
+  onMotivo,
+  onMarca,
+  onVoltar,
+  onPular,
+}: {
+  p: Pergunta;
+  fase: Fase;
+  sugerido: "ruim" | "excesso";
+  marcas: Marca[] | null;
+  outraMarca: string;
+  setOutraMarca: (v: string) => void;
+  onMotivo: (t: "excesso" | "ruim") => void;
+  onMarca: (marca: string | null, foto?: string | null) => void;
+  onVoltar: () => void;
+  onPular: () => void;
+}) {
+  const nome = p.fila[p.i];
+  const ocupado = fase === "salvando";
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="rounded-[13px] border border-border bg-card-2 p-3 text-[13px] leading-relaxed text-text-2">
+        “{p.frase}”
+        {p.fila.length > 1 && (
+          <span className="mt-1 block font-bold">
+            Item {p.i + 1} de {p.fila.length}
+          </span>
+        )}
+      </p>
+
+      {fase === "marca" ? (
+        <>
+          <p className="text-[13px] text-text-2">
+            Você não falou a marca. Escolha qual {nome} é ruim, para não aparecer mais nas ofertas.
+          </p>
+          {marcas === null ? (
+            <div className="grid h-24 place-items-center">
+              <div className="h-7 w-7 animate-spin rounded-full border-[3px] border-border border-t-brand" />
+            </div>
+          ) : marcas.length ? (
+            <div className="grid max-h-[40vh] grid-cols-2 gap-2 overflow-y-auto">
+              {marcas.map((m) => (
+                <button
+                  key={m.marca}
+                  type="button"
+                  disabled={ocupado}
+                  onClick={() => onMarca(m.marca, m.foto)}
+                  className="flex items-center gap-2 rounded-[14px] border-2 border-border bg-card p-2 text-left disabled:opacity-50"
+                >
+                  {m.foto ? (
+                    // eslint-disable-next-line @next/next/no-img-element -- miniatura da loja
+                    <img src={m.foto} alt="" className="h-11 w-11 shrink-0 rounded-lg bg-white object-contain" />
+                  ) : (
+                    <span className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-neg-soft text-[20px]">👎</span>
+                  )}
+                  <span className="min-w-0 text-[14px] font-extrabold leading-tight">{m.marca}</span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="text-[13px] text-text-3">Não achei marcas de {nome}. Escreva abaixo.</p>
+          )}
+          <form
+            className="flex gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (outraMarca.trim()) onMarca(outraMarca);
+            }}
+          >
+            <input
+              value={outraMarca}
+              onChange={(e) => setOutraMarca(e.target.value)}
+              placeholder="Outra marca"
+              className="h-12 min-w-0 flex-1 rounded-[14px] border border-border bg-card px-3 text-[16px]"
+            />
+            <button
+              type="submit"
+              disabled={ocupado || !outraMarca.trim()}
+              className="h-12 rounded-[14px] bg-neg px-4 text-[15px] font-bold text-neg-ink disabled:opacity-50"
+            >
+              Salvar
+            </button>
+          </form>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={onVoltar}
+              disabled={ocupado}
+              className="h-11 flex-1 rounded-[14px] border border-border bg-card text-[14px] font-bold"
+            >
+              Voltar
+            </button>
+            <button
+              type="button"
+              onClick={() => onMarca(null)}
+              disabled={ocupado}
+              className="h-11 flex-[1.4] rounded-[14px] border border-border bg-card text-[14px] font-bold"
+            >
+              Qualquer {nome}
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          {(
+            [
+              ["excesso", "📦", "Em excesso", "Tem demais em casa. Fica de olho até baixar."],
+              ["ruim", "👎", "Produto ruim", "Não compra mais. Some das ofertas."],
+            ] as const
+          ).map(([k, ic, titulo, sub]) => (
+            <button
+              key={k}
+              type="button"
+              disabled={ocupado}
+              onClick={() => onMotivo(k)}
+              className={`flex items-center gap-3 rounded-[16px] border-2 p-3.5 text-left disabled:opacity-50 ${
+                k === "ruim" ? "border-neg/40 bg-neg-soft" : "border-warn/40 bg-warn-soft"
+              }`}
+            >
+              <span className="text-[30px]" aria-hidden>
+                {ic}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[17px] font-extrabold">
+                  {titulo}
+                  {sugerido === k && k === "ruim" && (
+                    <span className="ml-1.5 text-[11px] font-bold text-text-3">pelo que você falou</span>
+                  )}
+                </span>
+                <span className="block text-[13px] text-text-2">{sub}</span>
+              </span>
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={onPular}
+            disabled={ocupado}
+            className="h-11 rounded-[14px] text-[14px] font-bold text-text-3 underline"
+          >
+            Só tirar da lista
+          </button>
+        </>
+      )}
+      {ocupado && <p className="text-center text-[13px] text-text-3">Guardando…</p>}
+    </div>
   );
 }
