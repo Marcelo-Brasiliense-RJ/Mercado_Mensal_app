@@ -7,6 +7,7 @@ import { DestinoSwitch, type Destino } from "@/components/ui/Destino";
 import { useStore } from "@/lib/store";
 import { useLugar } from "@/lib/lugar";
 import { enfileirarFoto, marcarLeitor, useDescanso, useFilaFotos } from "@/lib/filaFotos";
+import { PrateleiraModal } from "@/components/estoque/PrateleiraModal";
 
 // Modo foto: o jeito principal de anotar (no lugar do Digitar). Tira uma foto atras da
 // outra, ou escolhe varias da galeria de uma vez; cada uma vai para a fila da IA e a
@@ -27,6 +28,8 @@ export function FotoModal({
   const camera = useRef<HTMLInputElement>(null);
   const galeria = useRef<HTMLInputElement>(null);
   const [desta, setDesta] = useState(0); // fotos mandadas nesta abertura
+  // Prateleira: o outro modo de foto, complementar. Um produto so nela volta para ca.
+  const [prateleira, setPrateleira] = useState(false);
   const { fila, pausaAte } = useFilaFotos();
   const descanso = useDescanso(pausaAte);
   const trabalhando = fila.filter((x) => x.estado === "preparando" || x.estado === "esperando" || x.estado === "reconhecendo");
@@ -44,6 +47,18 @@ export function FotoModal({
     setDesta((n) => n + fs.length);
     for (const f of fs) await enfileirarFoto(f, destino);
     if (fs.length > 1) showToast(`📷 ${fs.length} fotos na fila`);
+  }
+
+  if (prateleira) {
+    return (
+      <PrateleiraModal
+        onClose={() => setPrateleira(false)}
+        onUmSo={(f) => {
+          void enfileirarFoto(f, destino);
+          setDesta((n) => n + 1);
+        }}
+      />
+    );
   }
 
   return (
@@ -128,6 +143,9 @@ export function FotoModal({
       <div data-rodape className="mt-3 flex flex-col gap-1">
         <button onClick={onClose} className="h-[50px] w-full rounded-[14px] border border-border bg-card text-[15px] font-bold">
           {prontas || trabalhando.length ? "Pronto, conferir" : "Fechar"}
+        </button>
+        <button onClick={() => setPrateleira(true)} className="h-11 rounded-[14px] border-2 border-brand/50 bg-brand-soft text-[14px] font-bold text-brand">
+          🗄️ Prateleira inteira (vários de uma vez)
         </button>
         <button onClick={onDigitar} className="h-10 text-[13px] font-bold text-text-2 underline">
           ⌨️ Prefiro digitar

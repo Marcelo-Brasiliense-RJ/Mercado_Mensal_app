@@ -13,6 +13,9 @@ import { marcarNaoComprar, marcarRuim } from "@/components/ofertas/useEvitar";
 import { termoEvitar } from "@/lib/ofertas";
 import { reduzir } from "@/lib/reconhecer";
 import { Gravador } from "./Gravador";
+import { PrateleiraModal } from "@/components/estoque/PrateleiraModal";
+import { enfileirarFoto } from "@/lib/filaFotos";
+import { acertarEstoque as acertarNoEstoque } from "@/lib/acertarEstoque";
 import type { ShopItem } from "@/lib/types";
 import {
   achaNaLista,
@@ -131,6 +134,7 @@ export function VoiceModal({
   const [outraMarca, setOutraMarca] = useState("");
   const [escrito, setEscrito] = useState(""); // caminho digitado, mesmo entendimento da voz
   const [escrevendo, setEscrevendo] = useState(false);
+  const [prateleira, setPrateleira] = useState(false);
   const fotoRef = useRef<HTMLInputElement>(null);
   // Tela que vai junto para a IA desempatar ("arroz" sozinho no Estoque e estoque).
   const telaIA = telaAgora === "estoque" ? "estoque" : telaAgora === "lista" ? "lista" : telaAgora === "auto" ? "auto" : "mercado";
@@ -467,24 +471,7 @@ export function VoiceModal({
   // entao manda a diferenca para o que ja estava.
   async function acertarEstoque(itensEst: VozItem[]): Promise<string> {
     setFase("salvando");
-    const ok: string[] = [];
-    const falhou: string[] = [];
-    for (const it of itensEst) {
-      const nome = it.nome.trim();
-      const achado =
-        findByName(nome, stock) ?? findByName(nome.replace(/s$/, ""), stock) ?? findByName(`${nome}s`, stock);
-      const atual = achado?.current ?? 0;
-      const delta = +(Number(it.qtd) - atual).toFixed(3);
-      const unidade = achado?.unit ?? it.unidade;
-      if (Math.abs(delta) > 1e-9) {
-        const r = await addStock({ name: achado?.name ?? nome, qty: delta, unit: unidade });
-        if (!r.ok) {
-          falhou.push(nome);
-          continue;
-        }
-      }
-      ok.push(`${achado?.name ?? nome} ${it.qtd} ${unidade}`);
-    }
+    const { ok, falhou } = await acertarNoEstoque(itensEst, stock, addStock);
     return [ok.length ? `🏠 Estoque: ${ok.join(", ")}` : "", falhou.length ? `não gravei ${falhou.join(", ")}` : ""]
       .filter(Boolean)
       .join(" · ");
@@ -769,7 +756,17 @@ export function VoiceModal({
   const ocupado = fase === "enviando" || fase === "salvando";
 
   return (
-    <Modal open={open} onClose={fechar} maxWidth={460}>
+    <>
+    {prateleira && (
+      <PrateleiraModal
+        onClose={() => {
+          setPrateleira(false);
+          fechar();
+        }}
+        onUmSo={(f) => void enfileirarFoto(f, "estoque")}
+      />
+    )}
+    <Modal open={open && !prateleira} onClose={fechar} maxWidth={460}>
       <div className="mb-[18px]">
         <div className="flex items-center gap-2 text-[13px] font-bold text-brand">
           <MicIcon size={18} />
@@ -869,20 +866,27 @@ export function VoiceModal({
                   </button>
                 </form>
               ) : (
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-3 gap-2">
                   <button
                     type="button"
                     onClick={() => setEscrevendo(true)}
-                    className="h-12 rounded-[14px] border-2 border-border bg-card text-[14px] font-bold"
+                    className="flex h-14 flex-col items-center justify-center rounded-[14px] border-2 border-border bg-card text-[13px] font-bold"
                   >
-                    ⌨️ Escrever
+                    <span className="text-[18px]" aria-hidden>⌨️</span>Escrever
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPrateleira(true)}
+                    className="flex h-14 flex-col items-center justify-center rounded-[14px] border-2 border-brand/50 bg-brand-soft text-[13px] font-bold text-brand"
+                  >
+                    <span className="text-[18px]" aria-hidden>🗄️</span>Prateleira
                   </button>
                   <button
                     type="button"
                     onClick={() => fotoRef.current?.click()}
-                    className="h-12 rounded-[14px] border-2 border-border bg-card text-[14px] font-bold"
+                    className="flex h-14 flex-col items-center justify-center rounded-[14px] border-2 border-border bg-card text-[13px] font-bold"
                   >
-                    📷 Foto da despensa
+                    <span className="text-[18px]" aria-hidden>📝</span>Lista escrita
                   </button>
                 </div>
               )}
@@ -891,7 +895,7 @@ export function VoiceModal({
                 type="file"
                 accept="image/*"
                 className="hidden"
-                aria-label="Foto da despensa ou de uma lista"
+                aria-label="Foto de uma lista escrita"
                 onChange={(e) => {
                   void entenderFoto(e.target.files?.[0]);
                   e.target.value = "";
@@ -899,7 +903,7 @@ export function VoiceModal({
               />
               {!escrevendo && (
                 <p className="text-center text-[11px] text-text-3">
-                  Foto de prateleira, geladeira ou de uma lista escrita: leio vários produtos de uma vez.
+                  Prateleira: um quadrado em cada produto e a contagem vira o estoque. Lista escrita: foto do papel.
                 </p>
               )}
             </div>
@@ -974,6 +978,7 @@ export function VoiceModal({
         </>
       )}
     </Modal>
+    </>
   );
 }
 
