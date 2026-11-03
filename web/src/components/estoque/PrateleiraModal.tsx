@@ -2,9 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
+import { Sugestoes } from "@/components/lista/Sugestoes";
 import { useStore } from "@/lib/store";
 import { createClient } from "@/lib/supabase/client";
-import { acertarEstoque } from "@/lib/acertarEstoque";
+import { acertarEstoque, produtoDoEstoque } from "@/lib/acertarEstoque";
+import { SomarOuSubstituir, type Modo } from "@/components/ui/SomarOuSubstituir";
 import { unitFor } from "@/lib/defaults";
 import {
   agrupar,
@@ -42,7 +44,7 @@ type Caixa = {
   opcoes?: string[];
 };
 
-type Fase = "foto" | "lendo" | "marcar" | "salvando";
+type Fase = "foto" | "lendo" | "marcar" | "revisar" | "salvando";
 
 const LADO = 1600; // px do lado maior: nitido para ler rotulo, leve para subir no 4G
 
@@ -107,6 +109,9 @@ export function PrateleiraModal({ onClose, onUmSo }: { onClose: () => void; onUm
   const [caixas, setCaixas] = useState<Caixa[]>([]);
   const [sel, setSel] = useState<string | null>(null);
   const [nomeEdit, setNomeEdit] = useState("");
+  const [buscando, setBuscando] = useState(false); // busca padrao de produto aberta
+  // Confronto com o estoque, por produto: so a pessoa sabe se e contagem ou compra nova.
+  const [modos, setModos] = useState<Record<string, Modo>>({});
   const [desenhando, setDesenhando] = useState(false);
   const [rascunho, setRascunho] = useState<Box | null>(null);
   const [erro, setErro] = useState("");
@@ -204,6 +209,7 @@ export function PrateleiraModal({ onClose, onUmSo }: { onClose: () => void; onUm
   function abrir(c: Caixa) {
     setSel(c.id);
     setNomeEdit(c.nome);
+    setBuscando(false);
   }
 
   function resolver(id: string, nome: string) {
@@ -228,13 +234,24 @@ export function PrateleiraModal({ onClose, onUmSo }: { onClose: () => void; onUm
     return [Math.min(1, Math.max(0, (e.clientY - r.top) / r.height)), Math.min(1, Math.max(0, (e.clientX - r.left) / r.width))];
   }
 
+  const prontosOk = caixas.filter((c) => c.pronto && c.nome.trim());
+  const gruposProntos = agrupar(prontosOk);
+  const modoDe = (nome: string): Modo => modos[chaveLido(nome)] ?? "substituir";
+
+  // Guardar: se algum produto ja existe no estoque, mostra o confronto primeiro.
+  function irGuardar() {
+    if (!prontosOk.length) return showToast("Confirme pelo menos um produto.");
+    if (gruposProntos.some((g) => produtoDoEstoque(g.nome, stock))) return setFase("revisar");
+    void guardar();
+  }
+
   async function guardar() {
-    const ok = caixas.filter((c) => c.pronto && c.nome.trim());
+    const ok = prontosOk;
     if (!ok.length) return showToast("Confirme pelo menos um produto.");
     setFase("salvando");
-    const grupos = agrupar(ok);
+    const grupos = gruposProntos;
     const r = await acertarEstoque(
-      grupos.map((g) => ({ nome: g.nome, qtd: g.qtd, unidade: unitFor(g.nome) })),
+      grupos.map((g) => ({ nome: g.nome, qtd: g.qtd, unidade: unitFor(g.nome), modo: modoDe(g.nome) })),
       stock,
       addStock,
     );
@@ -265,7 +282,9 @@ export function PrateleiraModal({ onClose, onUmSo }: { onClose: () => void; onUm
       <div className="mb-3 pr-12">
         <div className="text-[13px] font-bold text-brand">🗄️ Foto da prateleira</div>
         <div className="text-[20px] font-extrabold">
-          {fase === "marcar" || fase === "salvando"
+          {fase === "revisar"
+            ? "Somar ou substituir?"
+            : fase === "marcar" || fase === "salvando"
             ? `${prontos} de ${caixas.length} prontos`
             : fase === "lendo"
               ? "Procurando os produtos…"
@@ -296,6 +315,67 @@ export function PrateleiraModal({ onClose, onUmSo }: { onClose: () => void; onUm
             🖼 Escolher da galeria
           </button>
           {erro && <p className="rounded-[13px] border border-border bg-card-2 p-3 text-[13px] text-text-2">{erro}</p>}
+        </div>
+      )}
+
+      {fase === "revisar" && (
+        <div className="flex flex-col gap-3">
+          <p className="text-[13px] text-text-2">
+            Alguns já estão no estoque. Para cada um: <b>somar</b> (chegou compra) ou <b>substituir</b> (contei o que tem)?
+          </p>
+          <div className="flex items-center gap-2 text-[13px]">
+            <span className="font-bold text-text-2">Todos:</span>
+            {(["somar", "substituir"] as Modo[]).map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setModos(Object.fromEntries(gruposProntos.map((g) => [chaveLido(g.nome), m])))}
+                className="h-9 rounded-full border-2 border-border bg-card px-3 font-bold"
+              >
+                {m === "somar" ? "＋ Somar" : "＝ Substituir"}
+              </button>
+            ))}
+          </div>
+          <div className="flex max-h-[52vh] flex-col gap-2.5 overflow-y-auto">
+            {gruposProntos.map((g) => {
+              const est = produtoDoEstoque(g.nome, stock);
+              return (
+                <div key={g.nome} className="rounded-[14px] border border-border bg-card p-3">
+                  <div className="mb-2 flex items-baseline justify-between gap-2">
+                    <span className="truncate text-[15px] font-extrabold capitalize">{g.nome}</span>
+                    <span className="shrink-0 text-[12px] text-text-2">
+                      📷 foto: <b>{g.qtd}</b>
+                      {est ? (
+                        <>
+                          {" "}· 🏠 estoque: <b>{est.current}</b> {est.unit}
+                        </>
+                      ) : null}
+                    </span>
+                  </div>
+                  {est ? (
+                    <SomarOuSubstituir
+                      compacto
+                      atual={est.current}
+                      unidade={est.unit}
+                      qtd={g.qtd}
+                      modo={modoDe(g.nome)}
+                      onModo={(m) => setModos((x) => ({ ...x, [chaveLido(g.nome)]: m }))}
+                    />
+                  ) : (
+                    <div className="text-[12px] font-bold text-pos">🆕 Novo no estoque: entra com {g.qtd}</div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => setFase("marcar")} className="h-[54px] flex-1 rounded-[14px] border border-border bg-card text-[15px] font-bold">
+              Voltar
+            </button>
+            <button onClick={() => void guardar()} className="h-[54px] flex-[2] rounded-[14px] bg-brand text-[16px] font-extrabold text-brand-ink">
+              🏠 Guardar na despensa
+            </button>
+          </div>
         </div>
       )}
 
@@ -429,8 +509,11 @@ export function PrateleiraModal({ onClose, onUmSo }: { onClose: () => void; onUm
                     <input
                       autoFocus={!atual.pronto}
                       value={nomeEdit}
-                      onChange={(e) => setNomeEdit(e.target.value)}
-                      placeholder="Ex.: café Pilão"
+                      onChange={(e) => {
+                        setNomeEdit(e.target.value);
+                        setBuscando(true);
+                      }}
+                      placeholder="Ex.: iogurte"
                       enterKeyHint="done"
                       className="h-12 min-w-0 flex-1 rounded-[13px] border border-border bg-card-2 px-3 text-[16px]"
                     />
@@ -438,6 +521,17 @@ export function PrateleiraModal({ onClose, onUmSo }: { onClose: () => void; onUm
                       ✓
                     </button>
                   </div>
+                  {buscando && nomeEdit.trim().length >= 2 && (
+                    <div className="mt-2">
+                      <Sugestoes
+                        termo={nomeEdit}
+                        onEscolher={(e) => {
+                          setBuscando(false);
+                          resolver(atual.id, e.nome);
+                        }}
+                      />
+                    </div>
+                  )}
                 </form>
               )}
               <button onClick={() => apagar(atual.id)} className="mt-2 text-[13px] font-bold text-text-3 underline">
@@ -459,7 +553,7 @@ export function PrateleiraModal({ onClose, onUmSo }: { onClose: () => void; onUm
           >
             {desenhando ? "Arraste o dedo em volta do produto…" : "+ Marcar produto que faltou"}
           </button>
-          <button onClick={guardar} className="h-[54px] rounded-[14px] bg-brand text-[16px] font-extrabold text-brand-ink">
+          <button onClick={irGuardar} className="h-[54px] rounded-[14px] bg-brand text-[16px] font-extrabold text-brand-ink">
             🏠 Guardar {prontos} na despensa
           </button>
         </div>

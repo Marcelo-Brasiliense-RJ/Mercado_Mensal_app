@@ -16,6 +16,7 @@ import {
   type Oferta,
 } from "@/lib/ofertas";
 import { findByName } from "@/lib/defaults";
+import { Sugestoes } from "@/components/lista/Sugestoes";
 import { Foto, Selo } from "./pecas";
 import { desmarcarRuim, marcarNaoComprar, marcarRuim, useEvitar } from "./useEvitar";
 
@@ -264,6 +265,9 @@ function MarcarRuimModal({ ofertas, onClose }: { ofertas: Oferta[]; onClose: () 
         placeholder={tipo === "ruim" ? "Por quê? (opcional) Ex.: aguado, rasga fácil" : "Obs. (opcional) Ex.: 6 caixas na despensa"}
         className="mb-3 h-12 w-full rounded-2xl border border-border bg-card-2 px-4 text-[15px]"
       />
+      {tipo === "excesso" && t.length >= 2 && (
+        <Sugestoes termo={t} onEscolher={(e) => void guardar(termoEvitar(e.nome), e.nome)} />
+      )}
       {t.length >= 2 && (
         <div className="flex max-h-[45vh] flex-col gap-2 overflow-y-auto">
           <button

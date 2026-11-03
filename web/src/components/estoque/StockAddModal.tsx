@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { useStore } from "@/lib/store";
 import { unitFor, findByName } from "@/lib/defaults";
+import { Sugestoes } from "@/components/lista/Sugestoes";
 
 const UNITS = ["un", "kg", "g", "L", "ml", "pct", "cx", "dz"];
 const field =
@@ -21,6 +22,7 @@ export function StockAddModal({
 }) {
   const { addStock, showToast, stock } = useStore();
   const [nome, setNome] = useState("");
+  const [buscando, setBuscando] = useState(false); // busca padrao de produto aberta
   const [qtd, setQtd] = useState("1");
   const [unidade, setUnidade] = useState("un");
   // Enquanto o usuario nao mexer no select, a unidade acompanha o nome.
@@ -64,11 +66,23 @@ export function StockAddModal({
       <label className={labelCls}>Nome</label>
       <input
         value={nome}
-        onChange={(e) => onNome(e.target.value)}
-        placeholder="Ex.: Arroz"
+        onChange={(e) => {
+          onNome(e.target.value);
+          setBuscando(true);
+        }}
+        placeholder="Ex.: iogurte"
         className={`${field} ${jaTem ? "mb-1.5" : "mb-3.5"}`}
         autoFocus
       />
+      {buscando && nome.trim().length >= 2 && (
+        <Sugestoes
+          termo={nome}
+          onEscolher={(e) => {
+            onNome(e.nome);
+            setBuscando(false);
+          }}
+        />
+      )}
       {jaTem && (
         <p className="mb-3.5 text-[12px] text-text-2">
           Você já tem {jaTem.current} {jaTem.unit} em casa. Vamos somar a esse item.

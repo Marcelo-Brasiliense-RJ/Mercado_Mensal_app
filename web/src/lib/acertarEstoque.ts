@@ -20,8 +20,9 @@ export function produtoDoEstoque(nome: string, stock: StockItem[]): StockItem | 
   );
 }
 
+// modo: "substituir" (padrao, contagem: fica X) ou "somar" (chegou X a mais).
 export async function acertarEstoque(
-  itens: { nome: string; qtd: number; unidade: string }[],
+  itens: { nome: string; qtd: number; unidade: string; modo?: "somar" | "substituir" }[],
   stock: StockItem[],
   addStock: Add,
 ): Promise<{ ok: string[]; falhou: string[] }> {
@@ -31,7 +32,7 @@ export async function acertarEstoque(
     const nome = it.nome.trim();
     if (!nome) continue;
     const achado = produtoDoEstoque(nome, stock);
-    const delta = +(Number(it.qtd) - (achado?.current ?? 0)).toFixed(3);
+    const delta = it.modo === "somar" ? Number(it.qtd) : +(Number(it.qtd) - (achado?.current ?? 0)).toFixed(3);
     const unidade = achado?.unit ?? it.unidade;
     if (Math.abs(delta) > 1e-9) {
       const r = await addStock({ name: achado?.name ?? nome, qty: delta, unit: unidade });
@@ -40,7 +41,7 @@ export async function acertarEstoque(
         continue;
       }
     }
-    ok.push(`${achado?.name ?? nome} ${it.qtd} ${unidade}`);
+    ok.push(`${achado?.name ?? nome} ${it.modo === "somar" ? `+${it.qtd}` : it.qtd} ${unidade}`);
   }
   return { ok, falhou };
 }

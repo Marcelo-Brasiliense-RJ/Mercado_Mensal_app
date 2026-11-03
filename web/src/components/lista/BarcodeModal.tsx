@@ -22,6 +22,8 @@ import { precoNoMercado } from "@/lib/precoMercado";
 import { usePrecosVistos } from "@/lib/precosVistos";
 import { enfileirarFoto, marcarLeitor, useFilaFotos } from "@/lib/filaFotos";
 import { NaoComprarBotoes } from "@/components/ui/NaoComprarBotoes";
+import { Sugestoes } from "./Sugestoes";
+import { SomarOuSubstituir, type Modo } from "@/components/ui/SomarOuSubstituir";
 
 // Ler o codigo, dizer a quantidade, pronto: o item cai no carrinho.
 //
@@ -89,6 +91,8 @@ export function BarcodeModal({
   // O nome vem pronto do codigo; editar e excecao, entao o campo so aparece
   // quando a pessoa pede. Menos coisa na tela, menos duvida.
   const [editandoNome, setEditandoNome] = useState(false);
+  const [modo, setModo] = useState<Modo>("somar"); // ja tem: chegou mais (somar) ou contagem (substituir)
+  const [buscando, setBuscando] = useState(false); // busca padrao de produto aberta
   const [semCamera, setSemCamera] = useState(false);
   const [busy, setBusy] = useState(false);
   // O que ja entrou nesta sessao de leitura, so pra dar retorno visivel sem
@@ -196,10 +200,14 @@ export function BarcodeModal({
 
   async function guardar() {
     setBusy(true);
+    const q = Number(qtd.replace(",", ".")) || 1;
+    const existe = findByName(nome, stock);
+    // Substituir: a RPC soma, entao manda a diferenca para o que ja estava.
+    const qEnviar = existe && modo === "substituir" ? +(q - existe.current).toFixed(3) : q;
     const r = await addStockByBarcode({
       code: codigo,
       name: nome.trim(),
-      qty: Number(qtd.replace(",", ".")) || 1,
+      qty: qEnviar,
       unit: unidade,
     });
     if (r.ok && tambem) {
@@ -208,8 +216,9 @@ export function BarcodeModal({
     }
     setBusy(false);
     if (!r.ok) return showToast(r.erro);
-    setLidos((l) => [`+${qtd} ${nome.trim()}`, ...l]);
-    showToast(`${nome.trim()}: +${qtd} ${unidade} no estoque${tambem ? " e na lista" : ""}`, { desfazer: !tambem });
+    const txt = existe && modo === "substituir" ? `=${qtd}` : `+${qtd}`;
+    setLidos((l) => [`${txt} ${nome.trim()}`, ...l]);
+    showToast(`${nome.trim()}: ${txt} ${unidade} no estoque${tambem ? " e na lista" : ""}`, { desfazer: !tambem });
     setTambem(false);
     voltarALer();
   }
@@ -418,13 +427,25 @@ export function BarcodeModal({
             ) : (
               <input
                 value={nome}
-                onChange={(e) => onNome(e.target.value)}
-                placeholder="Ex.: Arroz"
+                onChange={(e) => {
+                  onNome(e.target.value);
+                  setBuscando(true);
+                }}
+                placeholder="Ex.: iogurte"
                 className={`${field} mt-2.5`}
                 autoFocus
               />
             )}
           </div>
+          {editandoNome && buscando && nome.trim().length >= 2 && (
+            <Sugestoes
+              termo={nome}
+              onEscolher={(e) => {
+                onNome(e.nome);
+                setBuscando(false);
+              }}
+            />
+          )}
 
           {!conhecido && (
             <AvisoParecido
@@ -473,14 +494,22 @@ export function BarcodeModal({
 
           {emCasa ? (
             <>
-            <p className="mb-3 rounded-[13px] bg-card-2 p-3 text-[13px] text-text-2">
-              {(() => {
-                const item = findByName(nome, stock);
-                return item
-                  ? `Em casa agora: ${item.current} ${item.unit}. "Guardar" soma, "Usei" tira.`
-                  : "Ainda não está no estoque: “Guardar” cria o item.";
-              })()}
-            </p>
+            {(() => {
+              const item = findByName(nome, stock);
+              return item ? (
+                <SomarOuSubstituir
+                  atual={item.current}
+                  unidade={item.unit}
+                  qtd={Number(qtd.replace(",", ".")) || 1}
+                  modo={modo}
+                  onModo={setModo}
+                />
+              ) : (
+                <p className="mb-3 rounded-[13px] bg-card-2 p-3 text-[13px] text-text-2">
+                  Ainda não está no estoque: “Guardar” cria o item.
+                </p>
+              );
+            })()}
             <TambemNaLista valor={tambem} onChange={setTambem} />
             </>
           ) : (

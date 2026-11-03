@@ -10,6 +10,9 @@ import { useStore } from "@/lib/store";
 import { brl } from "@/lib/format";
 import { findByName, unitFor } from "@/lib/defaults";
 import { NaoComprarBotoes } from "@/components/ui/NaoComprarBotoes";
+import { Sugestoes } from "./Sugestoes";
+import { SomarOuSubstituir, type Modo } from "@/components/ui/SomarOuSubstituir";
+import { produtoDoEstoque } from "@/lib/acertarEstoque";
 import { reverFoto, tirarDaFila, useDescanso, useFilaFotos, type FotoFila } from "@/lib/filaFotos";
 
 // O que volta da fila de fotos: um aviso no topo enquanto a IA trabalha e, com o
@@ -60,6 +63,7 @@ function Conferir({ x, resta, onDepois }: { x: FotoFila; resta: number; onDepois
   const falhou = x.estado === "falhou";
   const [passo, setPasso] = useState<"conferir" | "dados">("conferir");
   const [editando, setEditando] = useState(falhou);
+  const [buscando, setBuscando] = useState(false);
   const [nome, setNome] = useState(x.nome ?? "");
   const [destino, setDestino] = useState(x.destino);
   const jaTem = findByName(nome, stock);
@@ -70,6 +74,8 @@ function Conferir({ x, resta, onDepois }: { x: FotoFila; resta: number; onDepois
   const emCasa = destino === "estoque";
   const paraLista = destino === "lista";
   const [tambem, setTambem] = useState(false);
+  const [modo, setModo] = useState<Modo>("somar"); // foto de um produto: quase sempre chegou compra
+  const existente = emCasa ? produtoDoEstoque(nome, stock) : undefined;
 
   function seguir() {
     const n = nome.trim();
@@ -87,13 +93,19 @@ function Conferir({ x, resta, onDepois }: { x: FotoFila; resta: number; onDepois
     const q = Number(qtd.replace(",", ".")) || 1;
     const price = preco.trim() === "" ? null : Number(preco.replace(",", ".")) || 0;
     setBusy(true);
+    // Ja tem no estoque: somar (chegou mais) ou substituir (contagem). As RPCs somam,
+    // entao substituir manda a diferenca para o que ja estava.
+    const qEst = existente && modo === "substituir" ? +(q - existente.current).toFixed(3) : q;
+    const nEst = existente?.name ?? n;
     // Com codigo, grava o vinculo: da proxima vez o leitor ja sabe o nome.
     const r = paraLista
       ? await addShopItem({ name: n, desired_quantity: q, unit: unidade, estimated_price: price || null })
       : emCasa
       ? x.codigo
-        ? await addStockByBarcode({ code: x.codigo, name: n, qty: q, unit: unidade })
-        : await addStock({ name: n, qty: q, unit: unidade })
+        ? await addStockByBarcode({ code: x.codigo, name: nEst, qty: qEst, unit: unidade })
+        : qEst === 0
+          ? ({ ok: true } as const)
+          : await addStock({ name: nEst, qty: qEst, unit: unidade })
       : x.codigo
         ? await addTripItemByBarcode({ code: x.codigo, name: n, price, qty: q, unit: unidade })
         : await addTripItem({ name: n, price, qty: q, unit: unidade });
@@ -147,8 +159,11 @@ function Conferir({ x, resta, onDepois }: { x: FotoFila; resta: number; onDepois
           {editando ? (
             <input
               value={nome}
-              onChange={(e) => setNome(e.target.value)}
-              placeholder="Nome do produto"
+              onChange={(e) => {
+                setNome(e.target.value);
+                setBuscando(true);
+              }}
+              placeholder="Ex.: iogurte"
               autoFocus
               enterKeyHint="next"
               onKeyDown={(e) => e.key === "Enter" && seguir()}
@@ -166,6 +181,16 @@ function Conferir({ x, resta, onDepois }: { x: FotoFila; resta: number; onDepois
         </div>
       </div>
 
+      {passo === "conferir" && editando && buscando && nome.trim().length >= 2 && (
+        <Sugestoes
+          termo={nome}
+          onEscolher={(e) => {
+            setNome(e.nome);
+            setBuscando(false);
+            setEditando(false);
+          }}
+        />
+      )}
       {passo === "conferir" && (
         <AvisoParecido
           nome={nome}
@@ -242,6 +267,15 @@ function Conferir({ x, resta, onDepois }: { x: FotoFila; resta: number; onDepois
               ))}
             </select>
           </div>
+          {emCasa && existente && (
+            <SomarOuSubstituir
+              atual={existente.current}
+              unidade={existente.unit}
+              qtd={Number(qtd.replace(",", ".")) || 1}
+              modo={modo}
+              onModo={setModo}
+            />
+          )}
           {emCasa && <TambemNaLista valor={tambem} onChange={setTambem} />}
           {!emCasa && (
             <>
