@@ -19,6 +19,11 @@ export type VozItem = {
   duvida?: boolean;
   // "Nao quero mais cafe", "tira o leite": sai da lista em vez de entrar.
   remover?: boolean;
+  // Audio longo mistura tudo ("tenho 5 kg de arroz, preciso de cafe, nao compra
+  // fermento"): cada item diz para onde vai. Sem isso, vale a intencao da frase.
+  destino?: VozIntencao;
+  // Por que nao comprar, quando a fala ja disse ("ja tem muito fermento" = excesso).
+  motivo?: "excesso" | "ruim";
 };
 
 export type VozResposta =
@@ -107,13 +112,17 @@ export function normalizaItens(raw: unknown): VozItem[] {
     const preco = total != null && total > 0 ? +(total / qtd).toFixed(2) : null;
 
     // So `true` vale como duvida: qualquer outra coisa do modelo e "entendi".
+    const acao = String(o.acao ?? "");
+    const remover = o.remover === true || acao === "remover";
+    const motivo = o.motivo === "excesso" || o.motivo === "ruim" ? o.motivo : undefined;
     itens.push({
       nome,
       qtd,
       unidade,
       preco,
       ...(o.duvida === true ? { duvida: true } : {}),
-      ...(o.remover === true ? { remover: true } : {}),
+      ...(remover ? { remover: true, ...(motivo ? { motivo } : {}) } : {}),
+      ...(!remover && INTENCOES.includes(acao as VozIntencao) ? { destino: acao as VozIntencao } : {}),
     });
   }
   return itens;
@@ -122,7 +131,7 @@ export function normalizaItens(raw: unknown): VozItem[] {
 export const ERRO_VOZ: Record<string, string> = {
   nao_autenticado: "Sua sessão expirou. Entre de novo.",
   voz_indisponivel: "Ditado ainda não configurado neste ambiente.",
-  audio_grande: "Áudio longo demais. Grave até um minuto.",
+  audio_grande: "Áudio longo demais. Grave até 3 minutos.",
   sem_audio: "Não gravou nada. Tente de novo.",
   nao_entendi: "Não entendi o que você falou. Tente de novo, mais perto.",
   transcricao_falhou: "Não consegui transcrever agora. Tente de novo.",
@@ -154,6 +163,8 @@ const UNIDADE_PALAVRA: Record<string, string> = {
   caixa: "cx", caixas: "cx", cx: "cx",
   duzia: "dz", duzias: "dz", dz: "dz",
   unidade: "un", unidades: "un", un: "un",
+  cartela: "pct", cartelas: "pct", bandeja: "pct", bandejas: "pct", fardo: "pct", fardos: "pct",
+  lata: "un", latas: "un", garrafa: "un", garrafas: "un", saco: "pct", sacos: "pct",
 };
 
 // Verbo -> destino. A ordem importa: o primeiro que casar decide.
@@ -208,6 +219,8 @@ const LIXO = new Set([
   // tempo falado junto ("leite esse mes"): nunca e parte do nome do produto
   "esse", "essa", "este", "esta", "nesse", "nessa", "neste", "nesta", "mes",
   "semana", "hoje", "amanha", "proximo", "proxima", "dia", "dias",
+  "eu", "nos", "gente", "muito", "muita", "muitos", "muitas", "demais", "bastante",
+  "sobrando", "sobra", "olha", "entao", "ne", "tipo", "assim",
 ]);
 
 // Negacao: "nao quero", "tira", "nao precisa mais". Vale para os itens seguintes
@@ -279,11 +292,21 @@ export function interpretarLocal(texto: string): {
     .map((p) => p.trim())
     .filter(Boolean);
 
-  let negando = false;
+  // Acao por pedaco, levada adiante ate outro verbo aparecer: "tenho 5 kg de arroz
+  // e 3 cartelas de ovos" sao os dois estoque; "nao precisa comprar leite, nem
+  // fermento" sao os dois remover. "Ja tem muito X" depois de negar e excesso.
+  let acao: VozIntencao | "remover" = intencao;
   const pedacos = brutos.map((b) => {
-    if (NEGA.test(b)) negando = true;
-    else if (AFIRMA.test(b) || /^mas\b/.test(b)) negando = false;
-    return { ...lePedaco(b), remover: negando };
+    const excesso = /\b(muito|muita|demais|bastante|sobrando|de sobra)\b/.test(b);
+    if (/\b(nao tenho|nao tem mais|acabou|faltou|falta)\b/.test(b)) acao = "lista";
+    else if (NEGA.test(b)) acao = "remover";
+    else if (excesso && (acao === "remover" || /\bja tem\b/.test(b))) acao = "remover";
+    else if (/\b(comprei|peguei|botei|coloquei|custou|paguei)\b/.test(b)) acao = "carrinho";
+    else if (/\b(tenho|temos|tem|sobrou|em casa|conferindo|conferi)\b/.test(b)) acao = "estoque";
+    else if (AFIRMA.test(b) || /^mas\b/.test(b)) acao = "lista";
+    const motivo: VozItem["motivo"] =
+      acao !== "remover" ? undefined : motivoNaoComprar(b) === "ruim" ? "ruim" : excesso ? "excesso" : undefined;
+    return { ...lePedaco(b), acao, motivo };
   });
 
   // A conta toda roda sem acento; o nome volta com o acento que foi falado
@@ -313,13 +336,22 @@ export function interpretarLocal(texto: string): {
       if (p.unidade) ultimo.unidade = p.unidade;
       continue;
     }
+    // "nao compra fermento, ja tem muito fermento": o mesmo item duas vezes vira um,
+    // com o motivo que apareceu.
+    const repetido = itens.find((i) => i.nome === p.nome && !!i.remover === (p.acao === "remover"));
+    if (repetido) {
+      if (p.motivo && !repetido.motivo) repetido.motivo = p.motivo;
+      continue;
+    }
     const qtd = p.qtd != null && p.qtd > 0 ? p.qtd : 1;
     itens.push({
       nome: p.nome,
       qtd,
       unidade: p.unidade ?? unitFor(p.nome),
       preco: p.preco != null && p.preco > 0 ? +(p.preco / qtd).toFixed(2) : null,
-      ...(p.remover ? { remover: true } : {}),
+      ...(p.acao === "remover"
+        ? { remover: true, ...(p.motivo ? { motivo: p.motivo } : {}) }
+        : { destino: p.acao }),
     });
   }
   return { intencao, itens };

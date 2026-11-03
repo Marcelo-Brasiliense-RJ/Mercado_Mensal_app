@@ -102,7 +102,7 @@ describe("entender a frase sem servidor (plano B)", () => {
   it("frase sem numero nenhum ainda vira item", () => {
     const r = interpretarLocal("preciso de detergente");
     expect(r.itens).toEqual([
-      { nome: "detergente", qtd: 1, unidade: "L", preco: null },
+      { nome: "detergente", qtd: 1, unidade: "L", preco: null, destino: "lista" },
     ]);
   });
 });
@@ -170,5 +170,42 @@ describe("nao comprar: ruim ou excesso", () => {
     expect(motivoNaoComprar("tem leite demais, não compra")).toBe("excesso");
     expect(motivoNaoComprar("não compra mais esse café, é ruim")).toBe("ruim");
     expect(motivoNaoComprar("detergente Ypê não presta")).toBe("ruim");
+  });
+});
+
+describe("audio longo, tudo junto", () => {
+  it("estoque, nao comprar e excesso na mesma fala", () => {
+    const r = interpretarLocal(
+      "Olha só, eu tenho 5 quilos de arroz, eu tenho 3 cartelas de ovos, mas não precisa comprar leite, não precisa comprar fermento, esse mês já tem muito fermento",
+    );
+    const resumo = r.itens.map((i) => [i.nome, i.qtd, i.unidade, i.remover ? `remover:${i.motivo ?? "?"}` : i.destino]);
+    expect(resumo).toEqual([
+      ["arroz", 5, "kg", "estoque"],
+      ["ovos", 3, "pct", "estoque"],
+      ["leite", 1, expect.any(String), "remover:?"],
+      ["fermento", 1, expect.any(String), "remover:excesso"],
+    ]);
+  });
+
+  it("estoque e lista juntos", () => {
+    const r = interpretarLocal("tenho 2 pacotes de café, mas preciso de açúcar e 6 leites");
+    expect(r.itens.map((i) => [i.nome, i.destino])).toEqual([
+      ["café", "estoque"],
+      ["açúcar", "lista"],
+      ["leites", "lista"],
+    ]);
+  });
+
+  it("'nao tenho' e de comprar", () => {
+    expect(interpretarLocal("não tenho mais arroz").itens[0]).toMatchObject({ nome: "arroz", destino: "lista" });
+  });
+
+  it("o modelo diz a acao por item", () => {
+    const [a, b] = normalizaItens([
+      { nome: "arroz", qtd: 5, unidade: "kg", acao: "estoque" },
+      { nome: "fermento", acao: "remover", motivo: "excesso" },
+    ]);
+    expect(a.destino).toBe("estoque");
+    expect(b).toMatchObject({ remover: true, motivo: "excesso" });
   });
 });

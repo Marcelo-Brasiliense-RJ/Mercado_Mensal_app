@@ -45,7 +45,8 @@ type Reconhecedor = {
 
 // Silencio que encerra a fala sozinho, depois que a pessoa ja falou algo. Antes a
 // gravacao so parava no toque, e quem nao tocava achava que o app tinha travado.
-const SILENCIO_MS = 1800;
+// 3 s: na despensa a pessoa pausa olhando o armario no meio da fala.
+const SILENCIO_MS = 3000;
 // Ninguem falou nada: desiste, em vez de ficar ouvindo um minuto.
 const SEM_FALA_MS = 8000;
 
@@ -57,7 +58,7 @@ const SEM_FALA_MS = 8000;
 // havia nada entre o modelo e o banco. Aqui o destino aparece em tres botoes e a
 // pessoa troca com um toque antes de qualquer escrita.
 
-const MAX_SEGUNDOS = 60;
+const MAX_SEGUNDOS = 180; // despensa: "tenho isso, tenho aquilo, nao compra aquilo outro"
 
 // Destino pela tela de onde a pessoa abriu. "Preciso de / comprar / falta" vai
 // para a lista EM QUALQUER TELA (pedido do dono). Fora isso: no Estoque vai para o
@@ -209,7 +210,8 @@ export function VoiceModal({
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
       });
       streamRef.current = stream;
-      const rec = new MediaRecorder(stream, { mimeType: mime });
+      // 48 kbps de voz: 3 minutos cabem com folga no limite de envio do servidor.
+      const rec = new MediaRecorder(stream, { mimeType: mime, audioBitsPerSecond: 48000 });
       chunksRef.current = [];
       rec.ondataavailable = (e) => e.data.size > 0 && chunksRef.current.push(e.data);
       rec.onstop = () => {
@@ -355,7 +357,7 @@ export function VoiceModal({
       if (aviso) showToast(aviso);
       return fechar();
     }
-    await seguir(p.frase, p.intencao, p.lidos, aviso);
+    await processar(p.frase, p.intencao, p.lidos, aviso);
   }
 
   async function escolherMotivo(tipo: "excesso" | "ruim") {
@@ -403,16 +405,71 @@ export function VoiceModal({
     setTexto(frase);
     setDestino(destinoDaTela(telaAgora, intencao));
 
-    const tirar = lidosTodos.filter((i) => i.remover).map((i) => i.nome.trim()).filter(Boolean);
+    const tirarItens = lidosTodos.filter((i) => i.remover && i.nome.trim());
     const lidos = lidosTodos.filter((i) => !i.remover);
-    if (tirar.length) {
+    if (tirarItens.length) {
       setFase("salvando");
-      const aviso = await tirarDaLista(tirar);
-      setPergunta({ fila: tirar, i: 0, frase, intencao, lidos, aviso, feitos: [] });
-      setFase("motivo");
-      return;
+      const aviso = await tirarDaLista(tirarItens.map((i) => i.nome.trim()));
+      // Excesso ja dito na fala ("ja tem muito fermento") guarda sem perguntar.
+      const feitos: string[] = [];
+      for (const it of tirarItens.filter((i) => i.motivo === "excesso")) {
+        if (await marcarNaoComprar(it.nome.trim(), "excesso")) feitos.push(`📦 ${it.nome.trim()}`);
+      }
+      const fila = tirarItens.filter((i) => i.motivo !== "excesso").map((i) => i.nome.trim());
+      if (fila.length) {
+        setPergunta({ fila, i: 0, frase, intencao, lidos, aviso, feitos });
+        setFase("motivo");
+        return;
+      }
+      const tudo = [aviso, feitos.length ? `Não comprar: ${feitos.join(", ")}` : ""].filter(Boolean).join(" · ");
+      return processar(frase, intencao, lidos, tudo);
     }
-    await seguir(frase, intencao, lidos, "");
+    await processar(frase, intencao, lidos, "");
+  }
+
+  // Item por item, pelo destino que a fala deu: "tenho X" acerta o estoque na hora;
+  // o resto (lista, carrinho) segue o caminho de sempre.
+  async function processar(frase: string, intencao: VozIntencao, lidos: VozItem[], aviso: string) {
+    const avisos = [aviso];
+    const est = lidos.filter((i) => i.destino === "estoque" && tela !== "estoque");
+    if (est.length) avisos.push(await acertarEstoque(est));
+    // Na tela de Estoque o que nao veio marcado continua indo para o estoque, com conferencia.
+    const resto = lidos.filter((i) => !est.includes(i));
+    const juntos = avisos.filter(Boolean).join(" · ");
+    if (!resto.length) {
+      if (juntos) showToast(juntos);
+      return fechar();
+    }
+    const destinos = new Set(resto.map((i) => i.destino).filter(Boolean));
+    const intencaoResto: VozIntencao = destinos.size === 1 ? [...destinos][0]! : intencao;
+    await seguir(frase, intencaoResto, resto, juntos);
+  }
+
+  // "Eu tenho 5 kg de arroz": o estoque passa a ser 5 (nao soma 5). A RPC soma,
+  // entao manda a diferenca para o que ja estava.
+  async function acertarEstoque(itensEst: VozItem[]): Promise<string> {
+    setFase("salvando");
+    const ok: string[] = [];
+    const falhou: string[] = [];
+    for (const it of itensEst) {
+      const nome = it.nome.trim();
+      const achado =
+        findByName(nome, stock) ?? findByName(nome.replace(/s$/, ""), stock) ?? findByName(`${nome}s`, stock);
+      const atual = achado?.current ?? 0;
+      const delta = +(Number(it.qtd) - atual).toFixed(3);
+      const unidade = achado?.unit ?? it.unidade;
+      if (Math.abs(delta) > 1e-9) {
+        const r = await addStock({ name: achado?.name ?? nome, qty: delta, unit: unidade });
+        if (!r.ok) {
+          falhou.push(nome);
+          continue;
+        }
+      }
+      ok.push(`${achado?.name ?? nome} ${it.qtd} ${unidade}`);
+    }
+    return [ok.length ? `🏠 Estoque: ${ok.join(", ")}` : "", falhou.length ? `não gravei ${falhou.join(", ")}` : ""]
+      .filter(Boolean)
+      .join(" · ");
   }
 
   // O que era para comprar/registrar: lista direto, ou conferencia.
@@ -513,7 +570,9 @@ export function VoiceModal({
     // Parcial ligado: o iPhone muitas vezes so entrega o texto parcial antes de
     // encerrar, e sem isso a frase se perdia ("nao reconhece nada").
     rec.interimResults = true;
-    rec.continuous = false;
+    // Continuo: fala longa com pausas nao corta no primeiro respiro. Quem encerra e
+    // o vigia de silencio (onresult) ou o toque.
+    rec.continuous = true;
     fraseRef.current = "";
     setParcial("");
     let comecou = false;

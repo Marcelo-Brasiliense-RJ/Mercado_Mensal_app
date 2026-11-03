@@ -17,45 +17,52 @@ const GROQ = "https://api.groq.com/openai/v1";
 // desligado em ago/2026 e a voz passou a "ouvir mas nao por nada na lista".
 const MODELOS_TRANSCRICAO = ["whisper-large-v3", "whisper-large-v3-turbo"];
 const MODELOS_TEXTO = ["openai/gpt-oss-120b", "qwen/qwen3.6-27b", "openai/gpt-oss-20b"];
-const MAX_BYTES = 8 * 1024 * 1024; // ~1 min de opus sobra; corta antes de gastar cota
+// Audio longo de despensa: ate 3 min. O teto real e o corpo de 4,5 MB da Vercel;
+// o app grava a 48 kbps, entao 3 min dao ~1,1 MB.
+const MAX_BYTES = 4 * 1024 * 1024;
 
-const INSTRUCAO = `Você organiza compras de supermercado de uma família brasileira.
-Recebe uma frase falada e devolve SOMENTE JSON, no formato:
-{"intencao":"lista|carrinho|estoque","itens":[{"nome":"","qtd":1,"unidade":"un","preco_total":null,"duvida":false,"remover":false}]}
+const INSTRUCAO = `Você organiza a despensa e as compras de uma família brasileira.
+Recebe uma fala (às vezes longa, misturando assuntos) e devolve SOMENTE JSON, no formato:
+{"intencao":"lista|carrinho|estoque","itens":[{"nome":"","qtd":1,"unidade":"un","preco_total":null,"duvida":false,"acao":"lista|carrinho|estoque|remover","motivo":null}]}
 
-Como classificar a intenção, pelo verbo:
-- "carrinho": acabou de pegar/comprar agora ("peguei", "comprei", "botei no carrinho", "custou").
-- "lista": ainda vai comprar ("preciso de", "vou comprar", "falta", "acabou o", "anota aí").
-- "estoque": está conferindo o que tem em casa ("tenho", "sobrou", "ainda tem", "conferindo").
-Na dúvida entre lista e carrinho, use "lista".
-Se a frase só fala do que NÃO quer comprar, a intenção é "lista".
+Cada ITEM tem a sua "acao", pelo que foi dito sobre ele (uma mesma fala pode ter as quatro):
+- "estoque": a pessoa diz o que TEM em casa agora ("eu tenho 5 quilos de arroz", "tem 3 cartelas de ovos", "sobrou meio pacote"). A qtd é o total que tem.
+- "lista": ainda precisa comprar ("preciso de", "compra", "falta", "acabou o", "não tenho mais", "anota aí").
+- "carrinho": acabou de pegar/comprar no mercado ("peguei", "comprei", "botei no carrinho", "custou").
+- "remover": NÃO é para comprar ("não precisa comprar", "não quero", "tira", "cancela", "esquece o", "já tem muito").
+A ação vale para os itens seguintes até aparecer outro verbo.
+"intencao" é a ação da maioria dos itens (na dúvida, "lista").
 
-O que a pessoa NÃO quer comprar também vira item, com "remover": true:
-"não quero", "não precisa (mais)", "tira", "remove", "cancela", "esquece o", "já tem / já tenho, não precisa comprar".
-A negação vale para os itens seguintes até ela voltar a pedir ("mas quero", "preciso", "e compra").
-O resto dos itens tem "remover": false.
+"motivo" só para "remover":
+- "excesso": tem demais em casa ("já tem muito", "tem de sobra", "esse mês não precisa", "tá sobrando").
+- "ruim": falou mal do produto ("é ruim", "não presta", "não gostei", "aguado").
+- null: não disse o porquê (o app vai perguntar).
+O mesmo produto dito duas vezes ("não compra fermento, já tem muito fermento") é UM item, com o motivo que apareceu.
 
 Regras dos itens:
 - "nome": o produto em minúsculo e singular. Se a pessoa disser a marca, ela vem depois do produto, sem tamanho nem tipo ("arroz da Máximo" = "arroz máximo"; "arroz" sem marca = "arroz"; nunca "arroz máximo tipo 1 5kg").
 - "qtd": número. Sem quantidade dita, use 1. "5 detergentes" = qtd 5, nome "detergente".
-- "unidade": un, kg, g, L, ml, pct, cx ou dz. Contável sem medida falada ("5 detergentes", "2 sabonetes") é "un". "2 quilos de carne" é kg. Sem certeza, use "un".
+- "unidade": un, kg, g, L, ml, pct, cx ou dz. Contável sem medida falada ("5 detergentes", "2 sabonetes") é "un". "2 quilos de carne" é kg. Cartela, bandeja, fardo e saco são "pct". Sem certeza, use "un".
 - "preco_total": o valor falado é o TOTAL daquele item, em reais, como número. Sem preço dito, null.
 - "duvida": true quando você NÃO tem certeza de que entendeu o produto (palavra que não parece produto de mercado, nome cortado ou embolado, só a marca sem dizer o que é). Produto claro = false.
 - Não invente preço, quantidade nem item que não foi falado.
-- Vários produtos na mesma frase viram vários itens.
-- Ignore palavras que não são produto ("é", "aí", "também", "então", "lista").
+- Ignore o que não é produto ("olha só", "eu", "é", "aí", "também", "então", "esse mês", "lista").
 
-Exemplo: "tá faltando 1 arroz, 1 feijão, 5 detergentes e arroz da Máximo" =
-{"intencao":"lista","itens":[{"nome":"arroz","qtd":1,"unidade":"un","preco_total":null,"duvida":false},{"nome":"feijão","qtd":1,"unidade":"un","preco_total":null,"duvida":false},{"nome":"detergente","qtd":5,"unidade":"un","preco_total":null,"duvida":false},{"nome":"arroz máximo","qtd":1,"unidade":"un","preco_total":null,"duvida":false}]}
+Exemplo: "olha só, eu tenho 5 quilos de arroz, tenho 3 cartelas de ovos, mas não precisa comprar leite, não precisa comprar fermento, esse mês já tem muito fermento, e anota café" =
+{"intencao":"estoque","itens":[{"nome":"arroz","qtd":5,"unidade":"kg","preco_total":null,"duvida":false,"acao":"estoque","motivo":null},{"nome":"ovo","qtd":3,"unidade":"pct","preco_total":null,"duvida":false,"acao":"estoque","motivo":null},{"nome":"leite","qtd":1,"unidade":"un","preco_total":null,"duvida":false,"acao":"remover","motivo":null},{"nome":"fermento","qtd":1,"unidade":"un","preco_total":null,"duvida":false,"acao":"remover","motivo":"excesso"},{"nome":"café","qtd":1,"unidade":"un","preco_total":null,"duvida":false,"acao":"lista","motivo":null}]}
 
-Exemplo: "quero leite e 2 pães, mas não quero mais café nem açúcar" =
-{"intencao":"lista","itens":[{"nome":"leite","qtd":1,"unidade":"un","preco_total":null,"duvida":false,"remover":false},{"nome":"pão","qtd":2,"unidade":"un","preco_total":null,"duvida":false,"remover":false},{"nome":"café","qtd":1,"unidade":"un","preco_total":null,"duvida":false,"remover":true},{"nome":"açúcar","qtd":1,"unidade":"un","preco_total":null,"duvida":false,"remover":true}]}`;
+Exemplo: "tá faltando 1 arroz, 5 detergentes e arroz da Máximo" =
+{"intencao":"lista","itens":[{"nome":"arroz","qtd":1,"unidade":"un","preco_total":null,"duvida":false,"acao":"lista","motivo":null},{"nome":"detergente","qtd":5,"unidade":"un","preco_total":null,"duvida":false,"acao":"lista","motivo":null},{"nome":"arroz máximo","qtd":1,"unidade":"un","preco_total":null,"duvida":false,"acao":"lista","motivo":null}]}
+
+Exemplo: "comprei arroz vinte reais, dois pacotes" =
+{"intencao":"carrinho","itens":[{"nome":"arroz","qtd":2,"unidade":"pct","preco_total":20,"duvida":false,"acao":"carrinho","motivo":null}]}`;
 
 // Vocabulario para o Whisper: com contexto de mercado ele erra menos nome de
 // produto e marca falados rapido no corredor.
 const VOCABULARIO =
   "Lista de compras do mercado. Preciso de arroz, feijão, café, açúcar, leite, " +
-  "pão, ovos, detergente, sabão em pó, papel higiênico. Não quero mais refrigerante.";
+  "pão, ovos, detergente, sabão em pó, papel higiênico. Eu tenho 5 quilos de arroz e 3 cartelas de ovos. " +
+  "Não precisa comprar leite, já tem muito fermento.";
 
 // Diagnostico sem login: so diz se a chave existe. Nao gasta cota nem expoe nada.
 export async function GET() {
