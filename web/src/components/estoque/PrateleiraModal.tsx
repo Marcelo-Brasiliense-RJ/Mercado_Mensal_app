@@ -108,16 +108,23 @@ export function PrateleiraModal({
 
   const conhecidos = useMemo(() => [...stock.map((s) => s.name), ...memoria.values()], [stock, memoria]);
 
-  async function ler(arquivo: File | undefined) {
-    if (!arquivo) return;
+  // Uma ou varias fotos (galeria): cada uma vira um trabalho na fila, lido um por vez.
+  async function ler(arquivos: FileList | File[] | null | undefined) {
+    const fs = Array.from(arquivos ?? []).filter((f) => f.type.startsWith("image/") || !f.type);
+    if (!fs.length) return;
     setErro("");
     try {
       const doCarrinho = (trip?.items ?? []).map((t) => t.name);
-      await enfileirarPrateleira(arquivo, destino, {
-        nomes: [...doCarrinho, ...stock.map((x) => x.name), ...memoria.values()],
-        carrinho: noMercado ? doCarrinho : undefined,
-      });
-      showToast("📸 Analisando a foto. Pode seguir usando o app: aviso quando ficar pronta.");
+      for (const f of fs)
+        await enfileirarPrateleira(f, destino, {
+          nomes: [...doCarrinho, ...stock.map((x) => x.name), ...memoria.values()],
+          carrinho: noMercado ? doCarrinho : undefined,
+        });
+      showToast(
+        fs.length > 1
+          ? `📸 ${fs.length} fotos na fila. Pode seguir usando o app: aviso quando cada uma ficar pronta.`
+          : "📸 Analisando a foto. Pode seguir usando o app: aviso quando ficar pronta.",
+      );
       onClose();
     } catch {
       setErro("Não consegui abrir essa foto. Tente outra.");
@@ -364,14 +371,14 @@ export function PrateleiraModal({
             Um ou <span className="text-pos">vários de uma vez</span>
           </p>
           <input ref={camera} type="file" accept="image/*" capture="environment" className="hidden" aria-label="Tirar foto dos produtos"
-            onChange={(e) => { void ler(e.target.files?.[0]); e.target.value = ""; }} />
-          <input ref={galeria} type="file" accept="image/*" className="hidden" aria-label="Foto da galeria"
-            onChange={(e) => { void ler(e.target.files?.[0]); e.target.value = ""; }} />
+            onChange={(e) => { void ler(e.target.files); e.target.value = ""; }} />
+          <input ref={galeria} type="file" accept="image/*" multiple className="hidden" aria-label="Fotos da galeria"
+            onChange={(e) => { void ler(e.target.files); e.target.value = ""; }} />
           <button onClick={() => camera.current?.click()} className="h-[72px] rounded-[18px] bg-brand text-[17px] font-extrabold text-brand-ink">
             📷 Tirar foto
           </button>
           <button onClick={() => galeria.current?.click()} className="h-12 rounded-[14px] border-2 border-border bg-card text-[15px] font-bold">
-            🖼 Escolher da galeria
+            🖼 Escolher da galeria (uma ou várias)
           </button>
           {onListaEscrita && (
             <>
