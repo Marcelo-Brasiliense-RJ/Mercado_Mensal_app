@@ -19,7 +19,8 @@ A foto costuma ser RUIM e é normal: torta ou de lado (rótulo de cabeça para b
 As embalagens também: pacotes abertos, dobrados, amassados ou fechados com prendedor de roupa; caixa de fardo (ex.: caixa de 12 leites); produto passado para saco plástico transparente ou pote sem rótulo.
 Agrupe do jeito que se conta estoque em casa, UM quadrado por PRODUTO, com a quantidade:
 - Unidades iguais juntas (lado a lado, empilhadas, uma atrás da outra, em fileira): UM quadrado em volta do GRUPO todo e "unidades" = quantas são, contando as de trás que aparecem só um pedaço (tampa, borda). Ex.: 4 garrafas de óleo Coamo juntas = 1 quadrado, unidades 4.
-- Produtos diferentes (outra marca, outro sabor, outro tipo) = quadrados separados, mesmo encostados. Ex.: passata Pramesa, molho Predilecta e molho tradicional Pramesa = 3 quadrados.
+- Agrupe SÓ embalagens IDÊNTICAS (mesma marca, mesmo produto, mesmo tamanho). Produtos diferentes (outra marca, outro sabor, outro tipo) = quadrados separados, mesmo encostados. Ex.: passata Pramesa, molho Predilecta e molho tradicional Pramesa = 3 quadrados. Garrafas de bebidas diferentes juntas = um quadrado para CADA garrafa, nunca "bebidas ×4".
+- Nunca use nome genérico de categoria ("bebida", "produto", "garrafa", "pacote", "alimento", "cereal" sozinho): ou o produto de verdade ("aperitivo aperol", "flocos de cereais neston"), ou vazio se não dá para saber.
 - Caixa de fardo de papelão (ex.: "contém 12 unidades de 1L") ou pack plastificado (6 óleos, 12 latas): UM quadrado na caixa/pack, "unidades" = quantas tem dentro. Fechada: o número impresso ou o tamanho padrão. Aberta/faltando: conte o que dá para ver.
 - O "nome" do fardo é o produto de dentro ("leite italac"), nunca "caixa" ou "fardo".
 - Pacote vendido assim com várias coisinhas dentro (sachês, caixa de gelatina, caixa de chá) = 1 unidade.

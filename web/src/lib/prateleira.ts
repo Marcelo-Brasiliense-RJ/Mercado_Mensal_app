@@ -187,3 +187,28 @@ export function juntarIguais(achados: Achado[]): Achado[] {
   }
   return lista;
 }
+
+// Nome que nao diz o produto ("bebida", "cereal"): uma palavra so de categoria.
+const GENERICOS = new Set(["bebida", "produto", "garrafa", "pacote", "alimento", "cereal", "tempero", "salgadinho", "biscoito", "doce", "lata", "caixa", "frasco", "vidro", "embalagem", "item"]);
+export const generico = (nome: string) => {
+  const p = palavras(nome);
+  return p.length === 0 || (p.length === 1 && GENERICOS.has(p[0]));
+};
+
+// Opcoes para a pessoa escolher: sem generico quando ha um nome de verdade, sem repetido.
+export function opcoesDe(nomes: (string | null | undefined)[]): string[] {
+  const unicos: string[] = [];
+  for (const n of nomes) if (n && !unicos.some((u) => chaveLido(u) === chaveLido(n))) unicos.push(n);
+  const bons = unicos.filter((n) => !generico(n));
+  return bons.length ? bons : unicos;
+}
+
+// "Sao produtos diferentes": divide o quadrado em N, no sentido mais comprido.
+export function dividir(b: Box, n: number): Box[] {
+  const deitado = b[3] - b[1] >= b[2] - b[0];
+  return Array.from({ length: n }, (_, i) =>
+    deitado
+      ? ([b[0], b[1] + ((b[3] - b[1]) * i) / n, b[2], b[1] + ((b[3] - b[1]) * (i + 1)) / n] as Box)
+      : ([b[0] + ((b[2] - b[0]) * i) / n, b[1], b[0] + ((b[2] - b[0]) * (i + 1)) / n, b[3]] as Box),
+  );
+}

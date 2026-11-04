@@ -15,8 +15,11 @@ import { mercadoAtual } from "@/lib/lugar";
 import {
   agrupar,
   chaveLido,
+  dividir,
+  generico,
   marcarCarrinho,
   mesmoProduto,
+  opcoesDe,
   corDe,
   daMemoria,
   qualidadeDe,
@@ -147,8 +150,9 @@ export function PrateleiraModal({
       const nome = lembrado ?? (a.nome || conf || "");
       const vizinhos = achados.filter((_, k) => k !== i).map((x) => x.nome).filter(Boolean);
       const cor = corDe({ nome, legivel: a.legivel || !!lembrado, conferido: conf, daMemoria: !!lembrado, conhecidos, vizinhos });
-      const opcoes = cor !== "verde" ? [...new Set([nome, conf].filter((x): x is string => !!x))] : undefined;
-      return { id: `c${i}`, box: a.box, lido: a.nome, nome: cor === "vermelho" ? (conf || nome || "") : nome, cor, corInicial: cor, pronto: cor === "verde", unidades: unidadesDe(a), opcoes };
+      const opcoes = cor !== "verde" ? opcoesDe([nome, conf]) : undefined;
+      const nomeBom = opcoes?.[0] ?? nome;
+      return { id: `c${i}`, box: a.box, lido: a.nome, nome: generico(nomeBom) ? "" : nomeBom, cor, corInicial: cor, pronto: cor === "verde", unidades: unidadesDe(a), opcoes };
     });
     setSrc(job.src);
     setCaixas(noMercado ? marcarCarrinho(lista, trip?.items ?? []).map((c) => (c.carrinho ? { ...c, pronto: true } : c)) : lista);
@@ -653,7 +657,7 @@ export function PrateleiraModal({
                 >
                   {!atual.pronto && atual.opcoes && atual.opcoes.length > 1 && (
                     <>
-                      <div className="mb-2 text-[13px] font-bold text-text-2">Fiquei em dúvida. Qual é?</div>
+                      <div className="mb-2 text-[13px] font-bold text-text-2">Achei que pode ser um destes. Toque no certo:</div>
                       <div className="mb-3 flex flex-col gap-2">
                         {atual.opcoes.map((o) => (
                           <button
@@ -730,6 +734,28 @@ export function PrateleiraModal({
                   <span className="order-2 min-w-[2.5ch] text-center text-[17px] font-extrabold">{atual.unidades}</span>
                 </div>
               </div>
+              {atual.unidades > 1 && (
+                <button
+                  onClick={() => {
+                    const partes = dividir(atual.box, atual.unidades).map((box, k) => ({
+                      id: `${atual.id}-${k}`,
+                      box,
+                      lido: "",
+                      nome: "",
+                      cor: "vermelho" as Cor,
+                      corInicial: "vermelho" as Cor,
+                      pronto: false,
+                      unidades: 1,
+                    }));
+                    setCaixas((l) => l.flatMap((c) => (c.id === atual.id ? partes : [c])));
+                    abrir(partes[0]);
+                    showToast(`Separei em ${partes.length}: diga o nome de cada um`);
+                  }}
+                  className="mt-2 block text-[13px] font-bold text-brand underline"
+                >
+                  ✂️ São {atual.unidades} produtos diferentes? Separar
+                </button>
+              )}
               <button onClick={() => apagar(atual.id)} className="mt-2 text-[13px] font-bold text-text-3 underline">
                 🗑 Não é produto: apagar este quadrado
               </button>

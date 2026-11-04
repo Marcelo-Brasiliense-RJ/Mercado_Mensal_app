@@ -138,3 +138,15 @@ describe("nome pelo rotulo", () => {
     expect(nomeDoRotulo("")).toBe("");
   });
 });
+
+import { dividir, opcoesDe } from "./prateleira";
+describe("opcoes claras", () => {
+  it("tira o generico quando ha nome de verdade", () => {
+    expect(opcoesDe(["flocos de cereais neston", "cereal"])).toEqual(["flocos de cereais neston"]);
+    expect(opcoesDe(["bebida", "aperitivo aperol"])).toEqual(["aperitivo aperol"]);
+    expect(opcoesDe(["leite italac", "Leite Italac"])).toEqual(["leite italac"]);
+  });
+  it("separa um quadrado em 4", () => {
+    expect(dividir([0, 0, 0.5, 1], 4)).toHaveLength(4);
+  });
+});
