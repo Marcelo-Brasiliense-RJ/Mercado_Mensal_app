@@ -117,3 +117,23 @@ export function agrupar<T extends { nome: string; unidades?: number }>(itens: T[
 // Qualidade do recorte para o banco de imagens: como a IA se saiu de primeira.
 export const qualidadeDe = (corInicial: Cor): "bom" | "medio" | "ruim" =>
   corInicial === "verde" ? "bom" : corInicial === "amarelo" ? "medio" : "ruim";
+
+// Foto do carrinho no mercado: o que ja esta no carrinho nao entra de novo. Os quadrados
+// de um produto vao sendo "descontados" do que o carrinho ja tem; os que cabem inteiros
+// viram cinza (🛒 ja no carrinho). O resto e novo.
+export function marcarCarrinho<T extends { nome: string; unidades: number; carrinho?: boolean }>(lista: T[], noCarrinho: { name: string; quantity: number }[]): T[] {
+  const resta = new Map<string, number>();
+  return lista.map((c) => {
+    if (!c.nome) return c;
+    const item = noCarrinho.find((t) => mesmoProduto(t.name, c.nome));
+    if (!item) return c;
+    const k = item.name;
+    const r = resta.has(k) ? resta.get(k)! : item.quantity;
+    if (r >= c.unidades) {
+      resta.set(k, r - c.unidades);
+      return { ...c, carrinho: true };
+    }
+    resta.set(k, r);
+    return c;
+  });
+}

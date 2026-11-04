@@ -2,7 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 import { enfileirarFoto, type Destino } from "./filaFotos";
-import { limpar, unidadesDe, type Achado, type Box } from "./prateleira";
+import { limpar, mesmoProduto, unidadesDe, type Achado, type Box } from "./prateleira";
 
 // Foto dos produtos em SEGUNDO PLANO (pedido do dono): a pessoa tira a foto e o app
 // fica livre. A IA procura e confere cada produto aqui fora da tela; quando termina,
@@ -20,6 +20,8 @@ export type JobFoto = {
   conferidos?: (string | null)[]; // segunda olhada por recorte; null = nao rodou
   erro?: string;
   espera?: number; // ms: IA no limite, tenta de novo neste horario
+  nomes?: string[]; // nomes que a casa usa (estoque + carrinho): a IA repete o mesmo nome
+  carrinho?: string[]; // foto no mercado: o que ja estava no carrinho (nao confere de novo)
 };
 
 const CHAVE = "fila_prateleira";
@@ -83,11 +85,16 @@ export function canvasDe(src: string): Promise<HTMLCanvasElement> {
   });
 }
 
-export function recorte(c: HTMLCanvasElement, b: Box, lado: number): HTMLCanvasElement {
-  const x = b[1] * c.width;
-  const y = b[0] * c.height;
-  const w = Math.max(1, (b[3] - b[1]) * c.width);
-  const h = Math.max(1, (b[2] - b[0]) * c.height);
+// folga: margem em volta do quadrado (0.08 = 8%), da contexto para ler o rotulo.
+export function recorte(c: HTMLCanvasElement, b: Box, lado: number, folga = 0): HTMLCanvasElement {
+  const fy = (b[2] - b[0]) * folga;
+  const fx = (b[3] - b[1]) * folga;
+  const y0 = Math.max(0, b[0] - fy);
+  const x0 = Math.max(0, b[1] - fx);
+  const x = x0 * c.width;
+  const y = y0 * c.height;
+  const w = Math.max(1, (Math.min(1, b[3] + fx) - x0) * c.width);
+  const h = Math.max(1, (Math.min(1, b[2] + fy) - y0) * c.height);
   const k = Math.min(lado / w, lado / h);
   const r = document.createElement("canvas");
   r.width = lado;
@@ -113,7 +120,7 @@ function grade(c: HTMLCanvasElement, boxes: Box[]): string {
   boxes.forEach((b, i) => {
     const x = (i % cols) * lado;
     const y = Math.floor(i / cols) * lado;
-    ctx.drawImage(recorte(c, b, lado - 8), x + 4, y + 4);
+    ctx.drawImage(recorte(c, b, lado - 8, 0.08), x + 4, y + 4);
     ctx.fillStyle = "#111";
     ctx.fillRect(x + 4, y + 4, 34, 26);
     ctx.fillStyle = "#fff";
@@ -137,7 +144,7 @@ async function ler(x: JobFoto): Promise<void> {
   const r = await fetch("/api/prateleira", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ foto: x.src }),
+    body: JSON.stringify({ foto: x.src, nomes: x.nomes }),
   }).catch(() => null);
   const d = (await r?.json().catch(() => null)) as
     | { ok: true; itens: Achado[] }
@@ -161,16 +168,25 @@ async function ler(x: JobFoto): Promise<void> {
   }
 
   // Conferencia: o recorte de cada quadrado e lido de novo. Falhou? Segue sem ela.
+  // O que ja estava no carrinho nao e conferido de novo (economiza a IA).
   let conferidos: (string | null)[] = achados.map(() => null);
+  const conferir = achados
+    .map((a, i) => ({ a, i }))
+    .filter(({ a }) => !(a.legivel && (x.carrinho ?? []).some((n) => mesmoProduto(n, a.nome))));
   try {
-    const c = await canvasDe(x.src);
-    const rc = await fetch("/api/prateleira", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ grade: grade(c, achados.map((a) => a.box)), n: achados.length }),
-    });
-    const dc = (await rc.json().catch(() => null)) as { ok?: boolean; nomes?: string[] } | null;
-    if (dc?.ok && dc.nomes) conferidos = achados.map((_, i) => dc.nomes![i] ?? "");
+    if (conferir.length) {
+      const c = await canvasDe(x.src);
+      const rc = await fetch("/api/prateleira", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ grade: grade(c, conferir.map(({ a }) => a.box)), n: conferir.length, nomes: x.nomes }),
+      });
+      const dc = (await rc.json().catch(() => null)) as { ok?: boolean; nomes?: string[] } | null;
+      if (dc?.ok && dc.nomes) {
+        conferidos = achados.map((a) => a.nome); // do carrinho: confere com ele mesmo
+        conferir.forEach(({ i }, k) => (conferidos[i] = dc.nomes![k] ?? ""));
+      }
+    }
   } catch {
     /* sem conferencia: a cor fica so pela leitura e pela base */
   }
@@ -193,11 +209,11 @@ async function processar() {
 }
 
 // A pessoa escolheu a foto: prepara, guarda e ja libera a tela.
-export async function enfileirarPrateleira(arquivo: File, destino: Destino) {
+export async function enfileirarPrateleira(arquivo: File, destino: Destino, ctx: { nomes?: string[]; carrinho?: string[] } = {}) {
   carregar();
   const c = await prepararFoto(arquivo);
   const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-  mudar([...fila, { id, src: c.toDataURL("image/jpeg", 0.85), destino, estado: "lendo" }]);
+  mudar([...fila, { id, src: c.toDataURL("image/jpeg", 0.85), destino, estado: "lendo", ...ctx }]);
   void processar();
 }
 

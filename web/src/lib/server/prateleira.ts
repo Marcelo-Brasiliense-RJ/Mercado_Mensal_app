@@ -14,7 +14,7 @@ export type Achado = {
   unidades: number; // quantas unidades dentro da embalagem (fardo de 12 leites = 12)
 };
 
-const DETECTAR = `Foto tirada no celular de um ou vários produtos de uma casa brasileira: pode ser um produto só na mão ou na mesa, ou um armário, despensa, geladeira, chão ou bancada.
+const DETECTAR = `Foto tirada no celular de um ou vários produtos de uma casa brasileira: pode ser um produto só na mão ou na mesa, ou um armário, despensa, geladeira, chão, bancada, ou o CARRINHO/cesta do mercado (produtos misturados, deitados, um em cima do outro, com a grade do carrinho na frente).
 A foto costuma ser RUIM e é normal: torta ou de lado (rótulo de cabeça para baixo ou deitado), escura, de cima, meio desfocada, bagunçada, com produtos empilhados, um na frente do outro, caídos, cortados na borda da foto.
 As embalagens também: pacotes abertos, dobrados, amassados ou fechados com prendedor de roupa; caixa de fardo (ex.: caixa de 12 leites); produto passado para saco plástico transparente ou pote sem rótulo.
 Agrupe do jeito que se conta estoque em casa, UM quadrado por PRODUTO, com a quantidade:
@@ -55,12 +55,25 @@ function partes(dataUrl: string) {
   return m ? { mime_type: m[1], data: m[2] } : null;
 }
 
-export async function detectar(foto: string): Promise<{ ok: true; itens: Achado[] } | Erro> {
+// Nomes que a casa ja usa (estoque, carrinho): mesmo produto = mesmo nome. Isso deixa
+// mais quadrados verdes e permite saber o que ja esta no carrinho (foto no mercado).
+const COM_NOMES = (nomes: string[]) =>
+  nomes.length
+    ? `\nNomes que esta casa já usa. Se o produto da foto for um destes, use EXATAMENTE este nome em "nome" (não precisa reler o rótulo inteiro):\n${nomes.map((n) => `- ${n}`).join("\n")}`
+    : "";
+const limparNomes = (nomes?: unknown) =>
+  (Array.isArray(nomes) ? nomes : [])
+    .filter((n): n is string => typeof n === "string" && n.trim().length > 1)
+    .map((n) => n.trim().toLowerCase().slice(0, 60))
+    .filter((n, i, a) => a.indexOf(n) === i)
+    .slice(0, 120);
+
+export async function detectar(foto: string, nomesCasa?: unknown): Promise<{ ok: true; itens: Achado[] } | Erro> {
   const img = partes(foto);
   if (!img) return { ok: false, erro: "ia_falhou" };
   const g = await gemini(
     {
-      contents: [{ parts: [{ inline_data: img }, { text: DETECTAR }] }],
+      contents: [{ parts: [{ inline_data: img }, { text: DETECTAR + COM_NOMES(limparNomes(nomesCasa)) }] }],
       generationConfig: { responseMimeType: "application/json", responseSchema: ESQUEMA_DETECTAR, temperature: 0 },
     },
     true, // posicao: o modelo mais forte na frente (o "lite" erra mais o quadrado)
@@ -106,12 +119,12 @@ const ESQUEMA_CONFERIR = {
 };
 
 // Grade de recortes numerados -> nome de cada um (indice 0 = recorte 1).
-export async function conferir(grade: string, n: number): Promise<{ ok: true; nomes: string[] } | Erro> {
+export async function conferir(grade: string, n: number, nomesCasa?: unknown): Promise<{ ok: true; nomes: string[] } | Erro> {
   const img = partes(grade);
   if (!img || n < 1) return { ok: false, erro: "ia_falhou" };
   const g = await gemini(
     {
-      contents: [{ parts: [{ inline_data: img }, { text: CONFERIR(n) }] }],
+      contents: [{ parts: [{ inline_data: img }, { text: CONFERIR(n) + COM_NOMES(limparNomes(nomesCasa)) }] }],
       generationConfig: { responseMimeType: "application/json", responseSchema: ESQUEMA_CONFERIR, temperature: 0 },
     },
     false,

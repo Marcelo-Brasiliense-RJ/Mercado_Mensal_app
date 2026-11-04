@@ -7,10 +7,16 @@ import { useStore } from "@/lib/store";
 import { createClient } from "@/lib/supabase/client";
 import { acertarEstoque, produtoDoEstoque } from "@/lib/acertarEstoque";
 import { SomarOuSubstituir, type Modo } from "@/components/ui/SomarOuSubstituir";
-import { unitFor } from "@/lib/defaults";
+import { findByName, unitFor } from "@/lib/defaults";
+import { brl } from "@/lib/format";
+import { casaItem, maisBarato } from "@/lib/ofertas";
+import { useListaOfertas } from "@/components/ofertas/useOfertas";
+import { mercadoAtual } from "@/lib/lugar";
 import {
   agrupar,
   chaveLido,
+  marcarCarrinho,
+  mesmoProduto,
   corDe,
   daMemoria,
   qualidadeDe,
@@ -44,18 +50,22 @@ type Caixa = {
   corInicial: Cor;
   pronto: boolean;
   unidades: number; // dentro da embalagem: fardo de 12 = 12
+  carrinho?: boolean; // foto no mercado: ja estava no carrinho (cinza, nao entra de novo)
   // a segunda olhada (recorte) leu outra coisa: as duas viram opcao de um toque
   opcoes?: string[];
 };
 
-type Fase = "foto" | "lendo" | "marcar" | "revisar" | "salvando";
+type Fase = "foto" | "lendo" | "marcar" | "revisar" | "precos" | "salvando";
 
 const COR: Record<Cor, string> = { verde: "#16a34a", amarelo: "#eab308", vermelho: "#dc2626" };
 
 // Sem `job`: escolher a foto, que vai para a fila em segundo plano (lib/filaPrateleira)
 // e a tela fecha na hora. Com `job` (a foto ja lida): marcar, conferir e guardar.
 export function PrateleiraModal({ onClose, destino = "estoque", job }: { onClose: () => void; destino?: Destino; job?: JobFoto }) {
-  const { stock, addStock, showToast } = useStore();
+  const { stock, addStock, addTripItem, trip, showToast } = useStore();
+  const noMercado = destino === "carrinho";
+  const ofertas = useListaOfertas();
+  const [precos, setPrecos] = useState<Record<string, { qtd: number; preco: string }>>({});
   const [fase, setFase] = useState<Fase>(job ? "lendo" : "foto");
   const [src, setSrc] = useState("");
   const [caixas, setCaixas] = useState<Caixa[]>([]);
@@ -91,7 +101,11 @@ export function PrateleiraModal({ onClose, destino = "estoque", job }: { onClose
     if (!arquivo) return;
     setErro("");
     try {
-      await enfileirarPrateleira(arquivo, destino);
+      const doCarrinho = (trip?.items ?? []).map((t) => t.name);
+      await enfileirarPrateleira(arquivo, destino, {
+        nomes: [...doCarrinho, ...stock.map((x) => x.name), ...memoria.values()],
+        carrinho: noMercado ? doCarrinho : undefined,
+      });
       showToast("📸 Analisando a foto. Pode seguir usando o app: aviso quando ficar pronta.");
       onClose();
     } catch {
@@ -116,9 +130,9 @@ export function PrateleiraModal({ onClose, destino = "estoque", job }: { onClose
       return { id: `c${i}`, box: a.box, lido: a.nome, nome: cor === "vermelho" ? (conf || nome || "") : nome, cor, corInicial: cor, pronto: cor === "verde", unidades: unidadesDe(a), opcoes };
     });
     setSrc(job.src);
-    setCaixas(lista);
+    setCaixas(noMercado ? marcarCarrinho(lista, trip?.items ?? []).map((c) => (c.carrinho ? { ...c, pronto: true } : c)) : lista);
     setFase("marcar");
-  }, [job, memoriaPronta, memoria, conhecidos]);
+  }, [job, memoriaPronta, memoria, conhecidos, noMercado, trip]);
 
   const atual = caixas.find((c) => c.id === sel) ?? null;
   const prontos = caixas.filter((c) => c.pronto).length;
@@ -159,6 +173,10 @@ export function PrateleiraModal({ onClose, destino = "estoque", job }: { onClose
   // Guardar: se algum produto ja existe no estoque, mostra o confronto primeiro.
   function irGuardar() {
     if (!prontosOk.length) return showToast("Confirme pelo menos um produto.");
+    if (noMercado) {
+      setPrecos(Object.fromEntries(gruposCarrinho().map((g) => [g.chave, { qtd: g.novos, preco: g.preco }])));
+      return setFase("precos");
+    }
     if (gruposProntos.some((g) => produtoDoEstoque(g.nome, stock))) return setFase("revisar");
     void guardar();
   }
@@ -174,14 +192,7 @@ export function PrateleiraModal({ onClose, destino = "estoque", job }: { onClose
       addStock,
     );
     // Memoria: o que a IA leu -> o nome confirmado, e o recorte com a qualidade.
-    const c = canvasRef.current;
-    const aprender = ok.map((x) => ({
-      lido: x.lido ? chaveLido(x.lido) : "",
-      nome: x.nome.trim(),
-      qualidade: qualidadeDe(x.corInicial),
-      imagem: c ? recorte(c, x.box, 112).toDataURL("image/jpeg", 0.7) : null,
-    }));
-    void Promise.resolve(createClient().rpc("mercado_visao_aprender_web", { p_itens: aprender })).catch(() => {});
+    aprender(ok);
     const pendentes = caixas.length - ok.length;
     showToast(
       [
@@ -196,13 +207,74 @@ export function PrateleiraModal({ onClose, destino = "estoque", job }: { onClose
     onClose();
   }
 
+  // Preco do produto: o ultimo que a casa pagou; senao a oferta (do mercado onde esta, primeiro).
+  function precoDe(nome: string): string {
+    const ult = findByName(nome, stock)?.priceLast;
+    if (ult) return String(ult);
+    const m = mercadoAtual();
+    const casam = ofertas.filter((o) => casaItem(o, nome)).sort(maisBarato);
+    const o = casam.find((x) => x.mercado === m) ?? casam[0];
+    return o ? String(o.preco_por) : "";
+  }
+
+  // Por produto: quantos a foto mostra, quantos o carrinho ja tem, quantos sao novos.
+  function gruposCarrinho() {
+    return agrupar(prontosOk).map((g) => {
+      const ja = (trip?.items ?? []).filter((t) => mesmoProduto(t.name, g.nome)).reduce((s, t) => s + t.quantity, 0);
+      return { chave: chaveLido(g.nome), nome: g.nome, foto: g.qtd, ja, novos: Math.max(0, g.qtd - ja), preco: precoDe(g.nome) };
+    });
+  }
+
+  function aprender(ok: Caixa[]) {
+    const c = canvasRef.current;
+    const itens = ok
+      .filter((x) => !x.carrinho)
+      .map((x) => ({
+        lido: x.lido ? chaveLido(x.lido) : "",
+        nome: x.nome.trim(),
+        qualidade: qualidadeDe(x.corInicial),
+        imagem: c ? recorte(c, x.box, 112).toDataURL("image/jpeg", 0.7) : null,
+      }));
+    if (itens.length) void Promise.resolve(createClient().rpc("mercado_visao_aprender_web", { p_itens: itens })).catch(() => {});
+  }
+
+  async function guardarCarrinho() {
+    const grupos = gruposCarrinho().filter((g) => (precos[g.chave]?.qtd ?? 0) > 0);
+    if (!grupos.length) return showToast("Nada novo para pôr no carrinho.");
+    setFase("salvando");
+    const feitos: string[] = [];
+    const falhou: string[] = [];
+    let total = 0;
+    for (const g of grupos) {
+      const p = precos[g.chave];
+      const preco = p.preco.trim() === "" ? null : Number(p.preco.replace(",", ".")) || null;
+      const r = await addTripItem({ name: g.nome, price: preco, qty: p.qtd, unit: unitFor(g.nome) });
+      if (r.ok) {
+        feitos.push(`${nomeBonito(g.nome)} ${p.qtd}`);
+        total += (preco ?? 0) * p.qtd;
+      } else falhou.push(nomeBonito(g.nome));
+    }
+    aprender(prontosOk);
+    showToast(
+      [feitos.length ? `🛒 ${feitos.join(", ")}${total ? ` · ${brl(total)}` : ""}` : "", falhou.length ? `não pus ${falhou.join(", ")}` : ""]
+        .filter(Boolean)
+        .join(" · "),
+    );
+    if (job) tirarJob(job.id);
+    onClose();
+  }
+
   return (
     <Modal open onClose={onClose} maxWidth={620}>
       <div className="mb-3 pr-12">
-        <div className="text-[13px] font-bold text-brand">📸 Foto dos produtos</div>
+        <div className="text-[13px] font-bold text-brand">{noMercado ? "🛒 Foto do carrinho" : "📸 Foto dos produtos"}</div>
         <div className="text-[20px] font-extrabold">
           {fase === "revisar"
             ? "Somar ou substituir?"
+            : fase === "precos"
+            ? "Conferir preços"
+            : noMercado && (fase === "marcar" || fase === "salvando")
+            ? `${caixas.filter((c) => c.pronto && !c.carrinho).length} de ${caixas.filter((c) => !c.carrinho).length} novos prontos`
             : fase === "marcar" || fase === "salvando"
             ? `${prontos} de ${caixas.length} prontos`
             : fase === "lendo"
@@ -218,6 +290,12 @@ export function PrateleiraModal({ onClose, destino = "estoque", job }: { onClose
 
       {fase === "foto" && (
         <div className="flex flex-col gap-2">
+          {noMercado && (
+            <p className="rounded-[13px] bg-brand-soft p-3 text-[13px] font-semibold text-brand">
+              🛒 Pode fotografar o carrinho inteiro a cada corredor: o que já está no carrinho fica de fora, só os
+              novos entram, com o preço e a quantidade (pack de 4 = 4).
+            </p>
+          )}
           <p className="text-[13px] text-text-2">
             Pode ser <b>um produto só</b> ou o <b>armário/despensa inteiro</b>, do jeito que estiver: não precisa
             arrumar. Um quadrado aparece em cada produto: <b className="text-pos">verde</b> já entrou,{" "}
@@ -235,6 +313,73 @@ export function PrateleiraModal({ onClose, destino = "estoque", job }: { onClose
             🖼 Escolher da galeria
           </button>
           {erro && <p className="rounded-[13px] border border-border bg-card-2 p-3 text-[13px] text-text-2">{erro}</p>}
+        </div>
+      )}
+
+      {fase === "precos" && (
+        <div className="flex flex-col gap-3">
+          <p className="text-[13px] text-text-2">
+            Só o que é <b>novo</b> entra (o que já estava no carrinho fica de fora). Confira a quantidade e o preço de
+            cada um.
+          </p>
+          <div className="flex max-h-[52vh] flex-col gap-2.5 overflow-y-auto">
+            {gruposCarrinho().map((g) => {
+              const p = precos[g.chave] ?? { qtd: g.novos, preco: g.preco };
+              const v = Number(p.preco.replace(",", ".")) || 0;
+              const mudar = (x: Partial<{ qtd: number; preco: string }>) => setPrecos((m) => ({ ...m, [g.chave]: { ...p, ...x } }));
+              return (
+                <div key={g.chave} className={`rounded-[14px] border border-border bg-card p-3 ${p.qtd ? "" : "opacity-60"}`}>
+                  <div className="flex items-center gap-3">
+                    <FotoItem nome={g.nome} className="h-12 w-12 rounded-[10px] border border-border" />
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-[16px] font-extrabold">{nomeBonito(g.nome)}</div>
+                      <div className="text-[12px] text-text-2">
+                        📷 na foto: {g.foto}
+                        {g.ja ? ` · 🛒 já tinha ${g.ja}` : ""}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-2 flex items-center gap-2">
+                    <div className="flex items-center gap-1">
+                      <button type="button" aria-label="Menos um" onClick={() => mudar({ qtd: Math.max(0, p.qtd - 1) })} className="h-10 w-10 rounded-[10px] border-2 border-border bg-card text-[18px] font-extrabold">−</button>
+                      <span className="min-w-[2.5ch] text-center text-[17px] font-extrabold">{p.qtd}</span>
+                      <button type="button" aria-label="Mais um" onClick={() => mudar({ qtd: p.qtd + 1 })} className="h-10 w-10 rounded-[10px] border-2 border-border bg-card text-[18px] font-extrabold">+</button>
+                    </div>
+                    <span className="text-[14px] text-text-2">×</span>
+                    <label className="flex h-10 min-w-0 flex-1 items-center rounded-[10px] border border-border bg-card-2 px-2">
+                      <span className="text-[13px] text-text-2">R$</span>
+                      <input
+                        inputMode="decimal"
+                        value={p.preco}
+                        onChange={(e) => mudar({ preco: e.target.value })}
+                        placeholder="preço"
+                        aria-label={`Preço de ${nomeBonito(g.nome)}`}
+                        className="h-full min-w-0 flex-1 bg-transparent px-1 text-[16px]"
+                      />
+                    </label>
+                    <span className="w-[76px] text-right text-[14px] font-extrabold">{v && p.qtd ? brl(v * p.qtd) : "—"}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="flex items-baseline justify-between px-1 text-[15px]">
+            <span className="font-bold text-text-2">Total dos novos</span>
+            <span className="text-[18px] font-extrabold">
+              {brl(gruposCarrinho().reduce((t, g) => {
+                const p = precos[g.chave];
+                return t + (p ? (Number(p.preco.replace(",", ".")) || 0) * p.qtd : 0);
+              }, 0))}
+            </span>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => setFase("marcar")} className="h-[54px] flex-1 rounded-[14px] border border-border bg-card text-[15px] font-bold">
+              Voltar
+            </button>
+            <button onClick={() => void guardarCarrinho()} className="h-[54px] flex-[2] rounded-[14px] bg-brand text-[16px] font-extrabold text-brand-ink">
+              🛒 Pôr no carrinho
+            </button>
+          </div>
         </div>
       )}
 
@@ -358,16 +503,16 @@ export function PrateleiraModal({ onClose, destino = "estoque", job }: { onClose
                 left: `${c.box[1] * 100}%`,
                 height: `${(c.box[2] - c.box[0]) * 100}%`,
                 width: `${(c.box[3] - c.box[1]) * 100}%`,
-                border: `2.5px solid ${COR[c.pronto ? "verde" : c.cor]}`,
+                border: c.carrinho ? "2.5px dashed #9ca3af" : `2.5px solid ${COR[c.pronto ? "verde" : c.cor]}`,
                 background: sel === c.id ? `${COR[c.pronto ? "verde" : c.cor]}33` : "transparent",
                 boxShadow: sel === c.id ? `0 0 0 3px #fff` : undefined,
               }}
             >
               <span
                 className="absolute -top-[9px] left-1/2 grid h-[18px] min-w-[18px] -translate-x-1/2 place-items-center rounded-full px-1 text-[10px] font-extrabold leading-none text-white shadow ring-2 ring-white"
-                style={{ background: COR[c.pronto ? "verde" : c.cor] }}
+                style={{ background: c.carrinho ? "#6b7280" : COR[c.pronto ? "verde" : c.cor] }}
               >
-                {c.pronto ? "✓" : c.cor === "vermelho" ? "?" : i + 1}
+                {c.carrinho ? "🛒" : c.pronto ? "✓" : c.cor === "vermelho" ? "?" : i + 1}
               </span>
               {c.unidades > 1 && (
                 <span className="absolute bottom-1 right-1 rounded-md bg-black/75 px-1.5 py-0.5 text-[11px] font-extrabold text-white">
@@ -393,7 +538,7 @@ export function PrateleiraModal({ onClose, destino = "estoque", job }: { onClose
               style={{ borderColor: COR[atual.pronto ? "verde" : atual.cor] }}
             >
               {atual.nome && !(atual.cor === "vermelho" && !atual.pronto && (atual.opcoes?.length ?? 0) > 1) && (
-                <Cartao nome={atual.nome} unidades={atual.unidades} rotulo={atual.pronto ? "✓ Pronto" : atual.cor === "amarelo" ? "É isso mesmo?" : "Acho que é"} />
+                <Cartao nome={atual.nome} unidades={atual.unidades} rotulo={atual.carrinho ? "🛒 Já está no carrinho" : atual.pronto ? "✓ Pronto" : atual.cor === "amarelo" ? "É isso mesmo?" : "Acho que é"} />
               )}
               {atual.cor === "amarelo" && !atual.pronto ? (
                 <div className="mt-3 flex gap-2">
@@ -410,6 +555,13 @@ export function PrateleiraModal({ onClose, destino = "estoque", job }: { onClose
                     ✏️ Não é
                   </button>
                 </div>
+              ) : atual.carrinho ? (
+                <button
+                  onClick={() => setCaixas((l) => l.map((c) => (c.id === atual.id ? { ...c, carrinho: false } : c)))}
+                  className="mt-2 text-[13px] font-bold text-brand underline"
+                >
+                  Não, peguei mais um: contar como novo
+                </button>
               ) : atual.pronto && !editando ? (
                 <button onClick={() => setEditando(true)} className="mt-2 text-[13px] font-bold text-brand underline">
                   ✏️ Trocar o produto
@@ -521,7 +673,7 @@ export function PrateleiraModal({ onClose, destino = "estoque", job }: { onClose
             {desenhando ? "Arraste o dedo em volta do produto…" : "+ Marcar produto que faltou"}
           </button>
           <button onClick={irGuardar} className="h-[54px] rounded-[14px] bg-brand text-[16px] font-extrabold text-brand-ink">
-            🏠 Guardar {prontos} na despensa
+            {noMercado ? "🛒 Conferir preços e pôr no carrinho" : `🏠 Guardar ${prontos} na despensa`}
           </button>
           {job && (
             <button

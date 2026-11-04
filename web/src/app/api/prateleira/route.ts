@@ -14,7 +14,7 @@ export async function POST(req: Request) {
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ ok: false, erro: "nao_autenticado" }, { status: 401 });
 
-  let b: { foto?: unknown; grade?: unknown; n?: unknown } = {};
+  let b: { foto?: unknown; grade?: unknown; n?: unknown; nomes?: unknown } = {};
   try {
     b = await req.json();
   } catch {
@@ -24,7 +24,7 @@ export async function POST(req: Request) {
   if (!img.startsWith("data:image/")) return NextResponse.json({ ok: false, erro: "sem_imagem" }, { status: 400 });
   if (img.length > 4_000_000) return NextResponse.json({ ok: false, erro: "imagem_grande" }, { status: 413 });
 
-  const r = typeof b.foto === "string" ? await detectar(img) : await conferir(img, Math.min(60, Number(b.n) || 0));
+  const r = typeof b.foto === "string" ? await detectar(img, b.nomes) : await conferir(img, Math.min(60, Number(b.n) || 0), b.nomes);
   if (r.ok) return NextResponse.json(r);
   if (r.erro === "limite") return NextResponse.json({ ok: false, erro: "limite", espera: r.espera }, { status: 429 });
   return NextResponse.json({ ok: false, erro: r.erro }, { status: r.erro === "ia_indisponivel" ? 503 : 502 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { agrupar, corDe, daMemoria, iou, limpar, mesmoProduto, type Achado } from "./prateleira";
+import { agrupar, corDe, daMemoria, iou, limpar, marcarCarrinho, mesmoProduto, type Achado } from "./prateleira";
 
 const a = (box: [number, number, number, number], nome = "x", legivel = true): Achado => ({ box, nome, rotulo: "", legivel });
 
@@ -83,5 +83,23 @@ describe("fardo e unidades", () => {
     ]);
     expect(g).toHaveLength(1);
     expect(g[0].qtd).toBe(14);
+  });
+});
+
+describe("foto do carrinho: so o novo", () => {
+  it("o que ja esta no carrinho fica cinza; o resto e novo", () => {
+    const r = marcarCarrinho(
+      [
+        { nome: "óleo de soja coamo", unidades: 4 } as { nome: string; unidades: number; carrinho?: boolean },
+        { nome: "leite italac", unidades: 1 },
+        { nome: "leite italac", unidades: 1 },
+        { nome: "arroz camil", unidades: 1 },
+      ],
+      [
+        { name: "Óleo de Soja Coamo", quantity: 4 },
+        { name: "leite italac", quantity: 1 },
+      ],
+    );
+    expect(r.map((c) => !!c.carrinho)).toEqual([true, true, false, false]);
   });
 });

@@ -142,7 +142,7 @@ export function FotoModal({
           {prontas || trabalhando.length ? "Pronto, conferir" : "Fechar"}
         </button>
         <button onClick={() => setPrateleira(true)} className="h-11 rounded-[14px] border-2 border-brand/50 bg-brand-soft text-[14px] font-bold text-brand">
-          📸 Vários produtos de uma vez (armário, despensa)
+          {destino === "carrinho" ? "🛒 Foto do carrinho (só entra o que é novo)" : "📸 Vários produtos de uma vez (armário, despensa)"}
         </button>
         <button onClick={onDigitar} className="h-10 text-[13px] font-bold text-text-2 underline">
           ⌨️ Prefiro digitar
