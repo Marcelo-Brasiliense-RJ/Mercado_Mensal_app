@@ -311,22 +311,42 @@ export function PrateleiraModal({
               🛒 Fotografe o carrinho a cada corredor: só os novos entram.
             </p>
           )}
-          {/* Ilustracao no lugar do paragrafo: as tres cores dos quadrados, com uma
-              palavra cada. A explicacao completa aparece na hora, na tela de conferir. */}
-          <div className="mb-1 flex items-end justify-center gap-4 rounded-[16px] border border-dashed border-border bg-card-2 px-4 pb-3 pt-4" aria-label="Verde entra, amarelo você confirma, vermelho você dá o nome">
-            {[
-              { cor: "var(--pos)", ic: "✓", txt: "entra", h: "h-16" },
-              { cor: "var(--warn)", ic: "?", txt: "confirma", h: "h-12" },
-              { cor: "var(--neg)", ic: "Aa", txt: "nomeia", h: "h-14" },
-            ].map((q) => (
-              <div key={q.txt} className="flex flex-col items-center gap-1.5">
-                <div className={`grid ${q.h} w-12 place-items-center rounded-lg border-[3px] text-[16px] font-extrabold`} style={{ borderColor: q.cor, color: q.cor }}>
-                  {q.ic}
+          {/* A venda da funcao em uma imagem: o visor da camera sobre uma prateleira
+              e CADA produto reconhecido ao mesmo tempo, com o nome. Sem legenda de
+              cores: isso a pessoa aprende na tela de conferir. */}
+          <div className="processo relative mb-1 overflow-hidden rounded-[18px] bg-card-2 px-4 pb-3 pt-5">
+            {/* cantos do visor */}
+            <span aria-hidden className="absolute left-2.5 top-2.5 h-5 w-5 rounded-tl-md border-l-[3px] border-t-[3px] border-text" />
+            <span aria-hidden className="absolute right-2.5 top-2.5 h-5 w-5 rounded-tr-md border-r-[3px] border-t-[3px] border-text" />
+            <span aria-hidden className="absolute bottom-2.5 left-2.5 h-5 w-5 rounded-bl-md border-b-[3px] border-l-[3px] border-text" />
+            <span aria-hidden className="absolute bottom-2.5 right-2.5 h-5 w-5 rounded-br-md border-b-[3px] border-r-[3px] border-text" />
+            {/* luz que varre, como na leitura de verdade */}
+            <span aria-hidden className="pointer-events-none absolute inset-x-0 h-10 animate-[varrer_2.4s_ease-in-out_infinite] bg-gradient-to-b from-transparent via-pos/20 to-transparent" />
+            <div className="relative grid grid-cols-4 gap-2" aria-label="Uma foto reconhece vários produtos de uma vez">
+              {[
+                { ic: "🍝", nome: "Macarrão" },
+                { ic: "🥫", nome: "Molho" },
+                { ic: "🧃", nome: "Suco" },
+                { ic: "🥛", nome: "Leite" },
+              ].map((p, k) => (
+                <div key={p.nome} className="flex flex-col items-center gap-1">
+                  <div
+                    className="relative grid h-14 w-full place-items-center rounded-xl border-[3px] border-pos bg-card text-[30px] animate-[surgir_0.5s_ease_both]"
+                    style={{ animationDelay: `${0.2 + k * 0.25}s` }}
+                  >
+                    <span aria-hidden>{p.ic}</span>
+                    <span aria-hidden className="absolute -right-2 -top-2 grid h-5 w-5 place-items-center rounded-full bg-pos text-[11px] font-extrabold text-white">✓</span>
+                  </div>
+                  <span className="max-w-full truncate rounded-full bg-pos-soft px-1.5 py-0.5 text-[11px] font-bold text-pos">{p.nome}</span>
                 </div>
-                <span className="text-[12px] font-bold text-text-2">{q.txt}</span>
-              </div>
-            ))}
+              ))}
+            </div>
+            {/* prateleira */}
+            <div aria-hidden className="relative mt-1.5 h-1.5 rounded-full bg-border" />
           </div>
+          <p className="mb-1 text-center text-[15px] font-extrabold">
+            1 foto → <span className="text-pos">todos os produtos</span> de uma vez
+          </p>
           <input ref={camera} type="file" accept="image/*" capture="environment" className="hidden" aria-label="Tirar foto dos produtos"
             onChange={(e) => { void ler(e.target.files?.[0]); e.target.value = ""; }} />
           <input ref={galeria} type="file" accept="image/*" className="hidden" aria-label="Foto da galeria"
