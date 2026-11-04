@@ -34,7 +34,7 @@ export function FilaFotos() {
     <>
       {/* No leitor o proprio leitor mostra a fila; com popup aberto, o popup diz quantas faltam. */}
       {!leitorAberto && !atual && (trabalhando > 0 || prontos.length > 0) && (
-        <div className="pointer-events-none fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+160px)] z-30 lg:bottom-8 flex justify-center pl-4 pr-[88px] lg:px-4">
+        <div className="pointer-events-none fixed inset-x-0 bottom-[var(--acima-fab,160px)] z-30 flex justify-center px-4 lg:bottom-8">
           <button
             type="button"
             disabled={!clicavel}

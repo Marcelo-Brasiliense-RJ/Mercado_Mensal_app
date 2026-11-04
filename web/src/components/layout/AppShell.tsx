@@ -12,7 +12,7 @@ import { ReceiptModal } from "@/components/receipt/ReceiptModal";
 import { AddItemIcon, PinIcon } from "@/components/ui/icons";
 import { atualizarLugar, useLugar } from "@/lib/lugar";
 import { AvatarInitial } from "@/components/ui/AvatarInitial";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useStore } from "@/lib/store";
 import { VoiceModal } from "@/components/voz/VoiceModal";
 import { useHousehold } from "@/lib/household";
@@ -45,6 +45,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     await atualizarLugar(true);
     showToast(lugar.noMercado ? `📍 Você está no mercado${lugar.nomeMercado ? `: ${lugar.nomeMercado}` : ""}` : "📍 Localização ligada: no mercado o app já põe no carrinho.");
   }
+  // Avisos (toast, "foto pronta") ficam centralizados LOGO ACIMA do botao +, sem
+  // passar por cima dele. A altura do + muda na Lista (tem o total no rodape).
+  const naLista = path.startsWith("/app/lista");
+  useEffect(() => {
+    document.documentElement.style.setProperty(
+      "--acima-fab",
+      `calc(env(safe-area-inset-bottom) + ${naLista ? 196 : 144}px)`,
+    );
+  }, [naLista]);
   const { household } = useHousehold();
   const meta =
     Object.entries(META).find(([href]) => path.startsWith(href))?.[1] ??
@@ -120,7 +129,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         onClick={() => setFalar(true)}
         aria-label="Adicionar item"
         className={`fixed right-4 z-20 grid h-[60px] w-[60px] place-items-center rounded-full bg-brand text-brand-ink shadow-[0_8px_22px_rgba(193,95,60,.45)] ring-4 ring-bg transition-transform active:scale-95 lg:bottom-8 lg:right-8 ${
-          path.startsWith("/app/lista") ? "bottom-[calc(env(safe-area-inset-bottom)+124px)]" : "bottom-[calc(env(safe-area-inset-bottom)+72px)]"
+          naLista ? "bottom-[calc(env(safe-area-inset-bottom)+124px)]" : "bottom-[calc(env(safe-area-inset-bottom)+72px)]"
         }`}
       >
         <span className="ic-mexe">

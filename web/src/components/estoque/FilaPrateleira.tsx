@@ -24,7 +24,7 @@ export function FilaPrateleira() {
   if (!fila.length) return null;
   return (
     <>
-      <div className="pointer-events-none fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+160px)] z-30 flex flex-col items-center gap-2 pl-4 pr-[88px] text-center lg:px-4 lg:bottom-24">
+      <div className="pointer-events-none fixed inset-x-0 bottom-[var(--acima-fab,160px)] z-30 flex flex-col items-center gap-2 px-4 text-center lg:bottom-24">
         {prontas[0] && (
           <button
             type="button"
