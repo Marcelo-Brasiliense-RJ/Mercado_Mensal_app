@@ -311,41 +311,57 @@ export function PrateleiraModal({
               🛒 Fotografe o carrinho a cada corredor: só os novos entram.
             </p>
           )}
-          {/* A venda da funcao em uma imagem: o visor da camera sobre uma prateleira
-              e CADA produto reconhecido ao mesmo tempo, com o nome. Sem legenda de
-              cores: isso a pessoa aprende na tela de conferir. */}
-          <div className="processo relative mb-1 overflow-hidden rounded-[18px] bg-card-2 px-4 pb-3 pt-5">
-            {/* cantos do visor */}
-            <span aria-hidden className="absolute left-2.5 top-2.5 h-5 w-5 rounded-tl-md border-l-[3px] border-t-[3px] border-text" />
-            <span aria-hidden className="absolute right-2.5 top-2.5 h-5 w-5 rounded-tr-md border-r-[3px] border-t-[3px] border-text" />
-            <span aria-hidden className="absolute bottom-2.5 left-2.5 h-5 w-5 rounded-bl-md border-b-[3px] border-l-[3px] border-text" />
-            <span aria-hidden className="absolute bottom-2.5 right-2.5 h-5 w-5 rounded-br-md border-b-[3px] border-r-[3px] border-text" />
-            {/* luz que varre, como na leitura de verdade */}
-            <span aria-hidden className="pointer-events-none absolute inset-x-0 h-10 animate-[varrer_2.4s_ease-in-out_infinite] bg-gradient-to-b from-transparent via-pos/20 to-transparent" />
-            <div className="relative grid grid-cols-4 gap-2" aria-label="Uma foto reconhece vários produtos de uma vez">
-              {[
-                { ic: "🍝", nome: "Macarrão" },
-                { ic: "🥫", nome: "Molho" },
-                { ic: "🧃", nome: "Suco" },
-                { ic: "🥛", nome: "Leite" },
-              ].map((p, k) => (
-                <div key={p.nome} className="flex flex-col items-center gap-1">
-                  <div
-                    className="relative grid h-14 w-full place-items-center rounded-xl border-[3px] border-pos bg-card text-[30px] animate-[surgir_0.5s_ease_both]"
-                    style={{ animationDelay: `${0.2 + k * 0.25}s` }}
-                  >
-                    <span aria-hidden>{p.ic}</span>
-                    <span aria-hidden className="absolute -right-2 -top-2 grid h-5 w-5 place-items-center rounded-full bg-pos text-[11px] font-extrabold text-white">✓</span>
+          {/* A venda da funcao em uma imagem, nos dois jeitos: o produto que esta na
+              mao OU a prateleira inteira, com cada produto reconhecido ao mesmo tempo.
+              Sem legenda de cores: isso a pessoa aprende na tela de conferir. */}
+          <div className="processo mb-1 grid grid-cols-[1fr_1.7fr] gap-2" aria-label="Fotografe um produto na mão ou a prateleira inteira">
+            {[
+              { titulo: "1 produto", itens: [{ ic: "🥫", nome: "Molho" }], mao: true },
+              {
+                titulo: "Prateleira inteira",
+                itens: [
+                  { ic: "🍝", nome: "Macarrão" },
+                  { ic: "🥫", nome: "Molho" },
+                  { ic: "🧃", nome: "Suco" },
+                  { ic: "🥛", nome: "Leite" },
+                ],
+                mao: false,
+              },
+            ].map((painel, pi) => (
+              <div key={painel.titulo} className="flex flex-col items-center gap-1.5">
+                <div className="relative flex w-full flex-1 items-center justify-center overflow-hidden rounded-[16px] bg-card-2 px-3 py-4">
+                  {/* cantos do visor */}
+                  <span aria-hidden className="absolute left-2 top-2 h-4 w-4 rounded-tl-md border-l-[3px] border-t-[3px] border-text" />
+                  <span aria-hidden className="absolute right-2 top-2 h-4 w-4 rounded-tr-md border-r-[3px] border-t-[3px] border-text" />
+                  <span aria-hidden className="absolute bottom-2 left-2 h-4 w-4 rounded-bl-md border-b-[3px] border-l-[3px] border-text" />
+                  <span aria-hidden className="absolute bottom-2 right-2 h-4 w-4 rounded-br-md border-b-[3px] border-r-[3px] border-text" />
+                  {/* luz que varre, como na leitura de verdade */}
+                  <span aria-hidden className="pointer-events-none absolute inset-x-0 h-8 animate-[varrer_2.4s_ease-in-out_infinite] bg-gradient-to-b from-transparent via-pos/20 to-transparent" />
+                  <div className={`relative grid gap-x-2 gap-y-1.5 ${painel.itens.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}>
+                    {painel.itens.map((p, k) => (
+                      <div key={p.nome} className="flex flex-col items-center gap-1">
+                        <div
+                          className={`relative grid place-items-center rounded-xl border-[3px] border-pos bg-card animate-[surgir_0.5s_ease_both] ${
+                            painel.mao ? "h-16 w-16 text-[34px]" : "h-11 w-12 text-[24px]"
+                          }`}
+                          style={{ animationDelay: `${0.2 + (pi + k) * 0.25}s` }}
+                        >
+                          <span aria-hidden>{p.ic}</span>
+                          <span aria-hidden className="absolute -right-2 -top-2 grid h-5 w-5 place-items-center rounded-full bg-pos text-[11px] font-extrabold text-white">✓</span>
+                        </div>
+                        <span className="max-w-full truncate rounded-full bg-pos-soft px-1.5 py-0.5 text-[11px] font-bold text-pos">{p.nome}</span>
+                        {/* a mao segurando: deixa claro que serve o produto que esta com voce */}
+                        {painel.mao && <span aria-hidden className="-mt-0.5 text-[26px] leading-none">✋</span>}
+                      </div>
+                    ))}
                   </div>
-                  <span className="max-w-full truncate rounded-full bg-pos-soft px-1.5 py-0.5 text-[11px] font-bold text-pos">{p.nome}</span>
                 </div>
-              ))}
-            </div>
-            {/* prateleira */}
-            <div aria-hidden className="relative mt-1.5 h-1.5 rounded-full bg-border" />
+                <span className="text-[13px] font-extrabold">{painel.titulo}</span>
+              </div>
+            ))}
           </div>
           <p className="mb-1 text-center text-[15px] font-extrabold">
-            1 foto → <span className="text-pos">todos os produtos</span> de uma vez
+            Um ou <span className="text-pos">vários de uma vez</span>
           </p>
           <input ref={camera} type="file" accept="image/*" capture="environment" className="hidden" aria-label="Tirar foto dos produtos"
             onChange={(e) => { void ler(e.target.files?.[0]); e.target.value = ""; }} />
