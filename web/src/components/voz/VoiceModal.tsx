@@ -821,7 +821,7 @@ export function VoiceModal({
       <div className="mb-[18px]">
         <div className="flex items-center gap-2 text-[13px] font-bold text-brand">
           <MicIcon size={18} />
-          Adicionar: falar, foto, código ou escrever
+          Adicionar
         </div>
         <div className="text-[19px] font-extrabold">
           {pergunta

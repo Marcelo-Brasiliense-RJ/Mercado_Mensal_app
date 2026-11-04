@@ -29,9 +29,9 @@ export function FilaPrateleira() {
           <button
             type="button"
             onClick={() => setAberto(prontas[0].id)}
-            className="pointer-events-auto flex animate-[pop_0.22s_ease_both] items-center gap-2 rounded-full bg-brand px-4 py-2.5 text-[14px] font-extrabold text-brand-ink shadow-lg ring-4 ring-brand/25"
+            className="pointer-events-auto flex animate-[pop_0.22s_ease_both] items-center gap-2 whitespace-nowrap rounded-full bg-brand px-4 py-2.5 text-[14px] font-extrabold text-brand-ink shadow-lg ring-4 ring-brand/25"
           >
-            {prontas[0].destino === "carrinho" ? "🛒 Carrinho pronto" : "📸 Foto pronta"}: {prontas[0].achados?.length ?? 0} produtos
+            {prontas[0].destino === "carrinho" ? "🛒" : "📸"} {prontas[0].achados?.length ?? 0} produtos prontos
             {prontas.length > 1 ? ` (+${prontas.length - 1})` : ""} · <span className="underline">Conferir</span>
           </button>
         )}

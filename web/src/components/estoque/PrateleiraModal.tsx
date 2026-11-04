@@ -350,34 +350,34 @@ export function PrateleiraModal({
               return (
                 <div key={g.chave} className={`rounded-[14px] border border-border bg-card p-3 ${p.qtd ? "" : "opacity-60"}`}>
                   <div className="flex items-center gap-3">
-                    <FotoItem nome={g.nome} className="h-12 w-12 rounded-[10px] border border-border" />
+                    <FotoItem nome={g.nome} className="h-11 w-11 shrink-0 rounded-[10px] border border-border" />
                     <div className="min-w-0 flex-1">
-                      <div className="truncate text-[16px] font-extrabold">{nomeBonito(g.nome)}</div>
-                      <div className="text-[12px] text-text-2">
+                      <div className="truncate text-[15px] font-extrabold">{nomeBonito(g.nome)}</div>
+                      <div className="truncate text-[12px] text-text-2">
                         📷 na foto: {g.foto}
                         {g.ja ? ` · 🛒 já tinha ${g.ja}` : ""}
                       </div>
                     </div>
+                    <span className="shrink-0 text-[15px] font-extrabold">{v && p.qtd ? brl(v * p.qtd) : "—"}</span>
                   </div>
                   <div className="mt-2 flex items-center gap-2">
-                    <div className="flex items-center gap-1">
+                    <div className="flex shrink-0 items-center gap-1">
                       <button type="button" aria-label="Menos um" onClick={() => mudar({ qtd: Math.max(0, p.qtd - 1) })} className="h-10 w-10 rounded-[10px] border-2 border-border bg-card text-[18px] font-extrabold">−</button>
                       <span className="min-w-[2.5ch] text-center text-[17px] font-extrabold">{p.qtd}</span>
                       <button type="button" aria-label="Mais um" onClick={() => mudar({ qtd: p.qtd + 1 })} className="h-10 w-10 rounded-[10px] border-2 border-border bg-card text-[18px] font-extrabold">+</button>
                     </div>
-                    <span className="text-[14px] text-text-2">×</span>
-                    <label className="flex h-10 min-w-0 flex-1 items-center rounded-[10px] border border-border bg-card-2 px-2">
+                    <span className="text-[13px] text-text-2">un ×</span>
+                    <label className="flex h-10 min-w-[96px] flex-1 items-center rounded-[10px] border border-border bg-card-2 px-2">
                       <span className="text-[13px] text-text-2">R$</span>
                       <input
                         inputMode="decimal"
                         value={p.preco}
                         onChange={(e) => mudar({ preco: e.target.value })}
-                        placeholder="preço"
+                        placeholder="0,00"
                         aria-label={`Preço de ${nomeBonito(g.nome)}`}
-                        className="h-full min-w-0 flex-1 bg-transparent px-1 text-[16px]"
+                        className="h-full w-full min-w-0 bg-transparent px-1 text-[16px]"
                       />
                     </label>
-                    <span className="w-[76px] text-right text-[14px] font-extrabold">{v && p.qtd ? brl(v * p.qtd) : "—"}</span>
                   </div>
                 </div>
               );
@@ -470,7 +470,7 @@ export function PrateleiraModal({
       {(fase === "lendo" || fase === "marcar" || fase === "salvando") && src && (
         <div
           ref={areaRef}
-          className="relative select-none overflow-hidden rounded-[14px] bg-black"
+          className="relative mx-auto w-fit max-w-full select-none overflow-hidden rounded-[14px] bg-black"
           style={{ touchAction: desenhando ? "none" : "auto" }}
           onPointerDown={(e) => {
             if (!desenhando) return;
@@ -496,7 +496,7 @@ export function PrateleiraModal({
           }}
         >
           {/* eslint-disable-next-line @next/next/no-img-element -- a mesma imagem que foi para a IA */}
-          <img src={src} alt="Foto dos produtos" className={`block w-full ${fase === "lendo" ? "opacity-60" : ""}`} draggable={false} />
+          <img src={src} alt="Foto dos produtos" className={`block h-auto max-h-[46dvh] w-auto max-w-full ${fase === "lendo" ? "opacity-60" : ""}`} draggable={false} />
           {fase === "lendo" && (
             <div className="absolute inset-0 grid place-items-center">
               <div className="flex items-center gap-2 rounded-full bg-black/70 px-4 py-2 text-[14px] font-bold text-white">

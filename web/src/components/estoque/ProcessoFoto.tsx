@@ -58,9 +58,9 @@ export function ProcessoFoto({ job, onClose }: { job: JobFoto; onClose: () => vo
           </div>
         </div>
 
-        <div className="relative overflow-hidden rounded-[16px] bg-black">
+        <div className="relative mx-auto w-fit max-w-full overflow-hidden rounded-[16px] bg-black">
           {/* eslint-disable-next-line @next/next/no-img-element -- a foto local que esta sendo lida */}
-          <img src={job.src} alt="Foto sendo analisada" className={`block w-full transition-opacity duration-500 ${conferindo ? "opacity-80" : "opacity-60"}`} />
+          <img src={job.src} alt="Foto sendo analisada" className={`block h-auto max-h-[46dvh] w-auto max-w-full transition-opacity duration-500 ${conferindo ? "opacity-80" : "opacity-60"}`} />
           {!conferindo && !falhou && (
             <>
               <div
