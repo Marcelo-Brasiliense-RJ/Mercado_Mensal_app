@@ -17,22 +17,21 @@ export type Achado = {
 const DETECTAR = `Foto tirada no celular de um ou vários produtos de uma casa brasileira: pode ser um produto só na mão ou na mesa, ou um armário, despensa, geladeira, chão ou bancada.
 A foto costuma ser RUIM e é normal: torta ou de lado (rótulo de cabeça para baixo ou deitado), escura, de cima, meio desfocada, bagunçada, com produtos empilhados, um na frente do outro, caídos, cortados na borda da foto.
 As embalagens também: pacotes abertos, dobrados, amassados ou fechados com prendedor de roupa; caixa de fardo (ex.: caixa de 12 leites); produto passado para saco plástico transparente ou pote sem rótulo.
-Encontre CADA embalagem de produto visível (uma por uma: 3 pacotes iguais lado a lado = 3 itens). Inclua o que está parcialmente escondido atrás de outro se dá para ver que é um produto.
-Para descobrir o que é, use tudo: texto em qualquer orientação, marca, cor e formato da embalagem, e o conteúdo que aparece (saco transparente com grão preto = "feijão preto", grão bege redondo = "grão de bico", pó branco em saco = farinha/açúcar/sal pelo que estiver escrito).
-Contagem, do jeito que se conta estoque em casa:
-- Unidades soltas (lado a lado, empilhadas, uma atrás da outra): um quadrado para CADA uma, inclusive a de trás quando aparece um pedaço dela.
-- Caixa de fardo/embarque de papelão (ex.: "contém 12 unidades de 1L") ou pack plastificado (6 óleos, 12 latas): UM quadrado na caixa/pack, e em "unidades" quantas tem dentro. Fechada: o número impresso ou o tamanho padrão do fardo. Aberta, com buraco ou faltando: conte/estime o que dá para ver dentro.
+Agrupe do jeito que se conta estoque em casa, UM quadrado por PRODUTO, com a quantidade:
+- Unidades iguais juntas (lado a lado, empilhadas, uma atrás da outra, em fileira): UM quadrado em volta do GRUPO todo e "unidades" = quantas são, contando as de trás que aparecem só um pedaço (tampa, borda). Ex.: 4 garrafas de óleo Coamo juntas = 1 quadrado, unidades 4.
+- Produtos diferentes (outra marca, outro sabor, outro tipo) = quadrados separados, mesmo encostados. Ex.: passata Pramesa, molho Predilecta e molho tradicional Pramesa = 3 quadrados.
+- Caixa de fardo de papelão (ex.: "contém 12 unidades de 1L") ou pack plastificado (6 óleos, 12 latas): UM quadrado na caixa/pack, "unidades" = quantas tem dentro. Fechada: o número impresso ou o tamanho padrão. Aberta/faltando: conte o que dá para ver.
 - O "nome" do fardo é o produto de dentro ("leite italac"), nunca "caixa" ou "fardo".
-- Pacote vendido assim com várias coisinhas dentro (pacote de sachês, caixa de gelatina, caixa de chá) = 1 unidade.
-- Embalagens iguais recebem EXATAMENTE o mesmo "nome", para somar certo (3 milhos Predilecta = 3x "milho predilecta").
-Para cada uma devolva:
-- "box_2d": [ymin, xmin, ymax, xmax] de 0 a 1000, um retângulo JUSTO em volta daquela embalagem inteira (da tampa à base, borda a borda), sem pegar a embalagem vizinha.
+- Pacote vendido assim com várias coisinhas dentro (sachês, caixa de gelatina, caixa de chá) = 1 unidade.
+- O mesmo produto separado em dois lugares da foto: dois quadrados com EXATAMENTE o mesmo "nome".
+Para descobrir o que é, use tudo: texto em qualquer orientação, marca, cor e formato da embalagem, e o conteúdo que aparece (saco transparente com grão preto = "feijão preto", grão bege redondo = "grão de bico").
+Para cada quadrado devolva:
+- "box_2d": [ymin, xmin, ymax, xmax] de 0 a 1000, retângulo JUSTO em volta do produto/grupo inteiro (da tampa à base), sem pegar produto diferente vizinho.
 - "rotulo": o que está escrito na frente (tipo, marca, variante, tamanho). Vazio se não dá para ler.
-- "nome": o produto como se fala em casa, minúsculo, produto + marca, sem tamanho ("café pilão", "leite italac", "detergente ypê"). Vazio se não sabe o que é.
-- "unidades": inteiro, quantas unidades do produto essa embalagem representa (1 na maioria; o número do fardo/pack).
-- "legivel": true se você leu a marca/produto com segurança; false se é palpite ou não dá para ler.
-- "legivel" é false quando o nome é dedução pelo formato/conteúdo, sem ler a marca.
-Não marque prateleira, parede, móvel, prendedor, sacola de mercado vazia nem reflexo. Máximo de 60 itens.`;
+- "nome": o produto como se fala em casa, minúsculo, produto + marca + variante quando importa, sem tamanho ("café pilão", "leite italac", "molho de tomate pramesa", "passata pramesa"). Vazio se não sabe o que é.
+- "unidades": inteiro, quantas unidades daquele produto o quadrado tem.
+- "legivel": true se você leu a marca/produto com segurança; false se é palpite pelo formato/conteúdo, sem ler.
+Não marque prateleira, parede, móvel, prendedor, sacola de mercado vazia nem reflexo. Máximo de 40 quadrados.`;
 
 const ESQUEMA_DETECTAR = {
   type: "ARRAY",
