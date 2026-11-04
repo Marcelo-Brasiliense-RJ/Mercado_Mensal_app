@@ -20,6 +20,8 @@ import {
 } from "@/lib/prateleira";
 import { canvasDe, enfileirarPrateleira, recorte, tirarJob, type JobFoto } from "@/lib/filaPrateleira";
 import type { Destino } from "@/lib/filaFotos";
+import { FotoItem } from "@/components/ui/FotoItem";
+import { acentuar, nomeBonito } from "@/lib/nomeBonito";
 
 // Foto da prateleira (pedido do dono): cada produto ganha um quadrado colorido em
 // cima dele. Verde ja entra; amarelo confirma com um toque; vermelho a pessoa diz o
@@ -60,6 +62,7 @@ export function PrateleiraModal({ onClose, destino = "estoque", job }: { onClose
   const [sel, setSel] = useState<string | null>(null);
   const [nomeEdit, setNomeEdit] = useState("");
   const [buscando, setBuscando] = useState(false); // busca padrao de produto aberta
+  const [editando, setEditando] = useState(false); // trocar o nome / "nao e nenhum desses"
   // Confronto com o estoque, por produto: so a pessoa sabe se e contagem ou compra nova.
   const [modos, setModos] = useState<Record<string, Modo>>({});
   const [desenhando, setDesenhando] = useState(false);
@@ -122,12 +125,13 @@ export function PrateleiraModal({ onClose, destino = "estoque", job }: { onClose
 
   function abrir(c: Caixa) {
     setSel(c.id);
-    setNomeEdit(c.nome);
+    setEditando(false);
+    setNomeEdit(c.pronto || c.cor !== "vermelho" ? "" : c.nome);
     setBuscando(false);
   }
 
   function resolver(id: string, nome: string) {
-    const n = nome.trim();
+    const n = acentuar(nome.trim().replace(/\s+/g, " "));
     if (!n) return showToast("Escreva o nome do produto.");
     setCaixas((l) => l.map((c) => (c.id === id ? { ...c, nome: n, pronto: true, cor: "verde" } : c)));
     // proximo pendente, para seguir sem procurar
@@ -181,7 +185,7 @@ export function PrateleiraModal({ onClose, destino = "estoque", job }: { onClose
     const pendentes = caixas.length - ok.length;
     showToast(
       [
-        r.ok.length ? `🏠 Despensa: ${grupos.map((g) => `${g.nome} ${g.qtd}`).join(", ")}` : "",
+        r.ok.length ? `🏠 Despensa: ${grupos.map((g) => `${nomeBonito(g.nome)} ${g.qtd}`).join(", ")}` : "",
         r.falhou.length ? `não gravei ${r.falhou.join(", ")}` : "",
         pendentes ? `${pendentes} ficaram de fora` : "",
       ]
@@ -258,7 +262,10 @@ export function PrateleiraModal({ onClose, destino = "estoque", job }: { onClose
               return (
                 <div key={g.nome} className="rounded-[14px] border border-border bg-card p-3">
                   <div className="mb-2 flex items-baseline justify-between gap-2">
-                    <span className="truncate text-[15px] font-extrabold capitalize">{g.nome}</span>
+                    <span className="flex min-w-0 items-center gap-2">
+                      <FotoItem nome={g.nome} className="h-9 w-9 rounded-[8px]" />
+                      <span className="truncate text-[15px] font-extrabold">{nomeBonito(g.nome)}</span>
+                    </span>
                     <span className="shrink-0 text-[12px] text-text-2">
                       📷 foto: <b>{g.qtd}</b>
                       {est ? (
@@ -385,63 +392,83 @@ export function PrateleiraModal({ onClose, destino = "estoque", job }: { onClose
               className="rounded-[16px] border-2 p-3"
               style={{ borderColor: COR[atual.pronto ? "verde" : atual.cor] }}
             >
+              {atual.nome && !(atual.cor === "vermelho" && !atual.pronto && (atual.opcoes?.length ?? 0) > 1) && (
+                <Cartao nome={atual.nome} unidades={atual.unidades} rotulo={atual.pronto ? "✓ Pronto" : atual.cor === "amarelo" ? "É isso mesmo?" : "Acho que é"} />
+              )}
               {atual.cor === "amarelo" && !atual.pronto ? (
-                <>
-                  <div className="text-[13px] font-bold text-text-2">É isso mesmo?</div>
-                  <div className="mb-2 text-[18px] font-extrabold">{atual.nome}</div>
-                  <div className="flex gap-2">
-                    <button onClick={() => resolver(atual.id, atual.nome)} className="h-12 flex-[1.4] rounded-[14px] bg-pos text-[15px] font-bold text-pos-ink">
-                      ✓ Confirmar
-                    </button>
-                    <button onClick={() => setCaixas((l) => l.map((c) => (c.id === atual.id ? { ...c, cor: "vermelho" } : c)))} className="h-12 flex-1 rounded-[14px] border-2 border-border bg-card text-[14px] font-bold">
-                      ✏️ Não é
-                    </button>
-                  </div>
-                </>
+                <div className="mt-3 flex gap-2">
+                  <button onClick={() => resolver(atual.id, atual.nome)} className="h-12 flex-[1.4] rounded-[14px] bg-pos text-[15px] font-bold text-pos-ink">
+                    ✓ Confirmar
+                  </button>
+                  <button
+                    onClick={() => {
+                      setCaixas((l) => l.map((c) => (c.id === atual.id ? { ...c, cor: "vermelho" } : c)));
+                      setEditando(true);
+                    }}
+                    className="h-12 flex-1 rounded-[14px] border-2 border-border bg-card text-[14px] font-bold"
+                  >
+                    ✏️ Não é
+                  </button>
+                </div>
+              ) : atual.pronto && !editando ? (
+                <button onClick={() => setEditando(true)} className="mt-2 text-[13px] font-bold text-brand underline">
+                  ✏️ Trocar o produto
+                </button>
               ) : (
                 <form
+                  className="mt-3"
                   onSubmit={(e) => {
                     e.preventDefault();
                     resolver(atual.id, nomeEdit);
                   }}
                 >
-                  <div className="mb-1.5 text-[13px] font-bold text-text-2">
-                    {atual.pronto
-                      ? "Nome do produto"
-                      : atual.opcoes && atual.opcoes.length > 1
-                        ? "Fiquei em dúvida. Qual é?"
-                        : "Que produto é este? (pode ditar pelo teclado)"}
-                  </div>
                   {!atual.pronto && atual.opcoes && atual.opcoes.length > 1 && (
-                    <div className="mb-2 flex flex-wrap gap-2">
-                      {atual.opcoes.map((o) => (
-                        <button
-                          key={o}
-                          type="button"
-                          onClick={() => resolver(atual.id, o)}
-                          className="h-11 rounded-[12px] border-2 border-border bg-card px-3 text-[14px] font-bold"
-                        >
-                          {o}
-                        </button>
-                      ))}
-                    </div>
+                    <>
+                      <div className="mb-2 text-[13px] font-bold text-text-2">Fiquei em dúvida. Qual é?</div>
+                      <div className="mb-3 flex flex-col gap-2">
+                        {atual.opcoes.map((o) => (
+                          <button
+                            key={o}
+                            type="button"
+                            onClick={() => resolver(atual.id, o)}
+                            className="flex items-center gap-3 rounded-[14px] border-2 border-border bg-card p-2 text-left active:border-brand"
+                          >
+                            <FotoItem nome={o} className="h-12 w-12 rounded-[10px]" />
+                            <span className="min-w-0 flex-1 text-[16px] font-extrabold leading-tight">{nomeBonito(o)}</span>
+                            <span className="pr-2 text-[18px] text-pos" aria-hidden>✓</span>
+                          </button>
+                        ))}
+                      </div>
+                    </>
                   )}
-                  <div className="flex gap-2">
-                    <input
-                      autoFocus={!atual.pronto}
-                      value={nomeEdit}
-                      onChange={(e) => {
-                        setNomeEdit(e.target.value);
-                        setBuscando(true);
-                      }}
-                      placeholder="Ex.: iogurte"
-                      enterKeyHint="done"
-                      className="h-12 min-w-0 flex-1 rounded-[13px] border border-border bg-card-2 px-3 text-[16px]"
-                    />
-                    <button type="submit" className="h-12 rounded-[14px] bg-pos px-4 text-[15px] font-bold text-pos-ink">
-                      ✓
+                  {(atual.pronto || !atual.nome || editando || !(atual.opcoes && atual.opcoes.length > 1)) && (
+                    <>
+                      <div className="mb-1.5 text-[13px] font-bold text-text-2">
+                        {atual.nome ? "Não é? Escreva o produto certo" : "Que produto é este? (pode ditar pelo teclado)"}
+                      </div>
+                      <div className="flex gap-2">
+                        <input
+                          autoFocus={!atual.nome}
+                          value={nomeEdit}
+                          onChange={(e) => {
+                            setNomeEdit(e.target.value);
+                            setBuscando(true);
+                          }}
+                          placeholder="Ex.: iogurte"
+                          enterKeyHint="done"
+                          className="h-12 min-w-0 flex-1 rounded-[13px] border border-border bg-card-2 px-3 text-[16px]"
+                        />
+                        <button type="submit" className="h-12 rounded-[14px] bg-pos px-4 text-[15px] font-bold text-pos-ink">
+                          ✓
+                        </button>
+                      </div>
+                    </>
+                  )}
+                  {!editando && atual.opcoes && atual.opcoes.length > 1 && (
+                    <button type="button" onClick={() => setEditando(true)} className="text-[13px] font-bold text-brand underline">
+                      ✏️ Não é nenhum desses
                     </button>
-                  </div>
+                  )}
                   {buscando && nomeEdit.trim().length >= 2 && (
                     <div className="mt-2">
                       <Sugestoes
@@ -512,5 +539,19 @@ export function PrateleiraModal({ onClose, destino = "estoque", job }: { onClose
       )}
       {fase === "salvando" && <p className="mt-3 text-center text-[14px] font-bold text-text-2">Guardando…</p>}
     </Modal>
+  );
+}
+
+// Produto reconhecido: fotinha + nome bem escrito (+ quantas unidades).
+function Cartao({ nome, unidades, rotulo }: { nome: string; unidades: number; rotulo: string }) {
+  return (
+    <div className="flex items-center gap-3">
+      <FotoItem nome={nome} className="h-14 w-14 rounded-[12px] border border-border" />
+      <div className="min-w-0 flex-1">
+        <div className="text-[12px] font-bold text-text-2">{rotulo}</div>
+        <div className="text-[18px] font-extrabold leading-tight">{nomeBonito(nome)}</div>
+      </div>
+      {unidades > 1 && <span className="rounded-full bg-card-2 px-2.5 py-1 text-[14px] font-extrabold">×{unidades}</span>}
+    </div>
   );
 }
