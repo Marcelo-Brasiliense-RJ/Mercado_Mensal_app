@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { casaBusca, chipDoDepto, fimCampanha, lojaDe, marcaDe, melhorOnline, produtosVtex } from "./lojasOnline";
+import { casaBusca, chaveProduto, chipDoDepto, fimCampanha, lojaDe, marcaDe, melhorOnline, produtosVtex } from "./lojasOnline";
 
 describe("melhor loja online", () => {
   it("mesmo preco: ganha a que da mais pontos", () => {
@@ -61,6 +61,10 @@ describe("vitrine", () => {
     expect(marcaDe("Arroz Camil 5kg", ["arroz"], [])).toBe("lista");
     expect(marcaDe("Café Pilão 500g", ["arroz"], ["café"])).toBe("estoque");
     expect(marcaDe("Air Fryer Midea", ["arroz"], ["café"])).toBeNull();
+    expect(marcaDe("Filé de Peito de Frango Congelado Seara 1kg", [], ["frango sadia"])).toBe("estoque");
+    expect(marcaDe("Contra Filé Resfriado Maturatta", [], ["contra filé"])).toBe("estoque");
+    expect(marcaDe("Feijão Carioca Camil 1kg", [], [])).toBe("basico");
+    expect(marcaDe("Óleo de Arroz Pazze", ["arroz"], [])).not.toBe("lista");
   });
 });
 
@@ -69,5 +73,11 @@ describe("busca", () => {
     expect(casaBusca("Iogurte Grego Vigor 500g", "iogurte grego")).toBe(true);
     expect(casaBusca("Café Pilão", "cafe")).toBe(true);
     expect(casaBusca("Iogurte Natural", "iogurte grego")).toBe(false);
+  });
+});
+
+describe("mesmo produto em outra loja", () => {
+  it("chave com as 3 primeiras palavras", () => {
+    expect(chaveProduto("Filé de Peito de Frango Corte Congelado Seara 1kg")).toBe("file peito frango");
   });
 });

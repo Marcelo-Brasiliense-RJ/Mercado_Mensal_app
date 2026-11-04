@@ -10,7 +10,6 @@
 // - Brastemp, Consul, Electrolux e Telhanorte: o "desconto" e lixo (pecas, R$ 0,04).
 // Farmacias ficam prontas mas desligadas: o dono vai abrir esse ramo (remedios) depois.
 // Loja nova = uma linha aqui (codigo da Livelo + site VTEX).
-import { produtoCasa } from "./comparar";
 
 export type Chip = "mercado" | "limpeza" | "casa";
 export const CHIPS: { id: Chip; nome: string; emoji: string }[] = [
@@ -197,12 +196,47 @@ export function urlBusca(loja: Loja, args: { q?: string; fq?: string; ate?: numb
   return `${loja.site}/api/catalog_system/pub/products/search?${p}`;
 }
 
-// Destaque: o produto e de algo da lista ou do estoque da casa?
-export function marcaDe(nome: string, lista: string[], estoque: string[]): "lista" | "estoque" | null {
-  if (lista.some((i) => produtoCasa(nome, i))) return "lista";
-  if (estoque.some((i) => produtoCasa(nome, i))) return "estoque";
+// Palavras que contam num nome: sem acento, sem plural, sem "de/com" e sem numero.
+const PARADA = new Set(["de", "da", "do", "das", "dos", "com", "sem", "para", "tipo", "em", "kg", "ml", "und", "pct"]);
+export const palavras = (s: string) =>
+  sem(s)
+    .split(/[^a-z]+/)
+    .filter((w) => w.length >= 3 && !PARADA.has(w))
+    .map((w) => w.replace(/s$/, ""));
+
+// O que toda casa compra: entra como "Basico da casa" mesmo fora do estoque.
+const BASICOS = [
+  "arroz", "feijao", "frango", "carne", "contra file", "alcatra", "patinho", "picanha", "costela", "linguica",
+  "ovo", "leite", "cafe", "acucar", "oleo", "azeite", "sal", "macarrao", "farinha", "pao", "manteiga",
+  "margarina", "queijo", "presunto", "iogurte", "biscoito", "molho tomate", "banana", "batata", "cebola", "tomate",
+  "alho", "sabao", "detergente", "amaciante", "desinfetante", "agua sanitaria", "papel higienico", "creme dental",
+  "sabonete", "shampoo",
+];
+const PRINCIPAIS = new Set(BASICOS.map((b) => palavras(b)[0]));
+
+// O produto e daquele item da casa? A palavra principal do item aparece no nome (nao
+// precisa abrir o nome nem bater a marca: "frango sadia" acha "Filé de Peito de Frango
+// Seara") e pelo menos metade das palavras do item. "Óleo de Arroz" nao e arroz: o nome
+// abre com outro basico.
+export function ehDoItem(nome: string, item: string): boolean {
+  const ip = palavras(item);
+  const np = palavras(nome);
+  if (!ip.length || !np.includes(ip[0])) return false;
+  if (np[0] !== ip[0] && PRINCIPAIS.has(np[0])) return false;
+  return ip.filter((w) => np.includes(w)).length * 2 >= ip.length;
+}
+
+export type Marca = "lista" | "estoque" | "basico" | null;
+// Destaque: o produto e de algo da lista, do estoque ou do basico de toda casa?
+export function marcaDe(nome: string, lista: string[], estoque: string[]): Marca {
+  if (lista.some((i) => ehDoItem(nome, i))) return "lista";
+  if (estoque.some((i) => ehDoItem(nome, i))) return "estoque";
+  if (BASICOS.some((i) => ehDoItem(nome, i))) return "basico";
   return null;
 }
+
+// Termo para achar o mesmo produto nas outras lojas: as 3 primeiras palavras do nome.
+export const chaveProduto = (nome: string) => palavras(nome).slice(0, 3).join(" ");
 
 // Busca da pessoa: todas as palavras no nome, sem acento ("iogurte grego" acha
 // "Iogurte Grego Vigor").

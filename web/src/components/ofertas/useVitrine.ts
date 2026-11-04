@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { produtoCasa } from "@/lib/comparar";
-import { casaBusca, LOJAS, produtosVtex, urlBusca, type Chip, type Loja, type Produto } from "@/lib/lojasOnline";
+import { casaBusca, ehDoItem, LOJAS, produtosVtex, urlBusca, type Chip, type Loja, type Produto } from "@/lib/lojasOnline";
 
 // Busca a vitrine Livelo direto do celular (as lojas VTEX liberam CORS e o Carrefour
 // bloqueia servidor). Se o celular nao conseguir, tenta pela nossa rota.
@@ -70,7 +69,7 @@ export function useVitrine(itensLista: string[]): Vitrine {
           if (ps.length) ok.add(t.loja.codigo);
           if (t.item) {
             const item = t.item;
-            ps = ps.filter((p) => produtoCasa(p.nome, item)).sort((a, b) => a.preco - b.preco).slice(0, 2);
+            ps = ps.filter((p) => ehDoItem(p.nome, item)).sort((a, b) => a.preco - b.preco).slice(0, 2);
             for (const p of ps) {
               daLista[p.id] = item;
               p.chip ??= "mercado";
