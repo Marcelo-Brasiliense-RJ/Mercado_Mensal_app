@@ -110,3 +110,25 @@ export const CameraIcon = ({ size, className }: P) => (
     <circle cx="12" cy="13.5" r="3.5" />
   </svg>
 );
+
+// Adicionar item: um pacote com um "+" em cima (topo do app: falar, escrever ou foto).
+export const AddItemIcon = ({ size, className }: P) => (
+  <svg {...base(size)} className={className}>
+    <path d="M3.5 9.5 11 6l7.5 3.5V18L11 21.5 3.5 18Z" />
+    <path d="M3.5 9.5 11 13l7.5-3.5M11 13v8.5" />
+    <circle cx="18.5" cy="5.5" r="4.2" fill="currentColor" stroke="none" />
+    <path d="M18.5 3.6v3.8M16.6 5.5h3.8" stroke="var(--card, #fff)" strokeWidth="1.8" />
+  </svg>
+);
+
+// Localizacao: preenchida = ligada e funcionando; contorno com risco = desligada.
+export const PinIcon = ({ size, className, ligado }: P & { ligado: boolean }) => (
+  <svg {...base(size)} className={className}>
+    <path
+      d="M12 21.5s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11Z"
+      fill={ligado ? "currentColor" : "none"}
+    />
+    <circle cx="12" cy="10.5" r="2.3" fill={ligado ? "var(--card, #fff)" : "none"} stroke={ligado ? "none" : "currentColor"} />
+    {!ligado && <path d="M3.5 3.5l17 17" />}
+  </svg>
+);

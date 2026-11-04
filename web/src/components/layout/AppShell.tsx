@@ -9,7 +9,8 @@ import { TabBar } from "./TabBar";
 import { TopBar } from "./TopBar";
 import { ThemeToggle } from "@/theme/ThemeToggle";
 import { ReceiptModal } from "@/components/receipt/ReceiptModal";
-import { MicIcon, RefreshIcon } from "@/components/ui/icons";
+import { AddItemIcon, MicIcon, PinIcon } from "@/components/ui/icons";
+import { atualizarLugar, useLugar } from "@/lib/lugar";
 import { AvatarInitial } from "@/components/ui/AvatarInitial";
 import { useState } from "react";
 import { useStore } from "@/lib/store";
@@ -29,12 +30,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
   // Microfone do topo, em toda tela: "preciso de arroz" ja cai na lista e avisa.
   const [falar, setFalar] = useState(false);
-  const { receiptOpen, openReceipt, closeReceipt, reloadData, dataLoading, showToast } =
-    useStore();
-
-  async function atualizar() {
-    await reloadData();
-    showToast("Atualizado");
+  const { receiptOpen, openReceipt, closeReceipt, showToast } = useStore();
+  // Localizacao no topo: preenchida = ligada; riscada = desligada. Um toque liga.
+  const lugar = useLugar();
+  const gpsLigado = lugar.permitido === "sim";
+  async function tocarGps() {
+    if (lugar.permitido === "sem") return showToast("Este aparelho não tem localização.");
+    if (lugar.permitido === "nao")
+      return showToast("Localização bloqueada. No iPhone: Ajustes › Privacidade › Localização › Safari › Ao Usar.");
+    if (!gpsLigado) {
+      await atualizarLugar(true);
+      return;
+    }
+    await atualizarLugar(true);
+    showToast(lugar.noMercado ? `📍 Você está no mercado${lugar.nomeMercado ? `: ${lugar.nomeMercado}` : ""}` : "📍 Localização ligada: no mercado o app já põe no carrinho.");
   }
   const { household } = useHousehold();
   const meta =
@@ -74,18 +83,23 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <div className="flex items-center">
               <button
                 onClick={() => setFalar(true)}
-                aria-label="Falar"
+                aria-label="Adicionar item"
                 className="grid h-10 w-10 place-items-center rounded-xl text-brand hover:bg-card-2"
               >
-                <MicIcon size={20} />
+                <AddItemIcon size={23} />
               </button>
               <button
-                onClick={atualizar}
-                disabled={dataLoading}
-                aria-label="Atualizar"
-                className="grid h-10 w-10 place-items-center rounded-xl text-text-2 hover:bg-card-2 disabled:opacity-60"
+                onClick={() => void tocarGps()}
+                aria-label={gpsLigado ? "Localização ligada" : "Ligar localização"}
+                aria-pressed={gpsLigado}
+                className={`relative grid h-10 w-10 place-items-center rounded-xl hover:bg-card-2 ${
+                  gpsLigado ? (lugar.noMercado ? "text-pos" : "text-brand") : "text-text-3"
+                }`}
               >
-                <RefreshIcon size={19} className={dataLoading ? "animate-spin" : ""} />
+                <PinIcon size={21} ligado={gpsLigado} />
+                {gpsLigado && lugar.noMercado && (
+                  <span className="absolute right-1.5 top-1.5 h-2 w-2 animate-pulse rounded-full bg-pos ring-2 ring-card" aria-hidden />
+                )}
               </button>
               <ThemeToggle />
             </div>
