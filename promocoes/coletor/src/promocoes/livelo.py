@@ -23,6 +23,9 @@ NOMES = {
     "CRF": "Carrefour Shopping",
     "EXT": "Extra",
     "MZL": "Magalu",
+    "ECO": "Sam's Club",
+    "DPC": "Drogarias Pacheco",
+    "DPS": "Drogaria São Paulo",
 }
 
 
