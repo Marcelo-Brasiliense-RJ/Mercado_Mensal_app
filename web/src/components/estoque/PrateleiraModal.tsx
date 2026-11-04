@@ -281,7 +281,9 @@ export function PrateleiraModal({
   return (
     <Modal open onClose={onClose} maxWidth={620}>
       <div className="mb-3 pr-12">
-        <div className="text-[13px] font-bold text-brand">{noMercado ? "🛒 Foto do carrinho" : "📸 Foto dos produtos"}</div>
+        {(noMercado || fase !== "foto") && (
+          <div className="text-[13px] font-bold text-brand">{noMercado ? "🛒 Foto do carrinho" : "📸 Foto dos produtos"}</div>
+        )}
         <div className="text-[20px] font-extrabold">
           {fase === "revisar"
             ? "Somar ou substituir?"
@@ -293,7 +295,7 @@ export function PrateleiraModal({
             ? `${prontos} de ${caixas.length} prontos`
             : fase === "lendo"
               ? "Abrindo…"
-              : "Fotografe um produto ou vários"}
+              : "Fotografe sua despensa"}
         </div>
         {fase === "marcar" && (
           <div className="mt-2 h-2 overflow-hidden rounded-full bg-card-2">
@@ -305,17 +307,26 @@ export function PrateleiraModal({
       {fase === "foto" && (
         <div className="flex flex-col gap-2">
           {noMercado && (
-            <p className="rounded-[13px] bg-brand-soft p-3 text-[13px] font-semibold text-brand">
-              🛒 Pode fotografar o carrinho inteiro a cada corredor: o que já está no carrinho fica de fora, só os
-              novos entram, com o preço e a quantidade (pack de 4 = 4).
+            <p className="rounded-[13px] bg-brand-soft px-3 py-2 text-[13px] font-semibold text-brand">
+              🛒 Fotografe o carrinho a cada corredor: só os novos entram.
             </p>
           )}
-          <p className="text-[13px] text-text-2">
-            Pode ser <b>um produto só</b> ou o <b>armário/despensa inteiro</b>, do jeito que estiver: não precisa
-            arrumar. Um quadrado aparece em cada produto: <b className="text-pos">verde</b> já entrou,{" "}
-            <b className="text-warn">amarelo</b> você confirma, <b className="text-neg">vermelho</b> você diz o nome. A
-            contagem vira o estoque.
-          </p>
+          {/* Ilustracao no lugar do paragrafo: as tres cores dos quadrados, com uma
+              palavra cada. A explicacao completa aparece na hora, na tela de conferir. */}
+          <div className="mb-1 flex items-end justify-center gap-4 rounded-[16px] border border-dashed border-border bg-card-2 px-4 pb-3 pt-4" aria-label="Verde entra, amarelo você confirma, vermelho você dá o nome">
+            {[
+              { cor: "var(--pos)", ic: "✓", txt: "entra", h: "h-16" },
+              { cor: "var(--warn)", ic: "?", txt: "confirma", h: "h-12" },
+              { cor: "var(--neg)", ic: "Aa", txt: "nomeia", h: "h-14" },
+            ].map((q) => (
+              <div key={q.txt} className="flex flex-col items-center gap-1.5">
+                <div className={`grid ${q.h} w-12 place-items-center rounded-lg border-[3px] text-[16px] font-extrabold`} style={{ borderColor: q.cor, color: q.cor }}>
+                  {q.ic}
+                </div>
+                <span className="text-[12px] font-bold text-text-2">{q.txt}</span>
+              </div>
+            ))}
+          </div>
           <input ref={camera} type="file" accept="image/*" capture="environment" className="hidden" aria-label="Tirar foto dos produtos"
             onChange={(e) => { void ler(e.target.files?.[0]); e.target.value = ""; }} />
           <input ref={galeria} type="file" accept="image/*" className="hidden" aria-label="Foto da galeria"

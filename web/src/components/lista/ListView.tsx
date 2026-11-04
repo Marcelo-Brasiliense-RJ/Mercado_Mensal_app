@@ -286,15 +286,31 @@ export function ListView() {
                 Fechar
               </button>
             )}
-            <div className="text-[12px] font-bold uppercase tracking-wide text-text-3">Onde compensa comprar</div>
-            {resumoLista.mercados[0] && (
-              <div className="mt-1 text-[15px] font-extrabold">
-                🏆 {nomeMercado(resumoLista.mercados[0].mercado)}: {resumoLista.mercados[0].itens} de {pendentes.length} itens
-                em oferta
-              </div>
-            )}
-            <div className="mt-2.5 flex flex-col gap-1.5">
-              {resumoLista.mercados
+            {resumoLista.mercados[0] && (() => {
+              const m0 = resumoLista.mercados[0];
+              const pct = pendentes.length ? Math.min(1, m0.itens / pendentes.length) : 0;
+              return (
+                <div className="flex items-center gap-3">
+                  {/* Anel: quanto da lista esta em oferta no melhor mercado, sem precisar ler. */}
+                  <div className="relative h-14 w-14 shrink-0">
+                    <svg viewBox="0 0 36 36" className="h-14 w-14 -rotate-90" aria-hidden>
+                      <circle cx="18" cy="18" r="15" fill="none" stroke="var(--card-2)" strokeWidth="5" />
+                      <circle cx="18" cy="18" r="15" fill="none" stroke="var(--brand)" strokeWidth="5" strokeLinecap="round"
+                        strokeDasharray={`${Math.max(pct * 94.2, 3)} 94.2`} />
+                    </svg>
+                    <span className="absolute inset-0 grid place-items-center text-[13px] font-extrabold tabular-nums">
+                      {m0.itens}/{pendentes.length}
+                    </span>
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-[13px] font-bold text-text-2">em oferta</div>
+                    <div className="truncate text-[18px] font-extrabold">🏆 {nomeMercado(m0.mercado)}</div>
+                  </div>
+                </div>
+              );
+            })()}
+            <div className="mt-3 flex flex-col gap-1.5">
+              {(() => { const maxItens = Math.max(1, ...resumoLista.mercados.map((x) => x.itens)); return resumoLista.mercados
                 .filter((m) => m.itens > 0)
                 .map((m, i) => {
                   const on = filtro === m.mercado;
@@ -312,9 +328,15 @@ export function ListView() {
                       >
                         {nomeMercado(m.mercado)}
                       </span>
-                      <span className="flex-1 text-[13px] text-text-2">
-                        {m.itens} {m.itens > 1 ? "itens" : "item"}
-                        {conta[m.mercado] ? ` · ${conta[m.mercado]} mais barato${conta[m.mercado] > 1 ? "s" : ""} aqui` : ""}
+                      {/* Barra = quantos itens da lista saem em oferta aqui. */}
+                      <span className="flex min-w-0 flex-1 items-center gap-2">
+                        <span className="h-2.5 flex-1 overflow-hidden rounded-full bg-card-2">
+                          <span
+                            className="block h-full rounded-full"
+                            style={{ width: `${Math.max(8, (m.itens / maxItens) * 100)}%`, background: corMercado(m.mercado) }}
+                          />
+                        </span>
+                        <span className="shrink-0 text-[13px] font-bold tabular-nums text-text-2">{m.itens}</span>
                       </span>
                       <span className="text-[15px] font-extrabold tabular-nums">{brl(m.total)}</span>
                       {i === 0 && <span className="text-[16px]" aria-hidden>🏆</span>}
@@ -323,15 +345,25 @@ export function ListView() {
                       </span>
                     </button>
                   );
-                })}
-            </div>
-            <div className="mt-2 text-[12px] text-text-3">
-              {filtro ? "Mostrando só o que vale comprar lá." : "Toque num mercado para ver os produtos e ir até lá."}
+                }); })()}
             </div>
             {resumoLista.itens.some((x) => !x.opcoes.length) && (
-              <div className="mt-1 text-[12px] text-text-3">
-                Sem oferta esta semana: {resumoLista.itens.filter((x) => !x.opcoes.length).map((x) => x.item.nome).join(", ")}.
-              </div>
+              // Recolhido: a lista inteira so aparece se a pessoa quiser ver.
+              <details className="group mt-2.5">
+                <summary className="inline-flex h-8 cursor-pointer list-none items-center gap-1.5 rounded-full bg-card-2 px-3 text-[13px] font-bold text-text-2 [&::-webkit-details-marker]:hidden">
+                  🏷️ {resumoLista.itens.filter((x) => !x.opcoes.length).length} sem oferta
+                  <span className="transition-transform group-open:rotate-180" aria-hidden>⌄</span>
+                </summary>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {resumoLista.itens
+                    .filter((x) => !x.opcoes.length)
+                    .map((x) => (
+                      <span key={x.item.nome} className="max-w-full truncate rounded-full border border-border px-2.5 py-1 text-[12px] capitalize text-text-2">
+                        {x.item.nome}
+                      </span>
+                    ))}
+                </div>
+              </details>
             )}
             <button
               onClick={() => setRotaAberta(true)}
