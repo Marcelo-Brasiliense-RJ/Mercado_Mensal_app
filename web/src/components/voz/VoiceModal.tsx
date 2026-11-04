@@ -1082,19 +1082,27 @@ function PerguntaNaoComprar({
             <span className="text-[12px] font-extrabold uppercase tracking-wide text-text-3">🚫 Não comprar</span>
             <span className="h-px flex-1 bg-border" />
           </div>
-          <div className="text-[17px] font-extrabold">
-            Por que não comprar {nome}?
-            {p.fila.length > 1 && (
-              <span className="ml-1.5 text-[12px] font-bold text-text-3">
-                ({p.i + 1} de {p.fila.length})
-              </span>
-            )}
-          </div>
+          <div className="text-[17px] font-extrabold">Por que não comprar {nome}?</div>
         </>
       )}
-      {!p.adicionados.length && p.fila.length > 1 && fase !== "marca" && (
-        <div className="text-[12px] font-bold text-text-3">
-          Item {p.i + 1} de {p.fila.length}
+      {/* Quais sao os itens do "nao comprar": ja respondido (✓), agora (destaque), depois. */}
+      {p.fila.length > 1 && fase !== "marca" && (
+        <div className="flex flex-wrap gap-1.5" aria-label="Itens para não comprar">
+          {p.fila.map((n, k) => (
+            <span
+              key={`${n}-${k}`}
+              className={`rounded-full px-2.5 py-1 text-[12px] font-bold capitalize ${
+                k < p.i
+                  ? "bg-pos-soft text-pos"
+                  : k === p.i
+                    ? "bg-text text-bg"
+                    : "border border-border text-text-3"
+              }`}
+            >
+              {k < p.i ? "✓ " : k === p.i ? "👉 " : ""}
+              {n}
+            </span>
+          ))}
         </div>
       )}
 
