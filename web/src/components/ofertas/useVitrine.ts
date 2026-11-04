@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { produtoCasa } from "@/lib/comparar";
-import { LOJAS, produtosVtex, urlBusca, type Chip, type Loja, type Produto } from "@/lib/lojasOnline";
+import { casaBusca, LOJAS, produtosVtex, urlBusca, type Chip, type Loja, type Produto } from "@/lib/lojasOnline";
 
 // Busca a vitrine Livelo direto do celular (as lojas VTEX liberam CORS e o Carrefour
 // bloqueia servidor). Se o celular nao conseguir, tenta pela nossa rota.
@@ -92,4 +92,37 @@ export function useVitrine(itensLista: string[]): Vitrine {
   }, [chave]);
 
   return v;
+}
+
+// Busca da pessoa ("iogurte"): em todas as lojas, mais barato primeiro.
+export function useBuscaLojas(termo: string): { produtos: Produto[]; carregando: boolean } {
+  const [r, setR] = useState<{ termo: string; produtos: Produto[]; carregando: boolean }>({
+    termo: "",
+    produtos: [],
+    carregando: false,
+  });
+  const t = termo.trim();
+  useEffect(() => {
+    if (t.length < 2) return;
+    let vivo = true;
+    const espera = setTimeout(() => {
+      setR({ termo: t, produtos: [], carregando: true });
+      let faltam = LOJAS.length;
+      const achados: Produto[] = [];
+      for (const loja of LOJAS) {
+        void buscar(loja, { q: t, ate: 19 })
+          .then((d) => achados.push(...produtosVtex(d, loja).filter((p) => casaBusca(p.nome, t))))
+          .catch(() => {})
+          .finally(() => {
+            faltam -= 1;
+            if (vivo) setR({ termo: t, produtos: [...achados].sort((a, b) => a.preco - b.preco), carregando: faltam > 0 });
+          });
+      }
+    }, 450);
+    return () => {
+      vivo = false;
+      clearTimeout(espera);
+    };
+  }, [t]);
+  return t.length < 2 ? { produtos: [], carregando: false } : r.termo === t ? r : { produtos: [], carregando: true };
 }

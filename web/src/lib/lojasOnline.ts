@@ -12,19 +12,18 @@
 // Loja nova = uma linha aqui (codigo da Livelo + site VTEX).
 import { produtoCasa } from "./comparar";
 
-export type Chip = "mercado" | "limpeza" | "casa" | "eletro" | "lazer";
+export type Chip = "mercado" | "limpeza" | "casa";
 export const CHIPS: { id: Chip; nome: string; emoji: string }[] = [
   { id: "mercado", nome: "Mercado", emoji: "🛒" },
   { id: "limpeza", nome: "Limpeza", emoji: "🧽" },
-  { id: "casa", nome: "Casa", emoji: "🛋️" },
-  { id: "eletro", nome: "Eletro", emoji: "🔌" },
-  { id: "lazer", nome: "Lazer", emoji: "⚽" },
+  { id: "casa", nome: "Casa", emoji: "🛋️" }, // casa, eletro e lazer: separado do mercado
 ];
 
 export type Loja = {
   codigo: string; // codigo do parceiro na Livelo (pontos por real vem de la, sozinho)
   nome: string;
   emoji: string;
+  cor: string; // etiqueta da loja no cartao, na cor da marca
   site: string;
   slug: string; // pagina do parceiro na Livelo: e por la que a compra pontua
   ptsPadrao: number; // pt/R$ sem campanha, se a tabela da Livelo nao carregar
@@ -42,6 +41,7 @@ export const TODAS_LOJAS: Loja[] = [
     codigo: "CRM",
     nome: "Carrefour",
     emoji: "🛒",
+    cor: "#D7141A",
     site: "https://mercado.carrefour.com.br",
     slug: "carrefour",
     ptsPadrao: 1,
@@ -52,6 +52,7 @@ export const TODAS_LOJAS: Loja[] = [
     codigo: "ECO",
     nome: "Sam's Club",
     emoji: "📦",
+    cor: "#0067A0",
     site: "https://www.samsclub.com.br",
     slug: "sams-club-e-commerce",
     ptsPadrao: 1,
@@ -59,28 +60,29 @@ export const TODAS_LOJAS: Loja[] = [
     ativa: true,
     obs: "precisa ser sócio",
     categorias: {
-      mercado: [6, 7, 4, 10, 24],
+      // Foco do dono: compra do mes. Mercado pega mais departamentos.
+      mercado: [6, 7, 4, 10, 3, 9, 11, 8, 24],
       limpeza: [12, 13],
-      casa: [16, 20, 19, 18],
-      eletro: [22, 21, 23],
-      lazer: [17, 25, 15],
+      casa: [20, 22, 16, 18, 17],
     },
   },
   {
     codigo: "MDI",
     nome: "Midea",
     emoji: "🔌",
+    cor: "#00A0DF",
     site: "https://www.midea.com.br",
     slug: "midea",
     ptsPadrao: 1,
     tipo: "casa",
     ativa: true,
-    chipFixo: "eletro",
+    chipFixo: "casa",
   },
   {
     codigo: "DPC",
     nome: "Pacheco",
     emoji: "💊",
+    cor: "#E2001A",
     site: "https://www.drogariaspacheco.com.br",
     slug: "drogarias-pacheco",
     ptsPadrao: 1,
@@ -91,6 +93,7 @@ export const TODAS_LOJAS: Loja[] = [
     codigo: "DPS",
     nome: "Drogaria SP",
     emoji: "💊",
+    cor: "#E30613",
     site: "https://www.drogariasaopaulo.com.br",
     slug: "drogaria-sao-paulo",
     ptsPadrao: 1,
@@ -148,9 +151,7 @@ const sem = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCas
 // Departamento do site -> chip. O que nao e de casa (moda, carro...) fica de fora.
 const DEPTO: [RegExp, Chip][] = [
   [/limpeza|higiene|beleza|perfumaria|lavanderia|descartave/, "limpeza"],
-  [/eletro|informatica|celular|tv |televis|games|ar e ventila|climatiza/, "eletro"],
-  [/cama|mesa|banho|utilidade|movei|decora|casa|cozinha|jardim|ferrament|pet/, "casa"],
-  [/esporte|lazer|brinquedo|sazonal|bebe|kids|camping|piscina|festa/, "lazer"],
+  [/eletro|informatica|celular|televis|games|ar e |climatiza|cama|mesa|banho|utilidade|movei|decora|casa|cozinha|jardim|ferrament|pet|esporte|lazer|brinquedo|sazonal|bebe|kids|camping|piscina|festa/, "casa"],
   [/mercearia|bebida|vinho|acougue|hortifruti|congelad|frios|laticin|padaria|saudave|importad|doce|matinal|biscoito|cafe/, "mercado"],
 ];
 export function chipDoDepto(depto: string): Chip | null {
@@ -201,4 +202,11 @@ export function marcaDe(nome: string, lista: string[], estoque: string[]): "list
   if (lista.some((i) => produtoCasa(nome, i))) return "lista";
   if (estoque.some((i) => produtoCasa(nome, i))) return "estoque";
   return null;
+}
+
+// Busca da pessoa: todas as palavras no nome, sem acento ("iogurte grego" acha
+// "Iogurte Grego Vigor").
+export function casaBusca(nome: string, termo: string): boolean {
+  const n = sem(nome);
+  return sem(termo).split(/\s+/).filter(Boolean).every((p) => n.includes(p.replace(/s$/, "")));
 }

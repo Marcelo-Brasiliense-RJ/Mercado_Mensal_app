@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chipDoDepto, fimCampanha, lojaDe, marcaDe, melhorOnline, produtosVtex } from "./lojasOnline";
+import { casaBusca, chipDoDepto, fimCampanha, lojaDe, marcaDe, melhorOnline, produtosVtex } from "./lojasOnline";
 
 describe("melhor loja online", () => {
   it("mesmo preco: ganha a que da mais pontos", () => {
@@ -51,7 +51,8 @@ describe("vitrine", () => {
     expect(produtosVtex([vtex("Parafuso", 0.09, 59.9), vtex("Kit", 5, 100)], sams)).toHaveLength(0);
   });
   it("departamentos", () => {
-    expect(chipDoDepto("Eletroportáteis")).toBe("eletro");
+    expect(chipDoDepto("Eletroportáteis")).toBe("casa");
+    expect(chipDoDepto("Esporte e Lazer")).toBe("casa");
     expect(chipDoDepto("Cama Mesa e Banho")).toBe("casa");
     expect(chipDoDepto("Mercearia Doce")).toBe("mercado");
     expect(chipDoDepto("Moda")).toBeNull();
@@ -60,5 +61,13 @@ describe("vitrine", () => {
     expect(marcaDe("Arroz Camil 5kg", ["arroz"], [])).toBe("lista");
     expect(marcaDe("Café Pilão 500g", ["arroz"], ["café"])).toBe("estoque");
     expect(marcaDe("Air Fryer Midea", ["arroz"], ["café"])).toBeNull();
+  });
+});
+
+describe("busca", () => {
+  it("todas as palavras, sem acento", () => {
+    expect(casaBusca("Iogurte Grego Vigor 500g", "iogurte grego")).toBe(true);
+    expect(casaBusca("Café Pilão", "cafe")).toBe(true);
+    expect(casaBusca("Iogurte Natural", "iogurte grego")).toBe(false);
   });
 });

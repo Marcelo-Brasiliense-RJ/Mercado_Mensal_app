@@ -7,19 +7,20 @@ import { COR_LIVELO } from "@/lib/ofertas";
 import { paridadeDe, ptsCertos, ptsMax } from "@/lib/livelo";
 import { CHIPS, fimCampanha, linkLivelo, lojaDe, LOJAS, marcaDe, type Chip, type Loja, type Produto } from "@/lib/lojasOnline";
 import { useLivelo } from "./useLivelo";
-import { useVitrine } from "./useVitrine";
+import { useBuscaLojas, useVitrine } from "./useVitrine";
 
 // Aba Livelo (5a versao). Pedido do dono: "que nem Ofertas": uma vitrine de ofertas de
 // coisas de casa nas lojas que pontuam na Livelo, com destaque para o que esta na lista
 // e no estoque. Serve tambem para montar a lista ("+ Lista"). Comprar = entrar pela
 // Livelo, senao nao pontua. Lojas e categorias: src/lib/lojasOnline.ts.
 
-type Filtro = "tudo" | "lista" | Chip;
+type Filtro = "lista" | Chip;
 
 export function LiveloView() {
   const { shopping, stock, addShopItem, showToast } = useStore();
   const lv = useLivelo();
-  const [filtro, setFiltro] = useState<Filtro>("tudo");
+  const [filtro, setFiltro] = useState<Filtro>("mercado"); // foco do dono: compra do mes
+  const [termo, setTermo] = useState("");
   const [postos, setPostos] = useState<Set<string>>(new Set());
 
   const lista = useMemo(
@@ -28,6 +29,8 @@ export function LiveloView() {
   );
   const estoque = useMemo(() => stock.map((s) => s.name.trim().toLowerCase()), [stock]);
   const v = useVitrine(lista);
+  const busca = useBuscaLojas(termo);
+  const buscando = termo.trim().length >= 2;
 
   const ptsDe = (l: Loja) => {
     const p = lv ? paridadeDe(lv, l.codigo) : undefined;
@@ -51,9 +54,13 @@ export function LiveloView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- ptsDe so muda com lv
   }, [v, lista, estoque, lv]);
 
-  const visiveis = cards.filter((c) =>
-    filtro === "tudo" ? true : filtro === "lista" ? c.marca !== null : c.chip === filtro,
-  );
+  const comPontos = (ps: Produto[]): Card[] => {
+    const ptsLoja = Object.fromEntries(LOJAS.map((l) => [l.codigo, ptsDe(l)]));
+    return ps.map((p) => ({ ...p, pts: Math.round(p.preco * (ptsLoja[p.loja] ?? 1)), marca: marcaDe(p.nome, lista, estoque) }));
+  };
+  const visiveis = buscando
+    ? comPontos(busca.produtos)
+    : cards.filter((c) => (filtro === "lista" ? c.marca !== null : c.chip === filtro));
   const naLista = cards.filter((c) => c.marca !== null).length;
 
   async function porNaLista(c: Card) {
@@ -89,30 +96,59 @@ export function LiveloView() {
         </a>
       ))}
 
+      {/* Busca: o resultado aparece embaixo, em fotos */}
+      <label className="flex h-12 items-center gap-2 rounded-[14px] border border-border bg-card px-3.5">
+        <span className="text-[18px]">🔎</span>
+        <input
+          value={termo}
+          onChange={(e) => setTermo(e.target.value)}
+          placeholder="Buscar produto (ex.: iogurte)"
+          enterKeyHint="search"
+          className="min-w-0 flex-1 bg-transparent text-[16px] outline-none"
+        />
+        {termo && (
+          <button onClick={() => setTermo("")} aria-label="Limpar busca" className="text-[18px] text-text-3">
+            ✕
+          </button>
+        )}
+      </label>
+
       {/* Filtros */}
       <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
-        <Pilula ativo={filtro === "tudo"} onClick={() => setFiltro("tudo")}>
-          🔥 Tudo
-        </Pilula>
+        {CHIPS.slice(0, 1).map((c) => (
+          <Pilula key={c.id} ativo={!buscando && filtro === c.id} onClick={() => (setFiltro(c.id), setTermo(""))}>
+            {c.emoji} {c.nome}
+          </Pilula>
+        ))}
         {naLista > 0 && (
-          <Pilula ativo={filtro === "lista"} onClick={() => setFiltro("lista")}>
+          <Pilula ativo={!buscando && filtro === "lista"} onClick={() => (setFiltro("lista"), setTermo(""))}>
             📝 Da sua casa ({naLista})
           </Pilula>
         )}
-        {CHIPS.map((c) => (
-          <Pilula key={c.id} ativo={filtro === c.id} onClick={() => setFiltro(c.id)}>
+        {CHIPS.slice(1).map((c) => (
+          <Pilula key={c.id} ativo={!buscando && filtro === c.id} onClick={() => (setFiltro(c.id), setTermo(""))}>
             {c.emoji} {c.nome}
           </Pilula>
         ))}
       </div>
 
-      {v.carregando && (
+      {buscando && (
+        <div className="px-1 text-[15px] font-extrabold">
+          {busca.carregando
+            ? `🔎 Procurando "${termo.trim()}"…`
+            : busca.produtos.length
+              ? `${busca.produtos.length} ${busca.produtos.length === 1 ? "achado" : "achados"} para "${termo.trim()}"`
+              : `Não achei "${termo.trim()}" nas lojas 😕`}
+        </div>
+      )}
+
+      {v.carregando && !buscando && (
         <div className="flex items-center gap-2 rounded-[14px] bg-card-2 px-3 py-2 text-[14px] font-bold text-text-2">
           <span className="animate-pulse">🔎</span> Buscando ofertas nas lojas…
         </div>
       )}
 
-      {!v.carregando && !cards.length && (
+      {!v.carregando && !cards.length && !buscando && (
         <div className="rounded-[18px] border border-border bg-card p-5 text-center">
           <div className="text-[32px]">😕</div>
           <div className="text-[16px] font-extrabold">As lojas não responderam agora</div>
@@ -202,9 +238,12 @@ function Cartao({
         )}
       </a>
       <div className="flex flex-1 flex-col gap-1 p-2.5">
-        <div className="text-[11px] font-bold text-text-3">
-          {loja.emoji} {loja.nome}
-        </div>
+        <span
+          className="self-start rounded-md px-2 py-0.5 text-[11px] font-extrabold text-white"
+          style={{ background: loja.cor }}
+        >
+          {loja.nome}
+        </span>
         <div className="line-clamp-2 text-[13px] font-bold leading-tight">{c.nome}</div>
         <div className="mt-auto">
           {c.de && <div className="text-[12px] text-text-3 line-through">{brl(c.de)}</div>}
