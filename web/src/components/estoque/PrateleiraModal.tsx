@@ -15,6 +15,7 @@ import {
   daMemoria,
   limpar,
   qualidadeDe,
+  unidadesDe,
   type Achado,
   type Box,
   type Cor,
@@ -40,6 +41,7 @@ type Caixa = {
   cor: Cor;
   corInicial: Cor;
   pronto: boolean;
+  unidades: number; // dentro da embalagem: fardo de 12 = 12
   // a segunda olhada (recorte) leu outra coisa: as duas viram opcao de um toque
   opcoes?: string[];
 };
@@ -167,7 +169,7 @@ export function PrateleiraModal({ onClose, onUmSo }: { onClose: () => void; onUm
         return setFase("foto");
       }
       // Um produto so: e foto de produto, nao de prateleira. Vai pelo caminho de sempre.
-      if (achados.length === 1 && onUmSo) {
+      if (achados.length === 1 && unidadesDe(achados[0]) === 1 && onUmSo) {
         onUmSo(arquivo);
         return onClose();
       }
@@ -193,7 +195,7 @@ export function PrateleiraModal({ onClose, onUmSo }: { onClose: () => void; onUm
         const cor = corDe({ nome, legivel: a.legivel || !!lembrado, conferido: conferidos[i], daMemoria: !!lembrado, conhecidos });
         const segunda = conferidos[i];
         const opcoes = cor === "vermelho" ? [...new Set([segunda, nome].filter((x): x is string => !!x))] : undefined;
-        return { id: `c${i}`, box: a.box, lido: a.nome, nome: cor === "vermelho" ? (segunda || nome || "") : nome, cor, corInicial: cor, pronto: cor === "verde", opcoes };
+        return { id: `c${i}`, box: a.box, lido: a.nome, nome: cor === "vermelho" ? (segunda || nome || "") : nome, cor, corInicial: cor, pronto: cor === "verde", unidades: unidadesDe(a), opcoes };
       });
       setCaixas(lista);
       setFase("marcar");
@@ -400,7 +402,7 @@ export function PrateleiraModal({ onClose, onUmSo }: { onClose: () => void; onUm
             if (!desenhando) return;
             inicioDesenho.current = null;
             if (rascunho && (rascunho[2] - rascunho[0]) * (rascunho[3] - rascunho[1]) > 0.002) {
-              const nova: Caixa = { id: `m${Date.now()}`, box: rascunho, lido: "", nome: "", cor: "vermelho", corInicial: "vermelho", pronto: false };
+              const nova: Caixa = { id: `m${Date.now()}`, box: rascunho, lido: "", nome: "", cor: "vermelho", corInicial: "vermelho", pronto: false, unidades: 1 };
               setCaixas((l) => [...l, nova]);
               abrir(nova);
             }
@@ -447,6 +449,11 @@ export function PrateleiraModal({ onClose, onUmSo }: { onClose: () => void; onUm
               >
                 {c.pronto ? "✓" : c.cor === "vermelho" ? "?" : i + 1}
               </span>
+              {c.unidades > 1 && (
+                <span className="absolute bottom-1 right-1 rounded-md bg-black/75 px-1.5 py-0.5 text-[11px] font-extrabold text-white">
+                  ×{c.unidades}
+                </span>
+              )}
             </button>
           ))}
           {rascunho && (
@@ -535,6 +542,25 @@ export function PrateleiraModal({ onClose, onUmSo }: { onClose: () => void; onUm
                   )}
                 </form>
               )}
+              <div className="mt-3 flex items-center justify-between gap-2 rounded-[12px] bg-card-2 px-3 py-2">
+                <span className="text-[13px] font-bold text-text-2">
+                  {atual.unidades > 1 ? "📦 Caixa/fardo: unidades dentro" : "Unidades neste quadrado"}
+                </span>
+                <div className="flex items-center gap-1">
+                  {[-1, 1].map((d) => (
+                    <button
+                      key={d}
+                      type="button"
+                      aria-label={d < 0 ? "Menos uma unidade" : "Mais uma unidade"}
+                      onClick={() => setCaixas((l) => l.map((c) => (c.id === atual.id ? { ...c, unidades: Math.max(1, c.unidades + d) } : c)))}
+                      className={`grid h-10 w-10 place-items-center rounded-[10px] border-2 border-border bg-card text-[18px] font-extrabold ${d > 0 ? "order-3" : ""}`}
+                    >
+                      {d < 0 ? "−" : "+"}
+                    </button>
+                  ))}
+                  <span className="order-2 min-w-[2.5ch] text-center text-[17px] font-extrabold">{atual.unidades}</span>
+                </div>
+              </div>
               <button onClick={() => apagar(atual.id)} className="mt-2 text-[13px] font-bold text-text-3 underline">
                 🗑 Não é produto: apagar este quadrado
               </button>

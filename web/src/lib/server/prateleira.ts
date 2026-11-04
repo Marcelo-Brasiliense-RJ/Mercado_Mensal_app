@@ -11,6 +11,7 @@ export type Achado = {
   nome: string; // produto generico + marca, como a casa fala ("café pilão")
   rotulo: string; // como esta escrito ("Café Pilão Tradicional 250g")
   legivel: boolean;
+  unidades: number; // quantas unidades dentro da embalagem (fardo de 12 leites = 12)
 };
 
 const DETECTAR = `Foto tirada no celular de um ou vários produtos de uma casa brasileira: pode ser um produto só na mão ou na mesa, ou um armário, despensa, geladeira, chão ou bancada.
@@ -18,10 +19,17 @@ A foto costuma ser RUIM e é normal: torta ou de lado (rótulo de cabeça para b
 As embalagens também: pacotes abertos, dobrados, amassados ou fechados com prendedor de roupa; caixa de fardo (ex.: caixa de 12 leites); produto passado para saco plástico transparente ou pote sem rótulo.
 Encontre CADA embalagem de produto visível (uma por uma: 3 pacotes iguais lado a lado = 3 itens). Inclua o que está parcialmente escondido atrás de outro se dá para ver que é um produto.
 Para descobrir o que é, use tudo: texto em qualquer orientação, marca, cor e formato da embalagem, e o conteúdo que aparece (saco transparente com grão preto = "feijão preto", grão bege redondo = "grão de bico", pó branco em saco = farinha/açúcar/sal pelo que estiver escrito).
+Contagem, do jeito que se conta estoque em casa:
+- Unidades soltas (lado a lado, empilhadas, uma atrás da outra): um quadrado para CADA uma, inclusive a de trás quando aparece um pedaço dela.
+- Caixa de fardo/embarque de papelão (ex.: "contém 12 unidades de 1L") ou pack plastificado (6 óleos, 12 latas): UM quadrado na caixa/pack, e em "unidades" quantas tem dentro. Fechada: o número impresso ou o tamanho padrão do fardo. Aberta, com buraco ou faltando: conte/estime o que dá para ver dentro.
+- O "nome" do fardo é o produto de dentro ("leite italac"), nunca "caixa" ou "fardo".
+- Pacote vendido assim com várias coisinhas dentro (pacote de sachês, caixa de gelatina, caixa de chá) = 1 unidade.
+- Embalagens iguais recebem EXATAMENTE o mesmo "nome", para somar certo (3 milhos Predilecta = 3x "milho predilecta").
 Para cada uma devolva:
 - "box_2d": [ymin, xmin, ymax, xmax] de 0 a 1000, um retângulo JUSTO em volta daquela embalagem inteira (da tampa à base, borda a borda), sem pegar a embalagem vizinha.
 - "rotulo": o que está escrito na frente (tipo, marca, variante, tamanho). Vazio se não dá para ler.
 - "nome": o produto como se fala em casa, minúsculo, produto + marca, sem tamanho ("café pilão", "leite italac", "detergente ypê"). Vazio se não sabe o que é.
+- "unidades": inteiro, quantas unidades do produto essa embalagem representa (1 na maioria; o número do fardo/pack).
 - "legivel": true se você leu a marca/produto com segurança; false se é palpite ou não dá para ler.
 - "legivel" é false quando o nome é dedução pelo formato/conteúdo, sem ler a marca.
 Não marque prateleira, parede, móvel, prendedor, sacola de mercado vazia nem reflexo. Máximo de 60 itens.`;
@@ -35,8 +43,9 @@ const ESQUEMA_DETECTAR = {
       rotulo: { type: "STRING" },
       nome: { type: "STRING" },
       legivel: { type: "BOOLEAN" },
+      unidades: { type: "INTEGER" },
     },
-    required: ["box_2d", "rotulo", "nome", "legivel"],
+    required: ["box_2d", "rotulo", "nome", "legivel", "unidades"],
   },
 };
 
@@ -70,12 +79,14 @@ export async function detectar(foto: string): Promise<{ ok: true; itens: Achado[
     const b = (o as { box_2d?: unknown }).box_2d;
     if (!Array.isArray(b) || b.length !== 4 || !b.every((n) => typeof n === "number")) continue;
     const [y0, x0, y1, x1] = (b as number[]).map((n) => Math.min(1000, Math.max(0, n)) / 1000);
-    const r = o as { nome?: unknown; rotulo?: unknown; legivel?: unknown };
+    const r = o as { nome?: unknown; rotulo?: unknown; legivel?: unknown; unidades?: unknown };
+    const u = Math.round(Number(r.unidades));
     itens.push({
       box: [Math.min(y0, y1), Math.min(x0, x1), Math.max(y0, y1), Math.max(x0, x1)],
       nome: String(r.nome ?? "").trim().toLowerCase(),
       rotulo: String(r.rotulo ?? "").trim(),
       legivel: r.legivel === true,
+      unidades: Number.isFinite(u) ? Math.min(48, Math.max(1, u)) : 1,
     });
   }
   return { ok: true, itens };

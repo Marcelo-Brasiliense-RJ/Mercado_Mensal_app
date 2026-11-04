@@ -73,3 +73,15 @@ describe("produto sozinho de perto", () => {
     expect(r.map((a) => a.nome)).toEqual(["milho predilecta"]);
   });
 });
+
+describe("fardo e unidades", () => {
+  it("fardo de 12 + 2 soltos do mesmo produto = 14", () => {
+    const g = agrupar([
+      { nome: "leite italac", unidades: 12 },
+      { nome: "leite italac" },
+      { nome: "Leite Italac", unidades: 1 },
+    ]);
+    expect(g).toHaveLength(1);
+    expect(g[0].qtd).toBe(14);
+  });
+});

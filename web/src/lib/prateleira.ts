@@ -10,7 +10,8 @@
 //   A pessoa diz o nome.
 
 export type Box = [number, number, number, number]; // ymin, xmin, ymax, xmax em 0..1
-export type Achado = { box: Box; nome: string; rotulo: string; legivel: boolean };
+// unidades: quantas tem dentro da embalagem (fardo de 12 leites = 12). Sem o campo = 1.
+export type Achado = { box: Box; nome: string; rotulo: string; legivel: boolean; unidades?: number };
 export type Cor = "verde" | "amarelo" | "vermelho";
 
 const area = (b: Box) => Math.max(0, b[2] - b[0]) * Math.max(0, b[3] - b[1]);
@@ -96,17 +97,19 @@ export function daMemoria(lido: string, memoria: Map<string, string>): string | 
   return memoria.get(chaveLido(lido)) ?? null;
 }
 
-// Junta quadrados do mesmo produto em quantidade (3 Pilao lado a lado = 3).
-export function agrupar<T extends { nome: string }>(itens: T[]): { nome: string; qtd: number; itens: T[] }[] {
+// Junta quadrados do mesmo produto em quantidade (3 Pilao lado a lado = 3; um fardo
+// de 12 leites + 2 soltos = 14).
+export const unidadesDe = (it: { unidades?: number }) => Math.max(1, Math.round(it.unidades ?? 1));
+export function agrupar<T extends { nome: string; unidades?: number }>(itens: T[]): { nome: string; qtd: number; itens: T[] }[] {
   const grupos: { nome: string; qtd: number; itens: T[] }[] = [];
   for (const it of itens) {
     const n = it.nome.trim();
     if (!n) continue;
     const g = grupos.find((x) => chaveLido(x.nome) === chaveLido(n));
     if (g) {
-      g.qtd += 1;
+      g.qtd += unidadesDe(it);
       g.itens.push(it);
-    } else grupos.push({ nome: n, qtd: 1, itens: [it] });
+    } else grupos.push({ nome: n, qtd: unidadesDe(it), itens: [it] });
   }
   return grupos;
 }
