@@ -495,11 +495,7 @@ export function ListView() {
         <div className="h-[104px] lg:hidden" />
       </div>
 
-      <QuickBar
-        onVoice={() => setVoiceOpen(true)}
-        onScan={() => setScanOpen(true)}
-        onFoto={() => setFotoOpen(true)}
-      />
+      <QuickBar />
       {addManualOpen && <AddItemModal open onClose={() => setAddManualOpen(false)} />}
       {fotoOpen && (
         <FotoModal

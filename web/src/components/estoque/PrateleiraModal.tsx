@@ -61,7 +61,17 @@ const COR: Record<Cor, string> = { verde: "#16a34a", amarelo: "#eab308", vermelh
 
 // Sem `job`: escolher a foto, que vai para a fila em segundo plano (lib/filaPrateleira)
 // e a tela fecha na hora. Com `job` (a foto ja lida): marcar, conferir e guardar.
-export function PrateleiraModal({ onClose, destino = "estoque", job }: { onClose: () => void; destino?: Destino; job?: JobFoto }) {
+export function PrateleiraModal({
+  onClose,
+  destino = "estoque",
+  job,
+  onListaEscrita,
+}: {
+  onClose: () => void;
+  destino?: Destino;
+  job?: JobFoto;
+  onListaEscrita?: (f: File) => void; // foto de lista no papel: vai para o "entender" (voz)
+}) {
   const { stock, addStock, addTripItem, trip, showToast } = useStore();
   const noMercado = destino === "carrinho";
   const ofertas = useListaOfertas();
@@ -81,6 +91,7 @@ export function PrateleiraModal({ onClose, destino = "estoque", job }: { onClose
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const camera = useRef<HTMLInputElement>(null);
   const galeria = useRef<HTMLInputElement>(null);
+  const papel = useRef<HTMLInputElement>(null);
   const areaRef = useRef<HTMLDivElement>(null);
   const inicioDesenho = useRef<[number, number] | null>(null);
   const segurar = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -312,6 +323,15 @@ export function PrateleiraModal({ onClose, destino = "estoque", job }: { onClose
           <button onClick={() => galeria.current?.click()} className="h-12 rounded-[14px] border-2 border-border bg-card text-[15px] font-bold">
             🖼 Escolher da galeria
           </button>
+          {onListaEscrita && (
+            <>
+              <input ref={papel} type="file" accept="image/*" className="hidden" aria-label="Foto de uma lista escrita"
+                onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) onListaEscrita(f); }} />
+              <button onClick={() => papel.current?.click()} className="h-10 text-[13px] font-bold text-text-2 underline">
+                📝 É uma lista escrita no papel
+              </button>
+            </>
+          )}
           {erro && <p className="rounded-[13px] border border-border bg-card-2 p-3 text-[13px] text-text-2">{erro}</p>}
         </div>
       )}

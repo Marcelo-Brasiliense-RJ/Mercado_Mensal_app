@@ -112,12 +112,12 @@ export const CameraIcon = ({ size, className }: P) => (
 );
 
 // Adicionar item: um pacote com um "+" em cima (topo do app: falar, escrever ou foto).
-export const AddItemIcon = ({ size, className }: P) => (
+export const AddItemIcon = ({ size, className, contraste = "var(--card, #fff)" }: P & { contraste?: string }) => (
   <svg {...base(size)} className={className}>
     <path d="M3.5 9.5 11 6l7.5 3.5V18L11 21.5 3.5 18Z" />
     <path d="M3.5 9.5 11 13l7.5-3.5M11 13v8.5" />
     <circle cx="18.5" cy="5.5" r="4.2" fill="currentColor" stroke="none" />
-    <path d="M18.5 3.6v3.8M16.6 5.5h3.8" stroke="var(--card, #fff)" strokeWidth="1.8" />
+    <path d="M18.5 3.6v3.8M16.6 5.5h3.8" stroke={contraste} strokeWidth="1.8" />
   </svg>
 );
 

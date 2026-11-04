@@ -2,7 +2,6 @@
 
 import { brl } from "@/lib/format";
 import { useStore } from "@/lib/store";
-import { BarcodeIcon, CameraIcon, MicIcon } from "@/components/ui/icons";
 
 // Barra fixa do rodape na aba Lista, no celular.
 //
@@ -13,15 +12,9 @@ import { BarcodeIcon, CameraIcon, MicIcon } from "@/components/ui/icons";
 //
 // Aqui as tres formas de anotar ficam a UM toque, sempre no alcance do polegar, e
 // o numero que importa fica sempre visivel por cima delas.
-export function QuickBar({
-  onVoice,
-  onScan,
-  onFoto,
-}: {
-  onVoice: () => void;
-  onScan: () => void;
-  onFoto: () => void;
-}) {
+// Os botoes Falar/Codigo/Foto sairam: agora e o botao "+" flutuante (AppShell). Fica
+// so o numero que importa, sempre visivel.
+export function QuickBar() {
   const { trip, shopping } = useStore();
 
   // Sem compra aberta o numero util e o da lista: quanto falta pagar e quantos
@@ -36,15 +29,12 @@ export function QuickBar({
   const valor = noMercado ? trip!.total : totalLista;
   const qtd = noMercado ? trip!.items.length : aComprar.length;
 
-  const btn =
-    "flex h-[54px] flex-1 flex-col items-center justify-center gap-0.5 rounded-[14px] text-[12px] font-bold";
-
   return (
     <div
       className="fixed inset-x-0 bottom-[calc(56px+env(safe-area-inset-bottom))] z-20 border-t border-border bg-card px-3 pb-2.5 pt-2 shadow-[0_-4px_16px_var(--shadow)] lg:hidden"
       // Barra de acao do mercado: fica colada acima das abas.
     >
-      <div className="mb-2 flex items-baseline justify-between gap-3">
+      <div className="flex items-baseline justify-between gap-3">
         <span className="text-[11px] font-bold uppercase tracking-wide text-text-3">
           {noMercado ? "No carrinho" : "Falta comprar"}
         </span>
@@ -62,32 +52,6 @@ export function QuickBar({
         </span>
       </div>
 
-      <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={onVoice}
-          className={`${btn} bg-brand text-brand-ink`}
-        >
-          <MicIcon size={22} />
-          Falar
-        </button>
-        <button
-          type="button"
-          onClick={onScan}
-          className={`${btn} border border-border bg-card-2 text-text`}
-        >
-          <BarcodeIcon size={22} />
-          Código
-        </button>
-        <button
-          type="button"
-          onClick={onFoto}
-          className={`${btn} border border-border bg-card-2 text-text`}
-        >
-          <CameraIcon size={22} />
-          Foto
-        </button>
-      </div>
     </div>
   );
 }

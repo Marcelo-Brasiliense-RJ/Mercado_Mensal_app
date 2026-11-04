@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { ItemGrid, type GridItem } from "@/components/receipt/ItemGrid";
-import { MicIcon } from "@/components/ui/icons";
+import { BarcodeIcon, MicIcon } from "@/components/ui/icons";
+import { BarcodeModal } from "@/components/lista/BarcodeModal";
 import { DestinoSwitch, nomeDestino } from "@/components/ui/Destino";
 import { useLugar } from "@/lib/lugar";
 import { useStore } from "@/lib/store";
@@ -140,6 +141,7 @@ export function VoiceModal({
   const [escrito, setEscrito] = useState(""); // caminho digitado, mesmo entendimento da voz
   const [escrevendo, setEscrevendo] = useState(false);
   const [prateleira, setPrateleira] = useState(false);
+  const [codigo, setCodigo] = useState(false);
   const fotoRef = useRef<HTMLInputElement>(null);
   // Tela que vai junto para a IA desempatar ("arroz" sozinho no Estoque e estoque).
   const telaIA = telaAgora === "estoque" ? "estoque" : telaAgora === "lista" ? "lista" : telaAgora === "auto" ? "auto" : "mercado";
@@ -798,14 +800,28 @@ export function VoiceModal({
           setPrateleira(false);
           fechar();
         }}
-        destino="estoque"
+        destino={noMercado ? "carrinho" : "estoque"}
+        onListaEscrita={(f) => {
+          setPrateleira(false);
+          void entenderFoto(f);
+        }}
       />
     )}
-    <Modal open={open && !prateleira} onClose={fechar} maxWidth={460}>
+    {codigo && (
+      <BarcodeModal
+        open
+        onClose={() => {
+          setCodigo(false);
+          fechar();
+        }}
+        destinoPadrao={telaAgora === "mercado" || telaAgora === "lista" ? "carrinho" : "estoque"}
+      />
+    )}
+    <Modal open={open && !prateleira && !codigo} onClose={fechar} maxWidth={460}>
       <div className="mb-[18px]">
         <div className="flex items-center gap-2 text-[13px] font-bold text-brand">
           <MicIcon size={18} />
-          Falar, escrever ou fotografar
+          Adicionar: falar, foto, código ou escrever
         </div>
         <div className="text-[19px] font-extrabold">
           {pergunta
@@ -906,13 +922,6 @@ export function VoiceModal({
                 <div className="grid grid-cols-3 gap-2">
                   <button
                     type="button"
-                    onClick={() => setEscrevendo(true)}
-                    className="flex h-14 flex-col items-center justify-center rounded-[14px] border-2 border-border bg-card text-[13px] font-bold"
-                  >
-                    <span className="text-[18px]" aria-hidden>⌨️</span>Escrever
-                  </button>
-                  <button
-                    type="button"
                     onClick={() => setPrateleira(true)}
                     className="flex h-14 flex-col items-center justify-center rounded-[14px] border-2 border-brand/50 bg-brand-soft text-[13px] font-bold text-brand"
                   >
@@ -920,10 +929,17 @@ export function VoiceModal({
                   </button>
                   <button
                     type="button"
-                    onClick={() => fotoRef.current?.click()}
+                    onClick={() => setCodigo(true)}
                     className="flex h-14 flex-col items-center justify-center rounded-[14px] border-2 border-border bg-card text-[13px] font-bold"
                   >
-                    <span className="text-[18px]" aria-hidden>📝</span>Lista escrita
+                    <BarcodeIcon size={20} />Código
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEscrevendo(true)}
+                    className="flex h-14 flex-col items-center justify-center rounded-[14px] border-2 border-border bg-card text-[13px] font-bold"
+                  >
+                    <span className="text-[18px]" aria-hidden>⌨️</span>Escrever
                   </button>
                 </div>
               )}
@@ -940,7 +956,7 @@ export function VoiceModal({
               />
               {!escrevendo && (
                 <p className="text-center text-[11px] text-text-3">
-                  Foto: um produto ou o armário inteiro, a contagem vira o estoque. Lista escrita: foto do papel.
+                  Foto: um produto, o armário inteiro, o carrinho ou uma lista escrita no papel.
                 </p>
               )}
             </div>

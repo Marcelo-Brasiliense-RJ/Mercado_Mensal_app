@@ -9,7 +9,7 @@ import { TabBar } from "./TabBar";
 import { TopBar } from "./TopBar";
 import { ThemeToggle } from "@/theme/ThemeToggle";
 import { ReceiptModal } from "@/components/receipt/ReceiptModal";
-import { AddItemIcon, MicIcon, PinIcon } from "@/components/ui/icons";
+import { AddItemIcon, PinIcon } from "@/components/ui/icons";
 import { atualizarLugar, useLugar } from "@/lib/lugar";
 import { AvatarInitial } from "@/components/ui/AvatarInitial";
 import { useState } from "react";
@@ -82,13 +82,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           right={
             <div className="flex items-center">
               <button
-                onClick={() => setFalar(true)}
-                aria-label="Adicionar item"
-                className="grid h-10 w-10 place-items-center rounded-xl text-brand hover:bg-card-2"
-              >
-                <AddItemIcon size={23} />
-              </button>
-              <button
                 onClick={() => void tocarGps()}
                 aria-label={gpsLigado ? "Localização ligada" : "Ligar localização"}
                 aria-pressed={gpsLigado}
@@ -119,13 +112,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <FilaFotos />
       <FilaPrateleira />
       <VoiceModal open={falar} onClose={() => setFalar(false)} tela="auto" />
-      {/* Desktop nao tem o topo do celular: o microfone fica no canto. */}
+      {/* Botao "+" flutuante, em todas as telas: abre o adicionar (falar, foto, codigo,
+          escrever). Na Lista sobe um pouco para nao cobrir o total do rodape. */}
       <button
         onClick={() => setFalar(true)}
-        aria-label="Falar"
-        className="fixed bottom-8 right-8 z-30 hidden h-14 w-14 place-items-center rounded-full bg-brand text-brand-ink shadow-lg lg:grid"
+        aria-label="Adicionar item"
+        className={`fixed right-4 z-30 grid h-[60px] w-[60px] place-items-center rounded-full bg-brand text-brand-ink shadow-[0_8px_22px_rgba(193,95,60,.45)] ring-4 ring-bg transition-transform active:scale-95 lg:bottom-8 lg:right-8 ${
+          path.startsWith("/app/lista") ? "bottom-[calc(env(safe-area-inset-bottom)+124px)]" : "bottom-[calc(env(safe-area-inset-bottom)+72px)]"
+        }`}
       >
-        <MicIcon size={24} />
+        <AddItemIcon size={30} contraste="var(--brand, #C15F3C)" />
       </button>
     </div>
   );

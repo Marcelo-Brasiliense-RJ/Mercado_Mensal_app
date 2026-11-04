@@ -10,7 +10,7 @@ import { Grupo, useRecolhidos } from "@/components/ui/Grupo";
 import type { StockItem } from "@/lib/types";
 import { brl, stockRatio } from "@/lib/format";
 import { stepFor } from "@/lib/defaults";
-import { BarcodeIcon, CameraIcon, CheckIcon, MicIcon, PlusIcon, SearchIcon } from "@/components/ui/icons";
+import { BarcodeIcon, CheckIcon, MicIcon, PlusIcon, SearchIcon } from "@/components/ui/icons";
 import { ScreenHeader } from "@/components/layout/ScreenHeader";
 import { useStore, type RpcResult } from "@/lib/store";
 import { VoiceModal } from "@/components/voz/VoiceModal";
@@ -500,39 +500,6 @@ export function StockView() {
             ))}
           </div>
         </Modal>
-      )}
-
-      {/* Mesma barra da Lista: as formas de anotar a um toque, sempre no polegar.
-          Os dois botoes flutuantes que havia aqui obrigavam a mirar em alvo de
-          48px no canto, e o "+" abria um menu antes de deixar digitar. */}
-      {!selMode && (
-        <div className="fixed inset-x-0 bottom-[calc(56px+env(safe-area-inset-bottom))] z-20 border-t border-border bg-card px-3 pb-2.5 pt-2 shadow-[0_-4px_16px_var(--shadow)] lg:hidden">
-          <div className="flex gap-2">
-            <button
-              onClick={() => setVoiceOpen(true)}
-              className="flex h-[54px] flex-1 flex-col items-center justify-center gap-0.5 rounded-[14px] bg-brand text-[12px] font-bold text-brand-ink"
-            >
-              <MicIcon size={22} />
-              Falar
-            </button>
-            {/* Ler codigo pelo Estoque veio da main; aqui ele entra na mesma
-                barra, em vez de virar um terceiro botao flutuante no canto. */}
-            <button
-              onClick={() => setScanOpen(true)}
-              className="flex h-[54px] flex-1 flex-col items-center justify-center gap-0.5 rounded-[14px] border border-border bg-card-2 text-[12px] font-bold"
-            >
-              <BarcodeIcon size={22} />
-              Código
-            </button>
-            <button
-              onClick={() => setFotoOpen(true)}
-              className="flex h-[54px] flex-1 flex-col items-center justify-center gap-0.5 rounded-[14px] border border-border bg-card-2 text-[12px] font-bold"
-            >
-              <CameraIcon size={22} />
-              Foto
-            </button>
-          </div>
-        </div>
       )}
 
       <BatchAddModal open={stockAddOpen} onClose={() => setStockAddOpen(false)} />
