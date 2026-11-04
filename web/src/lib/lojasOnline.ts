@@ -57,3 +57,9 @@ export function melhorOnline(ofertas: OfertaOnline[], valorPonto: number): Ofert
   const liq = (o: OfertaOnline) => o.preco - Math.round(o.preco * o.pts) * valorPonto;
   return ofertas.filter((o) => o.preco > 0).sort((a, b) => liq(a) - liq(b))[0] ?? null;
 }
+
+// "Campanha válida de 03 a 05/11/2026" -> "05/11": ate quando vale a promocao.
+export function fimCampanha(regra: string | null | undefined): string | null {
+  const datas = [...(regra ?? "").matchAll(/(\d{1,2}\/\d{1,2})(?:\/\d{2,4})?/g)].map((m) => m[1]);
+  return datas.at(-1) ?? null;
+}
