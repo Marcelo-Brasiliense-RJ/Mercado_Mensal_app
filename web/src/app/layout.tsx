@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { AppStoreProvider } from "@/lib/store";
 import { Toast } from "@/components/ui/Toast";
+import { AutoAtualizar } from "@/components/AutoAtualizar";
 
 export const metadata: Metadata = {
   title: "Despensa",
@@ -32,6 +33,7 @@ export default function RootLayout({
         <AppStoreProvider>
           {children}
           <Toast />
+          <AutoAtualizar />
         </AppStoreProvider>
       </body>
     </html>
