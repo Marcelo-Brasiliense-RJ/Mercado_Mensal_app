@@ -59,3 +59,17 @@ describe("quadrados da prateleira", () => {
     expect(g.map((x) => [x.nome, x.qtd])).toEqual([["café pilão", 2], ["leite italac", 1]]);
   });
 });
+
+describe("produto sozinho de perto", () => {
+  it("aceita um produto que ocupa quase a foto toda", () => {
+    const r = limpar([{ box: [0.05, 0.1, 0.95, 0.9], nome: "leite italac", rotulo: "", legivel: true }]);
+    expect(r).toHaveLength(1);
+  });
+  it("com varios produtos, o quadrado gigante (a prateleira) sai", () => {
+    const r = limpar([
+      { box: [0, 0, 0.9, 0.9], nome: "", rotulo: "", legivel: false },
+      { box: [0.1, 0.1, 0.3, 0.3], nome: "milho predilecta", rotulo: "", legivel: true },
+    ]);
+    expect(r.map((a) => a.nome)).toEqual(["milho predilecta"]);
+  });
+});

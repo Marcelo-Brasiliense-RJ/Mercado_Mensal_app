@@ -28,14 +28,17 @@ export function iou(a: Box, b: Box): number {
 
 // Descarta o que nao pode ser um produto da foto: fora dela (corta na borda), minusculo,
 // gigante (a prateleira inteira) e repetido (dois quadrados no mesmo produto).
+// Gigante so conta quando ha outros produtos: um produto so, fotografado de perto,
+// ocupa quase a foto toda e e valido.
 export function limpar(achados: Achado[]): Achado[] {
   const bons = achados
     .map((a) => ({ ...a, box: a.box.map((v) => Math.min(1, Math.max(0, v))) as Box }))
     .filter((a) => {
       const h = a.box[2] - a.box[0];
       const w = a.box[3] - a.box[1];
-      return h > 0.02 && w > 0.01 && area(a.box) > 0.0008 && area(a.box) < 0.6;
+      return h > 0.02 && w > 0.01 && area(a.box) > 0.0008 && area(a.box) < 0.97;
     })
+    .filter((a, _, todos) => todos.length === 1 || area(a.box) < 0.6)
     // legivel e maior primeiro: no empate, fica o quadrado melhor
     .sort((a, b) => Number(b.legivel) - Number(a.legivel) || area(b.box) - area(a.box));
   const fica: Achado[] = [];

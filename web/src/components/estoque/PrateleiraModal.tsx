@@ -163,7 +163,7 @@ export function PrateleiraModal({ onClose, onUmSo }: { onClose: () => void; onUm
       }
       const achados = limpar(d.itens);
       if (!achados.length) {
-        setErro("Não achei produtos nessa foto. Chegue mais perto, com os rótulos de frente.");
+        setErro("Não achei produtos nessa foto. Tente de novo um pouco mais perto.");
         return setFase("foto");
       }
       // Um produto so: e foto de produto, nao de prateleira. Vai pelo caminho de sempre.
@@ -280,7 +280,7 @@ export function PrateleiraModal({ onClose, onUmSo }: { onClose: () => void; onUm
   return (
     <Modal open onClose={onClose} maxWidth={620}>
       <div className="mb-3 pr-12">
-        <div className="text-[13px] font-bold text-brand">🗄️ Foto da prateleira</div>
+        <div className="text-[13px] font-bold text-brand">📸 Foto dos produtos</div>
         <div className="text-[20px] font-extrabold">
           {fase === "revisar"
             ? "Somar ou substituir?"
@@ -288,7 +288,7 @@ export function PrateleiraModal({ onClose, onUmSo }: { onClose: () => void; onUm
             ? `${prontos} de ${caixas.length} prontos`
             : fase === "lendo"
               ? "Procurando os produtos…"
-              : "Fotografe a prateleira inteira"}
+              : "Fotografe um produto ou vários"}
         </div>
         {fase === "marcar" && (
           <div className="mt-2 h-2 overflow-hidden rounded-full bg-card-2">
@@ -300,16 +300,17 @@ export function PrateleiraModal({ onClose, onUmSo }: { onClose: () => void; onUm
       {fase === "foto" && (
         <div className="flex flex-col gap-2">
           <p className="text-[13px] text-text-2">
-            Um quadrado aparece em cada produto: <b className="text-pos">verde</b> já entrou,{" "}
+            Pode ser <b>um produto só</b> ou o <b>armário/despensa inteiro</b>, do jeito que estiver: não precisa
+            arrumar. Um quadrado aparece em cada produto: <b className="text-pos">verde</b> já entrou,{" "}
             <b className="text-warn">amarelo</b> você confirma, <b className="text-neg">vermelho</b> você diz o nome. A
             contagem vira o estoque.
           </p>
-          <input ref={camera} type="file" accept="image/*" capture="environment" className="hidden" aria-label="Tirar foto da prateleira"
+          <input ref={camera} type="file" accept="image/*" capture="environment" className="hidden" aria-label="Tirar foto dos produtos"
             onChange={(e) => { void ler(e.target.files?.[0]); e.target.value = ""; }} />
           <input ref={galeria} type="file" accept="image/*" className="hidden" aria-label="Foto da galeria"
             onChange={(e) => { void ler(e.target.files?.[0]); e.target.value = ""; }} />
           <button onClick={() => camera.current?.click()} className="h-[72px] rounded-[18px] bg-brand text-[17px] font-extrabold text-brand-ink">
-            📷 Tirar foto da prateleira
+            📷 Tirar foto
           </button>
           <button onClick={() => galeria.current?.click()} className="h-12 rounded-[14px] border-2 border-border bg-card text-[15px] font-bold">
             🖼 Escolher da galeria
@@ -408,7 +409,7 @@ export function PrateleiraModal({ onClose, onUmSo }: { onClose: () => void; onUm
           }}
         >
           {/* eslint-disable-next-line @next/next/no-img-element -- a mesma imagem que foi para a IA */}
-          <img src={src} alt="Foto da prateleira" className={`block w-full ${fase === "lendo" ? "opacity-60" : ""}`} draggable={false} />
+          <img src={src} alt="Foto dos produtos" className={`block w-full ${fase === "lendo" ? "opacity-60" : ""}`} draggable={false} />
           {fase === "lendo" && (
             <div className="absolute inset-0 grid place-items-center">
               <div className="flex items-center gap-2 rounded-full bg-black/70 px-4 py-2 text-[14px] font-bold text-white">

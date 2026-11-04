@@ -917,7 +917,7 @@ export function VoiceModal({
                     onClick={() => setPrateleira(true)}
                     className="flex h-14 flex-col items-center justify-center rounded-[14px] border-2 border-brand/50 bg-brand-soft text-[13px] font-bold text-brand"
                   >
-                    <span className="text-[18px]" aria-hidden>🗄️</span>Prateleira
+                    <span className="text-[18px]" aria-hidden>📸</span>Foto
                   </button>
                   <button
                     type="button"
@@ -941,7 +941,7 @@ export function VoiceModal({
               />
               {!escrevendo && (
                 <p className="text-center text-[11px] text-text-3">
-                  Prateleira: um quadrado em cada produto e a contagem vira o estoque. Lista escrita: foto do papel.
+                  Foto: um produto ou o armário inteiro, a contagem vira o estoque. Lista escrita: foto do papel.
                 </p>
               )}
             </div>
