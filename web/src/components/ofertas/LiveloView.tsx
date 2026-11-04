@@ -66,6 +66,7 @@ export function LiveloView() {
   const lv = useLivelo();
   const ofertas = useListaOfertas();
   const [aberto, setAberto] = useState<string | null>(null);
+  const [verCasa, setVerCasa] = useState(false);
 
   const pendentes = useMemo(() => shopping.filter((i) => i.status === "pending"), [shopping]);
   const temEmCasa = (i: ShopItem) => i.em_estoque || (findByName(i.name, stock)?.current ?? 0) > 0;
@@ -244,21 +245,42 @@ export function LiveloView() {
         </Bloco>
       )}
 
+      {/* Ja tem em casa: fechado numa linha; aberto vira fotos com um X */}
       {jaTem.length > 0 && (
-        <Bloco emoji="🏠" titulo="Você já tem em casa" pequeno>
-          <div className="flex flex-wrap gap-2">
-            {jaTem.map((s) => (
-              <button
-                key={s.id}
-                onClick={() => naoPreciso(s)}
-                className="flex h-10 items-center gap-1.5 rounded-full border border-border bg-card-2 px-3 text-[14px] font-bold"
-              >
-                {s.name} <span className="text-text-3">✕</span>
-              </button>
-            ))}
-          </div>
-          <p className="mt-2 text-[12px] text-text-3">Toque para tirar da lista.</p>
-        </Bloco>
+        <section className="rounded-[22px] border border-border bg-card">
+          <button onClick={() => setVerCasa((v) => !v)} className="flex w-full items-center gap-3 p-4 text-left">
+            <span className="text-[28px]">🏠</span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[17px] font-extrabold leading-tight">Você já tem em casa</span>
+              <span className="block text-[13px] text-text-2">
+                {jaTem.length} {jaTem.length === 1 ? "item" : "itens"} da lista · não precisa comprar
+              </span>
+            </span>
+            <span className="text-[20px] text-text-3">{verCasa ? "▲" : "▼"}</span>
+          </button>
+          {verCasa && (
+            <div className="px-4 pb-4">
+              <div className="grid grid-cols-4 gap-2">
+                {jaTem.map((s) => (
+                  <div key={s.id} className="flex flex-col items-center gap-1 text-center">
+                    <span className="relative">
+                      <Foto src={urlFoto(s.name)} className="h-[64px] w-[64px] rounded-[14px] border border-border" />
+                      <button
+                        onClick={() => naoPreciso(s)}
+                        aria-label={`Tirar ${s.name} da lista`}
+                        className="absolute -right-2 -top-2 grid h-7 w-7 place-items-center rounded-full border border-border bg-card text-[13px] font-extrabold text-text-2 shadow"
+                      >
+                        ✕
+                      </button>
+                    </span>
+                    <span className="line-clamp-2 text-[11px] font-bold leading-tight">{curto(s.name)}</span>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-3 text-center text-[12px] text-text-3">✕ tira da lista</p>
+            </div>
+          )}
+        </section>
       )}
 
       {detalhe && (
@@ -267,6 +289,12 @@ export function LiveloView() {
     </div>
   );
 }
+
+// Nome curto embaixo da foto: as 4 primeiras palavras.
+const curto = (n: string) => {
+  const p = n.trim().split(/\s+/);
+  return p.length > 4 ? `${p.slice(0, 4).join(" ")}…` : n;
+};
 
 // Foto: a do site da loja, senao a do encarte, senao pelo nome (catalogo do estoque).
 const fotoDe = (i: Item) => i.produto?.foto ?? (i.oferta ? undefined : (urlFoto(i.shop.name) ?? undefined));
@@ -304,7 +332,7 @@ function Grade({ itens, onToque }: { itens: Item[]; onToque: (id: string) => voi
               </span>
             )}
           </span>
-          <span className="line-clamp-2 text-[13px] font-bold leading-tight">{i.shop.name}</span>
+          <span className="line-clamp-2 text-[13px] font-bold leading-tight">{curto(i.shop.name)}</span>
         </button>
       ))}
     </div>
