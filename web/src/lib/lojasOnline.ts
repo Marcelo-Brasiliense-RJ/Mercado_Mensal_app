@@ -2,8 +2,8 @@
 // Pedido do dono: uma vitrine de ofertas de coisas de casa (mercado, limpeza, casa, eletro,
 // lazer), com destaque para o que esta na lista e no estoque.
 // Testes de nov/2026:
-// - Carrefour bloqueia servidor (Cloudflare 503, ate no GitHub Actions); a busca sai do
-//   celular da pessoa, que costuma passar. Se nao passar, as outras lojas seguem.
+// - Carrefour bloqueia a API de catalogo (Cloudflare 503), mas as paginas do site abrem:
+//   lidas por /api/carrefour (src/lib/carrefourHtml.ts).
 // - Sam's Club e Midea respondem de qualquer lugar.
 // - Bloqueiam tudo: Mercado Livre, Magalu, Shopee, Extra, Casas Bahia, Petlove, Petz.
 // - So entregam longe do Rio: Supernosso (BH), Angeloni (SC).
@@ -32,6 +32,8 @@ export type Loja = {
   // do site inteiro e separa pelo departamento.
   categorias?: Partial<Record<Chip, number[]>>;
   chipFixo?: Chip; // loja de um ramo so (Midea = eletro)
+  // Loja lida pelas paginas do site (/api/carrefour), e nao pela API: categorias por chip.
+  paginas?: Partial<Record<Chip, string[]>>;
   obs?: string;
 };
 
@@ -46,6 +48,20 @@ export const TODAS_LOJAS: Loja[] = [
     ptsPadrao: 1,
     tipo: "mercado",
     ativa: true,
+    paginas: {
+      mercado: [
+        "mercearia",
+        "acougue-e-peixaria",
+        "frios-e-laticinios",
+        "bebidas",
+        "padaria-e-matinais",
+        "hortifruti",
+        "congelados",
+        "pratos-prontos-e-massas-frescas",
+      ],
+      limpeza: ["limpeza-e-lavanderia", "higiene-e-perfumaria"],
+      casa: ["utilidades-domesticas", "casa-construcao-e-ferramentas", "pet-care", "bebe-e-infantil"],
+    },
   },
   {
     codigo: "ECO",
@@ -56,7 +72,7 @@ export const TODAS_LOJAS: Loja[] = [
     slug: "sams-club-e-commerce",
     ptsPadrao: 1,
     tipo: "mercado",
-    ativa: true,
+    ativa: false, // Bianca: so vende com assinatura, nao serve para a casa
     obs: "precisa ser sócio",
     categorias: {
       // Foco do dono: compra do mes. Mercado pega mais departamentos.
@@ -243,4 +259,25 @@ export const chaveProduto = (nome: string) => palavras(nome).slice(0, 3).join(" 
 export function casaBusca(nome: string, termo: string): boolean {
   const n = sem(nome);
   return sem(termo).split(/\s+/).filter(Boolean).every((p) => n.includes(p.replace(/s$/, "")));
+}
+
+// Itens lidos das paginas do site -> Produto da vitrine.
+export function produtosHtml(
+  itens: { nome: string; preco: number; de: number | null; url: string; foto: string | null }[],
+  loja: Loja,
+  chip: Chip | null,
+): Produto[] {
+  return itens
+    .filter((i) => i.preco >= 1)
+    .map((i) => ({
+      id: `${loja.codigo}:${i.url}`,
+      loja: loja.codigo,
+      nome: i.nome,
+      preco: i.preco,
+      de: i.de,
+      desconto: i.de ? 1 - i.preco / i.de : 0,
+      url: i.url,
+      foto: i.foto,
+      chip,
+    }));
 }

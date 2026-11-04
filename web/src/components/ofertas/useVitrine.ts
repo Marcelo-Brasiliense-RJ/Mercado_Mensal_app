@@ -1,17 +1,27 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { casaBusca, ehDoItem, LOJAS, produtosVtex, urlBusca, type Chip, type Loja, type Produto } from "@/lib/lojasOnline";
+import { casaBusca, ehDoItem, LOJAS, produtosHtml, produtosVtex, urlBusca, type Chip, type Loja, type Produto } from "@/lib/lojasOnline";
 
-// Busca a vitrine Livelo direto do celular (as lojas VTEX liberam CORS e o Carrefour
-// bloqueia servidor). Se o celular nao conseguir, tenta pela nossa rota.
+// Busca a vitrine Livelo. Lojas VTEX: direto do celular (liberam CORS), senao pela nossa
+// rota. Carrefour: pelas paginas do site, lidas em /api/carrefour.
 const diretoFalhou = new Set<string>();
 
-async function buscar(loja: Loja, args: { q?: string; fq?: string; ate?: number }): Promise<unknown> {
+type Args = { q?: string; fq?: string; categoria?: string; ate?: number };
+
+async function buscar(loja: Loja, args: Args, chip: Chip | null = null): Promise<Produto[]> {
+  if (loja.paginas) {
+    const p = new URLSearchParams();
+    if (args.q) p.set("q", args.q);
+    if (args.categoria) p.set("categoria", args.categoria);
+    const r = await fetch(`/api/carrefour?${p}`);
+    const d = (await r.json()) as { itens?: Parameters<typeof produtosHtml>[0] };
+    return produtosHtml(d.itens ?? [], loja, chip);
+  }
   if (!diretoFalhou.has(loja.codigo)) {
     try {
       const r = await fetch(urlBusca(loja, args), { signal: AbortSignal.timeout(8000) });
-      if (r.ok || r.status === 206) return await r.json();
+      if (r.ok || r.status === 206) return produtosVtex(await r.json(), loja, chip);
     } catch {
       /* CORS, rede ou bloqueio: vai pelo servidor */
     }
@@ -21,10 +31,10 @@ async function buscar(loja: Loja, args: { q?: string; fq?: string; ate?: number 
   if (args.q) p.set("q", args.q);
   if (args.fq) p.set("fq", args.fq);
   const r = await fetch(`/api/loja-online?${p}`);
-  return r.ok ? await r.json() : [];
+  return produtosVtex(r.ok ? await r.json() : [], loja, chip);
 }
 
-type Tarefa = { loja: Loja; q?: string; fq?: string; ate: number; chip: Chip | null; item?: string };
+type Tarefa = { loja: Loja; q?: string; fq?: string; categoria?: string; ate: number; chip: Chip | null; item?: string };
 
 export type Vitrine = {
   produtos: Produto[];
@@ -46,11 +56,15 @@ export function useVitrine(itensLista: string[]): Vitrine {
         LOJAS.filter((l) => l.tipo === "mercado").map((loja) => ({ loja, q: item, ate: 9, chip: null, item })),
       ),
       ...LOJAS.flatMap((loja): Tarefa[] =>
-        loja.categorias
-          ? Object.entries(loja.categorias).flatMap(([chip, ids]) =>
-              ids.map((id) => ({ loja, fq: `C:/${id}/`, ate: 7, chip: chip as Chip })),
+        loja.paginas
+          ? Object.entries(loja.paginas).flatMap(([chip, slugs]) =>
+              slugs.map((categoria) => ({ loja, categoria, ate: 0, chip: chip as Chip })),
             )
-          : [{ loja, ate: 49, chip: null }],
+          : loja.categorias
+            ? Object.entries(loja.categorias).flatMap(([chip, ids]) =>
+                ids.map((id) => ({ loja, fq: `C:/${id}/`, ate: 7, chip: chip as Chip })),
+              )
+            : [{ loja, ate: 49, chip: null }],
       ),
     ];
     const vistos = new Map<string, Produto>();
@@ -65,7 +79,7 @@ export function useVitrine(itensLista: string[]): Vitrine {
     const trabalhar = async () => {
       for (let t = fila.shift(); t; t = fila.shift()) {
         try {
-          let ps = produtosVtex(await buscar(t.loja, t), t.loja, t.chip);
+          let ps = await buscar(t.loja, t, t.chip);
           if (ps.length) ok.add(t.loja.codigo);
           if (t.item) {
             const item = t.item;
@@ -110,7 +124,7 @@ export function useBuscaLojas(termo: string): { produtos: Produto[]; carregando:
       const achados: Produto[] = [];
       for (const loja of LOJAS) {
         void buscar(loja, { q: t, ate: 19 })
-          .then((d) => achados.push(...produtosVtex(d, loja).filter((p) => casaBusca(p.nome, t))))
+          .then((ps) => achados.push(...ps.filter((p) => casaBusca(p.nome, t))))
           .catch(() => {})
           .finally(() => {
             faltam -= 1;
