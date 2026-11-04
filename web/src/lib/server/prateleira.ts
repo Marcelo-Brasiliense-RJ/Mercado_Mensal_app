@@ -50,6 +50,18 @@ const ESQUEMA_DETECTAR = {
 
 type Erro = Exclude<RespostaGemini, { ok: true }>;
 
+// "Pramesa PASSATA DI POMODORO 300g" -> "pramesa passata di pomodoro"
+export function nomeDoRotulo(rotulo: string): string {
+  return rotulo
+    .toLowerCase()
+    .replace(/\b\d+([.,]\d+)?\s*(kg|g|gr|ml|l|lt|un|unid|unidades)\b/g, " ")
+    .replace(/[^\p{L}\p{N} ]/gu, " ")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 6)
+    .join(" ");
+}
+
 function partes(dataUrl: string) {
   const m = dataUrl.match(/^data:(image\/[a-z]+);base64,(.+)$/);
   return m ? { mime_type: m[1], data: m[2] } : null;
@@ -99,12 +111,15 @@ export async function detectar(foto: string, nomesCasa?: unknown): Promise<{ ok:
     if (!Array.isArray(b) || b.length !== 4 || !b.every((n) => typeof n === "number")) continue;
     const [y0, x0, y1, x1] = (b as number[]).map((n) => Math.min(1000, Math.max(0, n)) / 1000);
     const r = o as { nome?: unknown; rotulo?: unknown; legivel?: unknown; unidades?: unknown };
+    // A IA as vezes le o rotulo e deixa "nome" vazio: o nome sai do proprio rotulo.
+    const rotulo = String(r.rotulo ?? "").trim();
+    const nome = String(r.nome ?? "").trim().toLowerCase() || nomeDoRotulo(rotulo);
     const u = Math.round(Number(r.unidades));
     itens.push({
       box: [Math.min(y0, y1), Math.min(x0, x1), Math.max(y0, y1), Math.max(x0, x1)],
-      nome: String(r.nome ?? "").trim().toLowerCase(),
-      rotulo: String(r.rotulo ?? "").trim(),
-      legivel: r.legivel === true,
+      nome,
+      rotulo,
+      legivel: r.legivel === true && !!nome,
       unidades: Number.isFinite(u) ? Math.min(48, Math.max(1, u)) : 1,
     });
   }

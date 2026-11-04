@@ -130,3 +130,11 @@ describe("juntar iguais vizinhos", () => {
     expect(r).toHaveLength(2);
   });
 });
+
+import { nomeDoRotulo } from "./server/prateleira";
+describe("nome pelo rotulo", () => {
+  it("tira tamanho e simbolos", () => {
+    expect(nomeDoRotulo("Pramesa PASSATA DI POMODORO 300g")).toBe("pramesa passata di pomodoro");
+    expect(nomeDoRotulo("")).toBe("");
+  });
+});

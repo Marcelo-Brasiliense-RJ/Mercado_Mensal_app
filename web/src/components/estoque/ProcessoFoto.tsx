@@ -111,8 +111,12 @@ export function ProcessoFoto({ job, onClose }: { job: JobFoto; onClose: () => vo
                 className={`flex items-center gap-3 rounded-[12px] border px-2 py-1.5 transition-colors ${i === atual ? "border-brand bg-brand-soft" : "border-border bg-card"}`}
                 style={{ animation: `entrar .35s ${0.15 + i * 0.09}s both` }}
               >
-                <FotoItem nome={a.nome || "produto"} className="h-9 w-9 rounded-[8px]" />
-                <span className="min-w-0 flex-1 truncate text-[15px] font-bold">{a.nome ? nomeBonito(a.nome) : "Produto sem nome"}</span>
+                {a.nome ? (
+                  <FotoItem nome={a.nome} className="h-9 w-9 rounded-[8px]" />
+                ) : (
+                  <span className="grid h-9 w-9 place-items-center rounded-[8px] bg-card-2 text-[16px]" aria-hidden>❔</span>
+                )}
+                <span className="min-w-0 flex-1 truncate text-[15px] font-bold">{a.nome ? nomeBonito(a.nome) : "Lendo o rótulo…"}</span>
                 {unidadesDe(a) > 1 && <span className="rounded-full bg-card-2 px-2 py-0.5 text-[13px] font-extrabold">×{unidadesDe(a)}</span>}
                 <span className="w-5 text-center text-[14px]">{i === atual ? "🔎" : a.legivel ? "✓" : "?"}</span>
               </div>

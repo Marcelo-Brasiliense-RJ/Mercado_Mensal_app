@@ -134,8 +134,10 @@ export function PrateleiraModal({
     const conferidos = job.conferidos ?? [];
     const lista: Caixa[] = achados.map((a, i) => {
       const lembrado = a.nome ? daMemoria(a.nome, memoria) : null;
-      const nome = lembrado ?? a.nome;
       const conf = conferidos[i] ?? undefined;
+      // Sem nome da primeira leitura: usa o da segunda olhada (nunca "produto sem nome"
+      // quando alguma das duas viu o produto).
+      const nome = lembrado ?? (a.nome || conf || "");
       const vizinhos = achados.filter((_, k) => k !== i).map((x) => x.nome).filter(Boolean);
       const cor = corDe({ nome, legivel: a.legivel || !!lembrado, conferido: conf, daMemoria: !!lembrado, conhecidos, vizinhos });
       const opcoes = cor !== "verde" ? [...new Set([nome, conf].filter((x): x is string => !!x))] : undefined;
