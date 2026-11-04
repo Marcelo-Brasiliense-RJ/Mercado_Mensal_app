@@ -53,6 +53,20 @@ body {
   color: var(--text);
 }
 input, button, select { font-family: inherit; }
+/* Cara de app: sem o flash cinza ao tocar e sem o menu "copiar link" ao segurar. */
+html { -webkit-tap-highlight-color: transparent; }
+nav a, nav button { -webkit-touch-callout: none; user-select: none; }
+
+/* Troca de tela: a nova desliza do lado de onde veio o gesto/aba. */
+@keyframes telaDireita { from { opacity: 0; transform: translate3d(28%,0,0); } to { opacity: 1; transform: none; } }
+@keyframes telaEsquerda { from { opacity: 0; transform: translate3d(-28%,0,0); } to { opacity: 1; transform: none; } }
+@media (max-width: 1023px) {
+  .tela-da-direita { animation: telaDireita .26s cubic-bezier(.2,.8,.2,1) both; }
+  .tela-da-esquerda { animation: telaEsquerda .26s cubic-bezier(.2,.8,.2,1) both; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tela-da-direita, .tela-da-esquerda { animation: none !important; }
+}
 input:focus, select:focus { outline: none; }
 ::placeholder { color: var(--text-3); }
 

@@ -12,7 +12,11 @@ import { ReceiptModal } from "@/components/receipt/ReceiptModal";
 import { AddItemIcon, PinIcon } from "@/components/ui/icons";
 import { atualizarLugar, useLugar } from "@/lib/lugar";
 import { AvatarInitial } from "@/components/ui/AvatarInitial";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useGestosTela } from "./useGestosTela";
+import { direcaoTroca, indiceAba } from "@/lib/gestos";
+import { ChevronLeftIcon } from "@/components/ui/icons";
 import { useStore } from "@/lib/store";
 import { VoiceModal } from "@/components/voz/VoiceModal";
 import { useHousehold } from "@/lib/household";
@@ -28,6 +32,19 @@ const META: Record<string, { title: string; subtitle: string }> = {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
+  const router = useRouter();
+  // Gestos de celular: arrastar pro lado troca de aba / volta a tela.
+  const areaRef = useRef<HTMLElement>(null);
+  const conteudoRef = useRef<HTMLDivElement>(null);
+  useGestosTela(path, areaRef, conteudoRef);
+  // Direcao da tela que entra (pelo gesto ou tocando na aba): desliza do lado certo.
+  const [vista, setVista] = useState({ path, dir: 0 as -1 | 0 | 1 });
+  if (vista.path !== path) setVista({ path, dir: direcaoTroca(vista.path, path) });
+  const foraDasAbas = indiceAba(path) < 0;
+  function voltar() {
+    if (window.history.length > 1) router.back();
+    else router.push("/app/estoque");
+  }
   // Microfone do topo, em toda tela: "preciso de arroz" ja cai na lista e avisa.
   const [falar, setFalar] = useState(false);
   const { receiptOpen, openReceipt, closeReceipt, showToast } = useStore();
@@ -77,7 +94,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           title={meta.title}
           subtitle={meta.subtitle}
           left={
-            familia && (
+            foraDasAbas ? (
+              <button
+                onClick={voltar}
+                aria-label="Voltar"
+                className="ic-toque grid h-10 w-10 place-items-center rounded-xl text-text-2 hover:bg-card-2"
+              >
+                <ChevronLeftIcon size={24} />
+              </button>
+            ) : (
+              familia && (
               <Link
                 href="/app/config"
                 aria-label={`Família ${familia}`}
@@ -86,6 +112,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               >
                 <AvatarInitial name={familia} size={30} />
               </Link>
+              )
             )
           }
           right={
@@ -110,8 +137,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           }
         />
 
-        <main className="flex-1 overflow-y-auto">
-          <div className="mx-auto w-full max-w-[640px] px-4 pb-[140px] pt-4 lg:max-w-[1120px] lg:px-9 lg:pb-14 lg:pt-7">
+        <main ref={areaRef} className="flex-1 overflow-y-auto overflow-x-hidden overscroll-x-none">
+          <div
+            key={path}
+            ref={conteudoRef}
+            className={`${vista.dir === 1 ? "tela-da-direita" : vista.dir === -1 ? "tela-da-esquerda" : ""} mx-auto w-full max-w-[640px] px-4 pb-[140px] pt-4 lg:max-w-[1120px] lg:px-9 lg:pb-14 lg:pt-7`}
+          >
             {children}
           </div>
         </main>

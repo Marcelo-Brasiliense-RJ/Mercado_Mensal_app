@@ -25,6 +25,12 @@ export function TabBar({ className = "" }: { className?: string }) {
             key={href}
             href={href}
             aria-current={active ? "page" : undefined}
+            // Tocar na aba em que ja esta sobe a tela pro topo (como no iPhone).
+            onClick={(e) => {
+              if (!active || path !== href) return;
+              e.preventDefault();
+              document.querySelector("main")?.scrollTo({ top: 0, behavior: "smooth" });
+            }}
             className={`ic-toque relative flex min-h-[56px] flex-1 flex-col items-center justify-center gap-1 ${
               active ? "text-brand" : "text-text-3"
             }`}
