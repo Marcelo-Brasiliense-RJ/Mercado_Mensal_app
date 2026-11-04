@@ -20,6 +20,8 @@ export type JobFoto = {
   conferidos?: (string | null)[]; // segunda olhada por recorte; null = nao rodou
   erro?: string;
   espera?: number; // ms: IA no limite, tenta de novo neste horario
+  tentativas?: number; // falhas seguidas (tenta sozinho ate 3)
+  etapa?: "procurando" | "conferindo"; // para a tela do processo
   nomes?: string[]; // nomes que a casa usa (estoque + carrinho): a IA repete o mesmo nome
   carrinho?: string[]; // foto no mercado: o que ja estava no carrinho (nao confere de novo)
 };
@@ -141,6 +143,7 @@ const dormir = (ms: number) => new Promise((ok) => setTimeout(ok, ms));
 let rodando = false;
 
 async function ler(x: JobFoto): Promise<void> {
+  trocar(x.id, { etapa: "procurando", achados: undefined });
   const r = await fetch("/api/prateleira", {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -152,9 +155,23 @@ async function ler(x: JobFoto): Promise<void> {
     | null;
   if (!d?.ok) {
     if (d?.erro === "limite") return trocar(x.id, { espera: Date.now() + (d.espera ?? 30) * 1000 });
+    // Falha passageira (rede, IA demorou): tenta sozinho mais 2 vezes antes de avisar.
+    const t = (x.tentativas ?? 0) + 1;
+    if (t < 3 && d?.erro !== "ia_indisponivel" && d?.erro !== "nao_autenticado")
+      return trocar(x.id, { tentativas: t, espera: Date.now() + 3000 * t });
     return trocar(x.id, {
       estado: "falhou",
-      erro: d?.erro === "ia_indisponivel" ? "A IA de fotos não está configurada." : "Não consegui ler a foto.",
+      tentativas: 0,
+      erro:
+        d?.erro === "ia_indisponivel"
+          ? "A IA de fotos não está configurada."
+          : d?.erro === "nao_autenticado"
+            ? "Sua sessão expirou: entre de novo."
+            : d?.erro === "imagem_grande"
+              ? "Foto grande demais."
+              : !r
+                ? "Sem internet agora."
+                : "A IA não conseguiu ler a foto.",
     });
   }
   const achados = limpar(d.itens);
@@ -166,6 +183,9 @@ async function ler(x: JobFoto): Promise<void> {
     await enfileirarFoto(await arquivoDe(x.src), x.destino);
     return;
   }
+
+  // A tela do processo ja mostra os quadrados achados enquanto confere.
+  trocar(x.id, { etapa: "conferindo", achados, tentativas: 0 });
 
   // Conferencia: o recorte de cada quadrado e lido de novo. Falhou? Segue sem ela.
   // O que ja estava no carrinho nao e conferido de novo (economiza a IA).
@@ -218,7 +238,7 @@ export async function enfileirarPrateleira(arquivo: File, destino: Destino, ctx:
 }
 
 export function tentarDeNovo(id: string) {
-  trocar(id, { estado: "lendo", erro: undefined, espera: undefined });
+  trocar(id, { estado: "lendo", erro: undefined, espera: undefined, tentativas: 0 });
   void processar();
 }
 

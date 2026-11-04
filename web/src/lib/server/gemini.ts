@@ -31,7 +31,10 @@ export function chavesGemini(): string[] {
 export type RespostaGemini = { ok: true; texto: string } | { ok: false; erro: "limite"; espera: number } | { ok: false; erro: "ia_falhou" | "ia_indisponivel" };
 
 // corpo: o JSON do generateContent. forte: modelo mais forte na frente.
-export async function gemini(corpo: unknown, forte = false, timeoutMs = 20000): Promise<RespostaGemini> {
+// prazoTotalMs: teto da chamada inteira (todas as tentativas), para caber no limite da
+// rota no servidor (estourar = a foto falha sem resposta nenhuma).
+export async function gemini(corpo: unknown, forte = false, timeoutMs = 20000, prazoTotalMs?: number): Promise<RespostaGemini> {
+  const fim = prazoTotalMs ? Date.now() + prazoTotalMs : Infinity;
   const ks = chavesGemini();
   if (!ks.length) return { ok: false, erro: "ia_indisponivel" };
   const body = JSON.stringify(corpo);
@@ -43,6 +46,8 @@ export async function gemini(corpo: unknown, forte = false, timeoutMs = 20000): 
     for (let n = 0; n < ks.length; n++) {
       const i = (inicio + n) % ks.length;
       const id = `${modelo}|${i}`;
+      const sobra = fim - Date.now();
+      if (sobra < 4000) break;
       const livre = descanso.get(id) ?? 0;
       if (livre > Date.now()) {
         espera = Math.min(espera, livre - Date.now());
@@ -53,7 +58,7 @@ export async function gemini(corpo: unknown, forte = false, timeoutMs = 20000): 
           method: "POST",
           headers: { "content-type": "application/json", "x-goog-api-key": ks[i] },
           body,
-          signal: AbortSignal.timeout(timeoutMs),
+          signal: AbortSignal.timeout(Math.min(timeoutMs, sobra)),
         });
         if (r.status === 429) {
           const ms = (await pausaPedida(r)) ?? 60_000;

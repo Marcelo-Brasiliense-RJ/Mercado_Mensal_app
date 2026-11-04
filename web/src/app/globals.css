@@ -73,6 +73,15 @@ input:focus, select:focus { outline: none; }
 @keyframes toastIn { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translate(-50%, 0); } }
 @keyframes pop { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes scan { 0% { transform: translateY(-110%); } 100% { transform: translateY(420%); } }
+/* Processo da foto: a luz que varre a foto, o quadrado que surge e o que "respira"
+   enquanto e conferido. */
+@keyframes varrer { 0% { top: -18%; } 100% { top: 100%; } }
+@keyframes surgir { 0% { opacity: 0; transform: scale(.55); } 70% { opacity: 1; transform: scale(1.08); } 100% { opacity: 1; transform: scale(1); } }
+@keyframes foco { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.07); } }
+@keyframes entrar { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: translateX(0); } }
+@media (prefers-reduced-motion: reduce) {
+  .processo * { animation: none !important; }
+}
 
 /* Gravador (popup de voz): halo que respira parado, ondas que saem gravando,
    barras de som no modo do aparelho (sem medidor) e o giro do "entendendo". */

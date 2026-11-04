@@ -77,14 +77,21 @@ export async function detectar(foto: string, nomesCasa?: unknown): Promise<{ ok:
       generationConfig: { responseMimeType: "application/json", responseSchema: ESQUEMA_DETECTAR, temperature: 0 },
     },
     true, // posicao: o modelo mais forte na frente (o "lite" erra mais o quadrado)
-    60000,
+    50000,
+    55000, // a rota tem 60 s: responde antes de o servidor cortar
   );
   if (!g.ok) return g;
+  // Resposta cortada no meio (muitos produtos) ainda aproveita os que vieram inteiros.
   let bruto: unknown;
   try {
     bruto = JSON.parse(g.texto);
   } catch {
-    return { ok: false, erro: "ia_falhou" };
+    const corte = g.texto.lastIndexOf("}");
+    try {
+      bruto = JSON.parse(g.texto.slice(0, corte + 1).replace(/^[^[]*/, "") + "]");
+    } catch {
+      return { ok: false, erro: "ia_falhou" };
+    }
   }
   const itens: Achado[] = [];
   for (const o of Array.isArray(bruto) ? bruto : []) {
@@ -129,6 +136,7 @@ export async function conferir(grade: string, n: number, nomesCasa?: unknown): P
     },
     false,
     45000,
+    55000,
   );
   if (!g.ok) return g;
   const nomes = Array.from({ length: n }, () => "");
