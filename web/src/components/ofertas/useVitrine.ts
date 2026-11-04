@@ -9,7 +9,20 @@ const diretoFalhou = new Set<string>();
 
 type Args = { q?: string; fq?: string; categoria?: string; ate?: number };
 
-async function buscar(loja: Loja, args: Args, chip: Chip | null = null): Promise<Produto[]> {
+// Cada busca fica guardada 30 min: por na lista um item novo so busca esse item, e nao a
+// vitrine inteira de novo.
+const guardadas = new Map<string, { em: number; p: Promise<Produto[]> }>();
+function buscar(loja: Loja, args: Args, chip: Chip | null = null): Promise<Produto[]> {
+  const k = JSON.stringify([loja.codigo, args.q, args.fq, args.categoria, args.ate, chip]);
+  const g = guardadas.get(k);
+  if (g && Date.now() - g.em < 30 * 60 * 1000) return g.p.then((ps) => ps.map((p) => ({ ...p })));
+  const p = buscarAgora(loja, args, chip);
+  guardadas.set(k, { em: Date.now(), p });
+  p.then((ps) => !ps.length && guardadas.delete(k)).catch(() => guardadas.delete(k));
+  return p.then((ps) => ps.map((x) => ({ ...x })));
+}
+
+async function buscarAgora(loja: Loja, args: Args, chip: Chip | null): Promise<Produto[]> {
   if (loja.paginas) {
     const p = new URLSearchParams();
     if (args.q) p.set("q", args.q);
@@ -41,13 +54,26 @@ export type Vitrine = {
   daLista: Record<string, string>; // id do produto -> item da lista que ele atende
   carregando: boolean;
   lojasOk: string[]; // lojas que responderam alguma coisa
+  progresso: number; // 0..1 enquanto carrega
+};
+
+// A vitrine fica guardada 30 min: voltar para a aba nao busca tudo de novo. E so aparece
+// pronta (sem cartoes pulando de lugar enquanto carrega, o que gerava toque errado).
+const MEIA_HORA = 30 * 60 * 1000;
+const memo = new Map<string, { em: number; v: Vitrine }>();
+const fresca = (chave: string) => {
+  const m = memo.get(chave);
+  return m && Date.now() - m.em < MEIA_HORA ? m.v : null;
 };
 
 export function useVitrine(itensLista: string[]): Vitrine {
-  const [v, setV] = useState<Vitrine>({ produtos: [], daLista: {}, carregando: true, lojasOk: [] });
   const chave = itensLista.slice(0, 12).join("|");
+  const [v, setV] = useState<Vitrine>(
+    () => fresca(chave) ?? { produtos: [], daLista: {}, carregando: true, lojasOk: [], progresso: 0 },
+  );
 
   useEffect(() => {
+    if (fresca(chave)) return;
     let vivo = true;
     const itens = chave ? chave.split("|") : [];
     const fila: Tarefa[] = [
@@ -70,11 +96,15 @@ export function useVitrine(itensLista: string[]): Vitrine {
     const vistos = new Map<string, Produto>();
     const daLista: Record<string, string> = {};
     const ok = new Set<string>();
-    let pendentes = fila.length;
+    const total = fila.length;
+    let pendentes = total;
 
     const publicar = () => {
-      if (vivo)
-        setV({ produtos: [...vistos.values()], daLista: { ...daLista }, carregando: pendentes > 0, lojasOk: [...ok] });
+      if (!vivo) return;
+      if (pendentes > 0) return setV((x) => ({ ...x, carregando: !x.produtos.length, progresso: 1 - pendentes / total }));
+      const pronta = { produtos: [...vistos.values()], daLista: { ...daLista }, carregando: false, lojasOk: [...ok], progresso: 1 };
+      memo.set(chave, { em: Date.now(), v: pronta });
+      setV(pronta);
     };
     const trabalhar = async () => {
       for (let t = fila.shift(); t; t = fila.shift()) {

@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { brl } from "@/lib/format";
 import { useStore } from "@/lib/store";
 import { useOfertas } from "./useOfertas";
+import { LiveloNaBusca } from "./LiveloNaBusca";
 import { AvisoCelular, DeOlho } from "./DeOlho";
 import { MercadosDaCasa } from "./MeusMercados";
 import { Foto, PorUnidade, Selo } from "./pecas";
@@ -32,7 +34,8 @@ import {
 export function OfertasView() {
   const estado = useOfertas();
   const { shopping, stock, addShopItem, showToast } = useStore();
-  const [busca, setBusca] = useState("");
+  const params = useSearchParams(); // ?q=arroz: vindo da aba Livelo
+  const [busca, setBusca] = useState(() => params.get("q") ?? "");
   const [aberto, setAberto] = useState<{ titulo: string; opcoes: Oferta[] } | null>(null);
   const [postos, setPostos] = useState<Set<string>>(new Set());
   const naLista = (nome: string) =>
@@ -111,6 +114,7 @@ export function OfertasView() {
 
       {achadosBusca ? (
         <section className="flex flex-col gap-3">
+          <LiveloNaBusca termo={busca} achados={achadosBusca} />
           <Titulo>
             {achadosBusca.length
               ? `${achadosBusca.length} ${achadosBusca.length > 1 ? "ofertas" : "oferta"}, mais barata primeiro`
