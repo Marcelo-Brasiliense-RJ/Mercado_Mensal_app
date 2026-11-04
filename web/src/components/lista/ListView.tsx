@@ -25,7 +25,7 @@ import { corMercado, corredor, faltaEmCasa, maisBarataPara, nomeMercado, porMerc
 import { MercadoModal, type ItemMercado } from "./MercadoModal";
 
 export function ListView() {
-  const { shopping, trip, buyItems, removeItems, addTripItem, showToast, reloadTrip, stock, stockToList } =
+  const { shopping, trip, buyItems, removeItems, addTripItem, showToast, reloadTrip, stock, stockToList, dataReady } =
     useStore();
   const [addManualOpen, setAddManualOpen] = useState(false);
   const [fotoOpen, setFotoOpen] = useState(false);
@@ -379,7 +379,7 @@ export function ListView() {
           </div>
         )}
 
-        {shopping.filter((i) => i.status !== "removed").length === 0 && (
+        {dataReady && shopping.filter((i) => i.status !== "removed").length === 0 && (
           <p className="pt-8 text-center text-[15px] leading-relaxed text-text-3">
             Sua lista está vazia. Use os botões aqui embaixo: <b>Falar</b> o que
             precisa, ler o <b>Código</b> da embalagem ou tirar <b>Foto</b> do produto.

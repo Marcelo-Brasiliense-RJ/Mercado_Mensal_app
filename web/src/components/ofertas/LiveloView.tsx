@@ -62,7 +62,7 @@ type Item = {
 };
 
 export function LiveloView() {
-  const { shopping, stock, removeItems, showToast } = useStore();
+  const { shopping, stock, removeItems, showToast, dataReady } = useStore();
   const lv = useLivelo();
   const ofertas = useListaOfertas();
   const [aberto, setAberto] = useState<string | null>(null);
@@ -166,7 +166,14 @@ export function LiveloView() {
         </a>
       ))}
 
-      {!pendentes.length && (
+      {!dataReady && (
+        <div className="flex items-center gap-3 rounded-[16px] bg-card-2 px-4 py-3">
+          <span className="animate-pulse text-[26px]">⏳</span>
+          <span className="text-[15px] font-bold">Carregando sua lista…</span>
+        </div>
+      )}
+
+      {dataReady && !pendentes.length && (
         <Bloco emoji="📝" titulo="Sua lista está vazia">
           <p className="text-[15px] text-text-2">Toque no 🎤 e fale o que precisa comprar.</p>
         </Bloco>

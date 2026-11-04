@@ -196,32 +196,41 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   const openReceipt = useCallback(() => setReceiptOpen(true), []);
   const closeReceipt = useCallback(() => setReceiptOpen(false), []);
 
-  const reloadData = useCallback(async () => {
+  const reloadData = useCallback(async (): Promise<void> => {
     setDataLoading(true);
     try {
-      const supabase = createClient();
-      const [stockR, listR, ecoR, tripR] = await Promise.all([
-        supabase.rpc("mercado_stock_web"),
-        supabase.rpc("mercado_list_web"),
-        supabase.rpc("mercado_economia_web"),
-        supabase.rpc("mercado_trip_web"),
-      ]);
-      const eco = (ecoR.data ?? {}) as {
-        budget?: { total: number; spent: number };
-        months?: MonthPoint[];
-        savings?: SavingRow[];
-      };
-      setData({
-        stock: (stockR.data as StockItem[] | null) ?? [],
-        shopping: (listR.data as ShopItem[] | null) ?? [],
-        budget: eco.budget ?? { total: 0, spent: 0 },
-        months: eco.months ?? [],
-        savings: eco.savings ?? [],
-        trip: (tripR.data as Trip | null) ?? null,
-      });
-      setDataReady(true);
-    } catch {
-      // Falha de rede/sessao: mantem o que tinha. O gate ja cuida de sessao.
+      // Erro do banco (ex.: sessao ainda renovando logo apos o app recarregar) volta
+      // como data null, e isso virava "lista vazia". Nao apaga o que tinha: tenta de novo.
+      for (let tentativa = 0; tentativa < 4; tentativa++) {
+        if (tentativa) await new Promise((r) => setTimeout(r, 1500 * tentativa));
+        try {
+          const supabase = createClient();
+          const [stockR, listR, ecoR, tripR] = await Promise.all([
+            supabase.rpc("mercado_stock_web"),
+            supabase.rpc("mercado_list_web"),
+            supabase.rpc("mercado_economia_web"),
+            supabase.rpc("mercado_trip_web"),
+          ]);
+          if (stockR.error || listR.error) continue;
+          const eco = (ecoR.data ?? {}) as {
+            budget?: { total: number; spent: number };
+            months?: MonthPoint[];
+            savings?: SavingRow[];
+          };
+          setData({
+            stock: (stockR.data as StockItem[] | null) ?? [],
+            shopping: (listR.data as ShopItem[] | null) ?? [],
+            budget: eco.budget ?? { total: 0, spent: 0 },
+            months: eco.months ?? [],
+            savings: eco.savings ?? [],
+            trip: (tripR.data as Trip | null) ?? null,
+          });
+          setDataReady(true);
+          return;
+        } catch {
+          // Falha de rede: mantem o que tinha e tenta de novo.
+        }
+      }
     } finally {
       setDataLoading(false);
     }
