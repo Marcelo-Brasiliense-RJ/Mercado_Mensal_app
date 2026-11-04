@@ -868,6 +868,18 @@ export function VoiceModal({
             </p>
           )}
 
+          {/* Escrevendo: o gravador grande sai da frente, senao com o teclado aberto
+              ele ocupa o popup inteiro e o campo fica cortado. */}
+          {escrevendo && !gravando && fase !== "enviando" ? (
+            <button
+              type="button"
+              onClick={() => { setEscrevendo(false); void gravar(); }}
+              disabled={ocupado}
+              className="mb-3 flex h-10 w-fit items-center gap-2 rounded-full bg-brand-soft px-3.5 text-[14px] font-bold text-brand disabled:opacity-50"
+            >
+              <span aria-hidden>🎤</span> Falar em vez de escrever
+            </button>
+          ) : (
           <div className="mb-4 flex flex-col items-center gap-2">
             <Gravador
               estado={fase === "enviando" ? "entendendo" : gravando ? "gravando" : "parado"}
@@ -884,6 +896,7 @@ export function VoiceModal({
               <div className="text-[12px] text-text-3">Paro sozinho quando você terminar · toque para parar</div>
             )}
           </div>
+          )}
 
           {erro && (
             <p className="mb-4 rounded-[13px] border border-border bg-card-2 p-3 text-[13px] leading-snug text-text-2">
@@ -1068,7 +1081,7 @@ function PerguntaNaoComprar({
       {p.adicionados.length > 0 && fase !== "marca" && (
         <section className="rounded-[16px] border-2 border-pos/40 bg-pos-soft">
           <div className="px-3 pt-2.5 text-[13px] font-extrabold text-pos">✓ Adicionado ({p.adicionados.length})</div>
-          <ul className="max-h-[28vh] overflow-y-auto px-2 pb-2 pt-1">
+          <ul className="max-h-[28dvh] overflow-y-auto px-2 pb-2 pt-1">
             {p.adicionados.map((a) => (
               <li key={`${a.onde}-${a.nome}`} className="flex items-center gap-2.5 rounded-[12px] px-1.5 py-1.5">
                 <FotoItem nome={a.nome} className="h-9 w-9 shrink-0 rounded-lg" />
@@ -1131,7 +1144,7 @@ function PerguntaNaoComprar({
               <div className="h-7 w-7 animate-spin rounded-full border-[3px] border-border border-t-brand" />
             </div>
           ) : marcas.length ? (
-            <div className="grid max-h-[40vh] grid-cols-2 gap-2 overflow-y-auto">
+            <div className="grid max-h-[40dvh] grid-cols-2 gap-2 overflow-y-auto">
               {marcas.map((m) => (
                 <button
                   key={m.marca}

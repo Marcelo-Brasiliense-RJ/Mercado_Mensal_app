@@ -62,7 +62,7 @@ export function Sugestoes({ termo, onEscolher }: { termo: string; onEscolher: (e
 
   const linha = "flex w-full items-center gap-3 px-3 py-2 text-left active:bg-card-2";
   return (
-    <div className="mb-3 max-h-[46vh] overflow-y-auto rounded-[14px] border border-border bg-card shadow-[0_6px_20px_var(--shadow)]">
+    <div className="mb-3 max-h-[46dvh] overflow-y-auto rounded-[14px] border border-border bg-card shadow-[0_6px_20px_var(--shadow)]">
       <button type="button" onClick={() => onEscolher({ nome: t.toLowerCase(), preco: null })} className={linha}>
         <FotoItem nome={t} className="h-11 w-11 rounded-lg" />
         <span className="min-w-0 flex-1">

@@ -104,7 +104,7 @@ export function ProcessoFoto({ job, onClose }: { job: JobFoto; onClose: () => vo
         </div>
 
         {conferindo && (
-          <div className="mt-3 flex max-h-[28vh] flex-col gap-1.5 overflow-y-auto">
+          <div className="mt-3 flex max-h-[28dvh] flex-col gap-1.5 overflow-y-auto">
             {achados.map((a, i) => (
               <div
                 key={i}

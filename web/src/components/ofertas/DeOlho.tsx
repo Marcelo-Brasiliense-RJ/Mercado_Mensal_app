@@ -283,7 +283,7 @@ function VigiarModal({ open, onClose, ofertas }: { open: boolean; onClose: () =>
         </label>
 
         {t.length >= 2 && (
-          <div className="flex max-h-[55vh] flex-col gap-2 overflow-y-auto">
+          <div className="flex max-h-[55dvh] flex-col gap-2 overflow-y-auto">
             <button
               disabled={busy}
               onClick={() => guardar(t, nomeBonito(t, ofertas), melhor)}

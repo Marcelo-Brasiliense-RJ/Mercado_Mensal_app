@@ -46,7 +46,7 @@ export function ItemGrid({
   );
 
   return (
-    <div className="mb-4 max-h-[45vh] overflow-y-auto rounded-[16px] border border-border">
+    <div className="mb-4 max-h-[45dvh] overflow-y-auto rounded-[16px] border border-border">
       {items.map((it, i) => {
         const aviso = avisoDe?.(it.nome) ?? null;
         return (

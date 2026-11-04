@@ -63,13 +63,27 @@ export function Modal({
     };
   }, [open]);
 
+  // Pagina por tras parada enquanto o popup esta aberto: sem isso o iPhone rola a
+  // tela inteira ao abrir o teclado e a barra de abas aparece por baixo do popup.
+  useEffect(() => {
+    if (!open) return;
+    const html = document.documentElement;
+    const antes = { h: html.style.overflow, b: document.body.style.overflow };
+    html.style.overflow = "hidden";
+    document.body.style.overflow = "hidden";
+    return () => {
+      html.style.overflow = antes.h;
+      document.body.style.overflow = antes.b;
+    };
+  }, [open]);
+
   // Campo tocado: espera o teclado subir e traz o campo para o meio do popup.
   useEffect(() => {
     if (!open) return;
     const onFocus = (e: FocusEvent) => {
       const el = e.target as HTMLElement | null;
       if (!el?.matches?.("input, textarea, select")) return;
-      setTimeout(() => el.scrollIntoView({ block: "center", behavior: "smooth" }), 320);
+      setTimeout(() => el.scrollIntoView({ block: "nearest", behavior: "smooth" }), 320);
     };
     document.addEventListener("focusin", onFocus);
     return () => document.removeEventListener("focusin", onFocus);
@@ -84,6 +98,8 @@ export function Modal({
     area != null && (area.altura < 560 || (typeof window !== "undefined" && area.altura < window.innerHeight - 150));
 
   return (
+    <>
+    <div aria-hidden className="fixed inset-0 z-30 animate-[fadeIn_0.2s_ease_both] bg-black/50" />
     <div
       onClick={onClose}
       style={
@@ -91,10 +107,10 @@ export function Modal({
           ? { position: "fixed", top: area.topo, height: area.altura, left: 0, right: 0 }
           : undefined
       }
-      className={`fixed inset-0 z-30 flex animate-[fadeIn_0.2s_ease_both] justify-center overflow-x-hidden bg-black/50 px-3 sm:px-6 ${
+      className={`fixed inset-0 z-30 flex animate-[fadeIn_0.2s_ease_both] justify-center overflow-x-hidden px-3 pl-[max(12px,env(safe-area-inset-left))] pr-[max(12px,env(safe-area-inset-right))] sm:px-6 ${
         apertado
           ? "items-start pb-2 pt-[max(10px,env(safe-area-inset-top))]"
-          : "items-center py-[max(12px,env(safe-area-inset-top))] sm:py-6"
+          : "items-center pb-[max(12px,env(safe-area-inset-bottom))] pt-[max(12px,env(safe-area-inset-top))] sm:py-6"
       }`}
     >
       {/* Em tela estreita os 100px de padding (24 do overlay + 26 do card, de cada
@@ -129,5 +145,6 @@ export function Modal({
         {children}
       </div>
     </div>
+    </>
   );
 }

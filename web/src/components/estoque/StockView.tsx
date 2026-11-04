@@ -279,9 +279,8 @@ export function StockView() {
         {/* Primeira coisa da tela: o que falta, com a acao junto. Antes o topo
             trazia contagem de itens e valor em reais, que nao fazem ninguem agir. */}
         {faltando.length === 0 && acabando.length > 0 && (
-          <div className="rounded-[18px] border-[1.5px] border-pos/50 bg-pos-soft px-3.5 py-3 text-[14px] font-bold text-pos">
-            ✓ {acabando.length === 1 ? "O item que está acabando já está" : `Os ${acabando.length} itens que estão acabando já estão`} na
-            lista de compras
+          <div className="flex w-fit items-center gap-1.5 rounded-full bg-pos-soft px-3 py-1.5 text-[13px] font-bold text-pos">
+            <span aria-hidden>✓</span> {acabando.length} acabando · já na lista
           </div>
         )}
         {faltando.length > 0 && (

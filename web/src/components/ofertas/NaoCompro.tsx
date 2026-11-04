@@ -269,7 +269,7 @@ function MarcarRuimModal({ ofertas, onClose }: { ofertas: Oferta[]; onClose: () 
         <Sugestoes termo={t} onEscolher={(e) => void guardar(termoEvitar(e.nome), e.nome)} />
       )}
       {t.length >= 2 && (
-        <div className="flex max-h-[45vh] flex-col gap-2 overflow-y-auto">
+        <div className="flex max-h-[45dvh] flex-col gap-2 overflow-y-auto">
           <button
             disabled={busy}
             onClick={() => guardar(termoEvitar(t), t)}

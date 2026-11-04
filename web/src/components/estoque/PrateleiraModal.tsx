@@ -345,7 +345,7 @@ export function PrateleiraModal({
             Só o que é <b>novo</b> entra (o que já estava no carrinho fica de fora). Confira a quantidade e o preço de
             cada um.
           </p>
-          <div className="flex max-h-[52vh] flex-col gap-2.5 overflow-y-auto">
+          <div className="flex max-h-[52dvh] flex-col gap-2.5 overflow-y-auto">
             {gruposCarrinho().map((g) => {
               const p = precos[g.chave] ?? { qtd: g.novos, preco: g.preco };
               const v = Number(p.preco.replace(",", ".")) || 0;
@@ -424,7 +424,7 @@ export function PrateleiraModal({
               </button>
             ))}
           </div>
-          <div className="flex max-h-[52vh] flex-col gap-2.5 overflow-y-auto">
+          <div className="flex max-h-[52dvh] flex-col gap-2.5 overflow-y-auto">
             {gruposProntos.map((g) => {
               const est = produtoDoEstoque(g.nome, stock);
               return (

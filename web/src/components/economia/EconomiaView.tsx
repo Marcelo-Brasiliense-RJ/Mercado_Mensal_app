@@ -71,7 +71,7 @@ export function EconomiaView() {
     return (
       <>
         <ScreenHeader title="Economia" subtitle="do mês" />
-        <div className="grid min-h-[40vh] place-items-center">
+        <div className="grid min-h-[40dvh] place-items-center">
           <div className="h-8 w-8 animate-spin rounded-full border-[3px] border-border border-t-brand" />
         </div>
       </>

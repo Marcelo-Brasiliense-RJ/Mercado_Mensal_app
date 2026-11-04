@@ -63,7 +63,7 @@ export function OfertasView() {
 
   if (estado.fase === "carregando") {
     return (
-      <div className="grid min-h-[50vh] place-items-center">
+      <div className="grid min-h-[50dvh] place-items-center">
         <div className="h-8 w-8 animate-spin rounded-full border-[3px] border-border border-t-brand" />
       </div>
     );
@@ -183,7 +183,7 @@ export function OfertasView() {
               <div className="text-[12px] font-bold uppercase tracking-[0.08em] text-text-2">Comparar</div>
               <div className="text-[22px] font-extrabold capitalize">{aberto.titulo}</div>
             </div>
-            <div className="flex max-h-[60vh] flex-col divide-y divide-border overflow-y-auto">
+            <div className="flex max-h-[60dvh] flex-col divide-y divide-border overflow-y-auto">
               {aberto.opcoes.map((o, i) => (
                 <div key={o.id} className="flex items-center gap-3 py-2.5">
                   <Foto o={o} className="h-14 w-14 rounded-xl" />

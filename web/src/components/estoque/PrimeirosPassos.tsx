@@ -37,9 +37,9 @@ export function PrimeirosPassos({ onFalar, onDigitar }: { onFalar: () => void; o
   const [ligando, setLigando] = useState(false);
   const [fechado, setFechado] = useState(() => {
     try {
-      return typeof window !== "undefined" && localStorage.getItem(FECHADO) === "1";
+      return typeof window === "undefined" || localStorage.getItem(FECHADO) !== "0";
     } catch {
-      return false;
+      return true;
     }
   });
 
@@ -50,8 +50,8 @@ export function PrimeirosPassos({ onFalar, onDigitar }: { onFalar: () => void; o
   // so na primeira carga: recarregar por tras (um +1 no card) nao pode sumir com o quadro
   if (ofertas.fase === "carregando" || !dataReady || push == null) return null;
 
-  const btn = "h-11 shrink-0 rounded-xl bg-brand px-4 text-[14px] font-bold text-brand-ink disabled:opacity-50";
-  const btn2 = "h-11 shrink-0 rounded-xl border-2 border-brand px-4 text-[14px] font-bold text-brand";
+  const btn = "h-9 shrink-0 rounded-xl bg-brand px-3.5 text-[13px] font-bold text-brand-ink disabled:opacity-50";
+  const btn2 = "h-9 shrink-0 rounded-xl border-2 border-brand px-3 text-[13px] font-bold text-brand";
   const itens: Item[] = [];
 
   if (ofertas.fase === "ok" && !ofertas.dados.meus_mercados?.length)
@@ -161,31 +161,36 @@ export function PrimeirosPassos({ onFalar, onDigitar }: { onFalar: () => void; o
   }
 
   return (
-    <div className="rounded-[20px] border-2 border-brand bg-brand-soft p-4">
-      <button type="button" onClick={alternar} aria-expanded={!fechado} className="flex w-full items-center justify-between gap-3 text-left">
-        <div className="text-[17px] font-extrabold">Falta configurar</div>
-        <div className="flex items-center gap-2 text-[13px] font-bold text-brand">
-          {pendentes.length} {pendentes.length > 1 ? "pendências" : "pendência"}
-          <span className={`text-[16px] transition-transform ${fechado ? "" : "rotate-180"}`}>⌄</span>
+    <div className="rounded-2xl border border-brand/40 bg-brand-soft px-3.5 py-2.5">
+      <button type="button" onClick={alternar} aria-expanded={!fechado} className="flex min-h-9 w-full items-center justify-between gap-3 text-left">
+        <div className="text-[15px] font-extrabold">⚙️ Falta configurar</div>
+        <div className="flex items-center gap-2">
+          <span className="grid h-6 min-w-6 place-items-center rounded-full bg-brand px-1.5 text-[12px] font-extrabold text-brand-ink">
+            {pendentes.length}
+          </span>
+          <span className={`text-[16px] text-brand transition-transform ${fechado ? "" : "rotate-180"}`} aria-hidden>⌄</span>
         </div>
       </button>
       {!fechado && (
-      <div className="mt-3 flex flex-col gap-2.5">
-        {pendentes.map((i) => (
-          <div key={i.id} className="rounded-2xl bg-card p-3">
-            <div className="flex flex-wrap items-center gap-3">
+        <div className="mt-2 flex flex-col divide-y divide-border overflow-hidden rounded-xl bg-card">
+          {pendentes.map((i) => (
+            <div key={i.id} className="flex items-center gap-2 px-3 py-2">
               <div className="min-w-0 flex-1">
-                <div className="text-[15px] font-extrabold">{i.titulo}</div>
-                <div className="text-[13px] text-text-2">{i.texto}</div>
+                <div className="truncate text-[14px] font-extrabold">{i.titulo}</div>
+                {/* Sem botao, o texto e a instrucao: so ai ele aparece. */}
+                {!i.acao && <div className="text-[12px] leading-snug text-text-2">{i.texto}</div>}
               </div>
               {i.acao}
+              <button
+                onClick={() => agoraNao(i.id)}
+                aria-label={`Agora não: ${i.titulo}`}
+                className="grid h-9 w-8 shrink-0 place-items-center text-[18px] leading-none text-text-3"
+              >
+                ×
+              </button>
             </div>
-            <button onClick={() => agoraNao(i.id)} className="mt-1 h-8 text-[12px] font-bold text-text-3 underline">
-              Agora não
-            </button>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
       )}
       {mercados && <MeusMercadosModal onClose={() => setMercados(false)} />}
       <BudgetModal open={orcamento} onClose={() => setOrcamento(false)} />

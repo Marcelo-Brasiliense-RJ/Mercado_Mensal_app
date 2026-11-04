@@ -350,7 +350,7 @@ function Comparar({
   return (
     <div className="fixed inset-0 z-50 flex items-end bg-black/40" onClick={onFechar}>
       <div
-        className="max-h-[85vh] w-full overflow-y-auto rounded-t-[24px] bg-card p-5 pb-8"
+        className="max-h-[85dvh] w-full overflow-y-auto overscroll-contain rounded-t-[24px] bg-card p-5 pb-[max(32px,calc(env(safe-area-inset-bottom)+16px))]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-3">
