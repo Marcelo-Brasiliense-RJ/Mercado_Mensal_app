@@ -13,6 +13,7 @@ import { marcarNaoComprar, marcarRuim } from "@/components/ofertas/useEvitar";
 import { termoEvitar } from "@/lib/ofertas";
 import { reduzir } from "@/lib/reconhecer";
 import { Gravador } from "./Gravador";
+import { FotoItem } from "@/components/ui/FotoItem";
 import { PrateleiraModal } from "@/components/estoque/PrateleiraModal";
 import { enfileirarFoto } from "@/lib/filaFotos";
 import { acertarEstoque as acertarNoEstoque } from "@/lib/acertarEstoque";
@@ -91,7 +92,9 @@ type Pergunta = {
   // o que ja foi gravado antes da pergunta ("🏠 Estoque: arroz 5 kg"): adicao e uma
   // coisa, "nao comprar" e outra; a pessoa ve a primeira pronta e so entao responde.
   gravado: string;
+  adicionados: Adicionado[]; // a mesma coisa, item por item, para a lista de cima
 };
+type Adicionado = { nome: string; qtd: number; unidade: string; onde: "estoque" | "lista" };
 type Marca = { marca: string; foto: string | null };
 
 export function VoiceModal({
@@ -437,8 +440,15 @@ export function VoiceModal({
       // 1) As adicoes primeiro, ja gravadas: "tenho 5 kg de arroz" entra no estoque e
       // "preciso de cafe" na lista, antes de qualquer pergunta sobre o que nao comprar.
       const gravados: string[] = [];
+      const adicionados: Adicionado[] = [];
       const est = lidos.filter((i) => i.destino === "estoque");
-      if (est.length) gravados.push(await acertarEstoque(est));
+      if (est.length) {
+        const r = await acertarNoEstoque(est, stock, addStock);
+        if (r.ok.length) gravados.push(`🏠 Estoque: ${r.ok.join(", ")}`);
+        for (const it of est) {
+          if (!r.falhou.includes(it.nome.trim())) adicionados.push({ nome: it.nome.trim(), qtd: it.qtd, unidade: it.unidade, onde: "estoque" });
+        }
+      }
       const naLista = lidos.filter((i) => i.destino === "lista" && !i.duvida && i.nome.trim().length >= 2);
       const foram: string[] = [];
       for (const it of naLista) {
@@ -448,7 +458,10 @@ export function VoiceModal({
           unit: it.unidade,
           estimated_price: it.preco ?? findByName(it.nome, stock)?.priceLast ?? null,
         });
-        if (r.ok) foram.push(it.nome.trim());
+        if (r.ok) {
+          foram.push(it.nome.trim());
+          adicionados.push({ nome: it.nome.trim(), qtd: Number(it.qtd) || 1, unidade: it.unidade, onde: "lista" });
+        }
       }
       if (foram.length) gravados.push(`📝 Lista: ${foram.join(", ")}`);
       lidos = lidos.filter((i) => !est.includes(i) && !(naLista.includes(i) && foram.includes(i.nome.trim())));
@@ -462,7 +475,7 @@ export function VoiceModal({
       }
       const fila = tirarItens.filter((i) => i.motivo !== "excesso").map((i) => i.nome.trim());
       if (fila.length) {
-        setPergunta({ fila, i: 0, frase, intencao, lidos, aviso: [gravado, aviso].filter(Boolean).join(" · "), feitos, gravado });
+        setPergunta({ fila, i: 0, frase, intencao, lidos, aviso: [gravado, aviso].filter(Boolean).join(" · "), feitos, gravado, adicionados });
         setFase("motivo");
         return;
       }
@@ -799,7 +812,9 @@ export function VoiceModal({
           {pergunta
             ? fase === "marca"
               ? `Qual marca de ${pergunta.fila[pergunta.i]} é ruim?`
-              : `Por que não comprar ${pergunta.fila[pergunta.i]}?`
+              : pergunta.adicionados.length
+                ? "Entendi assim"
+                : `Por que não comprar ${pergunta.fila[pergunta.i]}?`
             : fase === "conferir" && jaForam > 0
             ? "Fiquei em dúvida nestes"
             : fase === "conferir" || fase === "salvando"
@@ -1034,20 +1049,54 @@ function PerguntaNaoComprar({
   const ocupado = fase === "salvando";
   return (
     <div className="flex flex-col gap-3">
-      {p.gravado && (
-        <div className="rounded-[13px] border-2 border-pos/40 bg-pos-soft p-3">
-          <div className="text-[13px] font-extrabold text-pos">✓ Já gravei</div>
-          <div className="text-[14px] font-bold">{p.gravado}</div>
+      {/* 1. O que entrou: adicao, ja gravada. Lista com rolagem se for muita coisa. */}
+      {p.adicionados.length > 0 && fase !== "marca" && (
+        <section className="rounded-[16px] border-2 border-pos/40 bg-pos-soft">
+          <div className="px-3 pt-2.5 text-[13px] font-extrabold text-pos">✓ Adicionado ({p.adicionados.length})</div>
+          <ul className="max-h-[28vh] overflow-y-auto px-2 pb-2 pt-1">
+            {p.adicionados.map((a) => (
+              <li key={`${a.onde}-${a.nome}`} className="flex items-center gap-2.5 rounded-[12px] px-1.5 py-1.5">
+                <FotoItem nome={a.nome} className="h-9 w-9 shrink-0 rounded-lg" />
+                <span className="min-w-0 flex-1 truncate text-[15px] font-bold capitalize">{a.nome}</span>
+                <span className="shrink-0 text-[14px] font-extrabold tabular-nums">
+                  {Number.isInteger(a.qtd) ? a.qtd : String(a.qtd).replace(".", ",")} {a.unidade}
+                </span>
+                <span
+                  className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-extrabold ${
+                    a.onde === "estoque" ? "bg-card text-text-2" : "bg-brand-soft text-brand"
+                  }`}
+                >
+                  {a.onde === "estoque" ? "🏠 Estoque" : "📝 Lista"}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {/* 2. O que nao comprar: separado, embaixo. */}
+      {p.adicionados.length > 0 && fase !== "marca" && (
+        <>
+          <div className="mt-1 flex items-center gap-2">
+            <span className="h-px flex-1 bg-border" />
+            <span className="text-[12px] font-extrabold uppercase tracking-wide text-text-3">🚫 Não comprar</span>
+            <span className="h-px flex-1 bg-border" />
+          </div>
+          <div className="text-[17px] font-extrabold">
+            Por que não comprar {nome}?
+            {p.fila.length > 1 && (
+              <span className="ml-1.5 text-[12px] font-bold text-text-3">
+                ({p.i + 1} de {p.fila.length})
+              </span>
+            )}
+          </div>
+        </>
+      )}
+      {!p.adicionados.length && p.fila.length > 1 && fase !== "marca" && (
+        <div className="text-[12px] font-bold text-text-3">
+          Item {p.i + 1} de {p.fila.length}
         </div>
       )}
-      <p className="rounded-[13px] border border-border bg-card-2 p-3 text-[13px] leading-relaxed text-text-2">
-        “{p.frase}”
-        {p.fila.length > 1 && (
-          <span className="mt-1 block font-bold">
-            Item {p.i + 1} de {p.fila.length}
-          </span>
-        )}
-      </p>
 
       {fase === "marca" ? (
         <>
@@ -1163,6 +1212,8 @@ function PerguntaNaoComprar({
         </>
       )}
       {ocupado && <p className="text-center text-[13px] text-text-3">Guardando…</p>}
+      {/* o que foi ouvido, pequeno no rodape: referencia, nao o centro da tela */}
+      <p className="text-center text-[12px] italic leading-snug text-text-3">Ouvi: “{p.frase}”</p>
     </div>
   );
 }
