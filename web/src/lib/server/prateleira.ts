@@ -71,7 +71,7 @@ function partes(dataUrl: string) {
 // mais quadrados verdes e permite saber o que ja esta no carrinho (foto no mercado).
 const COM_NOMES = (nomes: string[]) =>
   nomes.length
-    ? `\nNomes que esta casa já usa. Se o produto da foto for um destes, use EXATAMENTE este nome em "nome" (não precisa reler o rótulo inteiro):\n${nomes.map((n) => `- ${n}`).join("\n")}`
+    ? `\nNomes que esta casa já usa. Se o produto da foto for um destes, use EXATAMENTE este nome em "nome". Se NÃO for nenhum destes, escreva o nome normalmente pelo rótulo: a lista é só ajuda, NUNCA deixe "nome" vazio para um produto que você leu.\n${nomes.map((n) => `- ${n}`).join("\n")}`
     : "";
 const limparNomes = (nomes?: unknown) =>
   (Array.isArray(nomes) ? nomes : [])
