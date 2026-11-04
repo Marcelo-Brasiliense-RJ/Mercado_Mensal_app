@@ -85,11 +85,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 onClick={() => void tocarGps()}
                 aria-label={gpsLigado ? "Localização ligada" : "Ligar localização"}
                 aria-pressed={gpsLigado}
-                className={`relative grid h-10 w-10 place-items-center rounded-xl hover:bg-card-2 ${
+                className={`ic-toque relative grid h-10 w-10 place-items-center rounded-xl hover:bg-card-2 ${
                   gpsLigado ? (lugar.noMercado ? "text-pos" : "text-brand") : "text-text-3"
                 }`}
               >
-                <PinIcon size={21} ligado={gpsLigado} />
+                <span key={String(gpsLigado)} className={gpsLigado ? "ic-cai" : "ic-pop"}>
+                  <PinIcon size={21} ligado={gpsLigado} />
+                </span>
                 {gpsLigado && lugar.noMercado && (
                   <span className="absolute right-1.5 top-1.5 h-2 w-2 animate-pulse rounded-full bg-pos ring-2 ring-card" aria-hidden />
                 )}
@@ -121,7 +123,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           path.startsWith("/app/lista") ? "bottom-[calc(env(safe-area-inset-bottom)+124px)]" : "bottom-[calc(env(safe-area-inset-bottom)+72px)]"
         }`}
       >
-        <AddItemIcon size={30} contraste="var(--brand, #C15F3C)" />
+        <span className="ic-mexe">
+          <AddItemIcon size={28} />
+        </span>
       </button>
     </div>
   );

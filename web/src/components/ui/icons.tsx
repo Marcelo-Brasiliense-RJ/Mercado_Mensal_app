@@ -1,134 +1,76 @@
-type P = { size?: number; className?: string };
-const base = (size = 24) => ({
-  width: size,
-  height: size,
-  viewBox: "0 0 24 24",
-  fill: "none",
-  stroke: "currentColor",
-  strokeWidth: 2,
-  strokeLinecap: "round" as const,
-  strokeLinejoin: "round" as const,
-});
+import {
+  Camera,
+  ChartColumn,
+  Check,
+  ChevronLeft,
+  ChevronRight as LChevronRight,
+  Copy,
+  Heart,
+  ListChecks,
+  MapPinOff,
+  Mic,
+  Moon,
+  Package,
+  PackagePlus,
+  Plus,
+  Receipt,
+  RefreshCw,
+  ScanBarcode,
+  Search,
+  Sun,
+  Tag,
+  Users,
+  type LucideIcon,
+} from "lucide-react";
 
-export const BoxIcon = ({ size, className }: P) => (
-  <svg {...base(size)} className={className}>
-    <rect x="3" y="7" width="18" height="13" rx="2" />
-    <path d="M3 11h18" />
-    <path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-  </svg>
+// Icones do app: Lucide (traco uniforme, arredondado), com os mesmos nomes de antes
+// para nao mexer em quem usa. Animacao fica por conta de quem usa (classes .ic-*).
+type P = { size?: number; className?: string };
+const de = (I: LucideIcon, traco = 2) => {
+  const C = ({ size = 24, className }: P) => <I size={size} strokeWidth={traco} className={className} aria-hidden />;
+  return C;
+};
+
+export const BoxIcon = de(Package);
+export const ListIcon = de(ListChecks);
+export const ChartIcon = de(ChartColumn);
+export const ChevronRight = de(LChevronRight);
+export const ChevronLeftIcon = de(ChevronLeft);
+export const SunIcon = de(Sun);
+export const MoonIcon = de(Moon);
+export const SearchIcon = de(Search);
+export const PlusIcon = de(Plus);
+export const CheckIcon = de(Check, 2.5);
+export const RefreshIcon = de(RefreshCw);
+export const CopyIcon = de(Copy);
+export const ReceiptIcon = de(Receipt);
+export const UsersIcon = de(Users);
+export const TagIcon = de(Tag);
+export const BarcodeIcon = de(ScanBarcode);
+export const MicIcon = de(Mic);
+export const HeartIcon = de(Heart);
+export const CameraIcon = de(Camera);
+
+// Adicionar item: pacote com "+" (botao flutuante).
+export const AddItemIcon = ({ size = 24, className }: P & { contraste?: string }) => (
+  <PackagePlus size={size} strokeWidth={2.1} className={className} aria-hidden />
 );
-export const ListIcon = ({ size, className }: P) => (
-  <svg {...base(size)} className={className}>
-    <path d="M9 6h11M9 12h11M9 18h11" />
-    <path d="M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2" />
-  </svg>
-);
-export const ChartIcon = ({ size, className }: P) => (
-  <svg {...base(size)} className={className}>
-    <path d="M4 20V10M10 20V4M16 20v-8M22 20H2" />
-  </svg>
-);
-export const ChevronRight = ({ size, className }: P) => (
-  <svg {...base(size)} className={className}><path d="M9 18l6-6-6-6" /></svg>
-);
-export const ChevronLeftIcon = ({ size, className }: P) => (
-  <svg {...base(size)} className={className}><path d="M15 18l-6-6 6-6" /></svg>
-);
-export const SunIcon = ({ size, className }: P) => (
-  <svg {...base(size)} className={className}>
-    <circle cx="12" cy="12" r="4" />
-    <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
-  </svg>
-);
-export const MoonIcon = ({ size, className }: P) => (
-  <svg {...base(size)} className={className}><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" /></svg>
-);
-export const SearchIcon = ({ size, className }: P) => (
-  <svg {...base(size)} className={className}><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" /></svg>
-);
-export const PlusIcon = ({ size, className }: P) => (
-  <svg {...base(size)} className={className}><path d="M12 5v14M5 12h14" /></svg>
-);
-export const CheckIcon = ({ size, className }: P) => (
-  <svg {...base(size)} className={className}><path d="M20 6L9 17l-5-5" /></svg>
-);
+
+// Localizacao: preenchida = ligada e funcionando; riscada = desligada.
+export const PinIcon = ({ size = 24, className, ligado }: P & { ligado: boolean }) =>
+  ligado ? (
+    // mesmo desenho do MapPin do Lucide, preenchido e com o furo na cor do fundo
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth={2} strokeLinejoin="round" className={className} aria-hidden>
+      <path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0" />
+      <circle cx="12" cy="10" r="3" fill="var(--card, #fff)" stroke="none" />
+    </svg>
+  ) : (
+    <MapPinOff size={size} strokeWidth={2} className={className} aria-hidden />
+  );
+
 export const TelegramIcon = ({ size, className }: P) => (
   <svg width={size ?? 24} height={size ?? 24} viewBox="0 0 24 24" fill="currentColor" className={className}>
     <path d="M21.9 4.3l-3.3 15.6c-.25 1.1-.9 1.37-1.83.85l-5-3.7-2.42 2.33c-.27.27-.5.5-1 .5l.36-5.1L17.98 6.2c.4-.36-.09-.56-.62-.2L6.87 12.6l-4.9-1.53c-1.07-.34-1.09-1.07.22-1.58l19.16-7.4c.9-.33 1.68.2 1.55 1.2z" />
   </svg>
 );
-export const RefreshIcon = ({ size, className }: P) => (
-  <svg {...base(size)} className={className}>
-    <path d="M21 12a9 9 0 1 1-2.64-6.36" />
-    <path d="M21 3v5h-5" />
-  </svg>
-);
-export const CopyIcon = ({ size, className }: P) => (
-  <svg {...base(size)} className={className}><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15V5a2 2 0 0 1 2-2h10" /></svg>
-);
-export const ReceiptIcon = ({ size, className }: P) => (
-  <svg {...base(size)} className={className}>
-    <path d="M3 9a2 2 0 0 1 2-2h2l1.2-1.6a1 1 0 0 1 .8-.4h6a1 1 0 0 1 .8.4L17 7h2a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-    <circle cx="12" cy="12.5" r="3.3" />
-  </svg>
-);
-export const UsersIcon = ({ size, className }: P) => (
-  <svg {...base(size)} className={className}>
-    <circle cx="9" cy="8.5" r="3.3" />
-    <path d="M2.5 20c0-3.5 2.9-5.4 6.5-5.4" />
-    <circle cx="17" cy="9.5" r="2.8" />
-    <path d="M13.5 15c3.4 0 6 1.8 6 5" />
-  </svg>
-);
-export const TagIcon = ({ size, className }: P) => (
-  <svg {...base(size)} className={className}>
-    <path d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9-9-9z" />
-    <circle cx="7.5" cy="7.5" r="1.5" />
-  </svg>
-);
-export const BarcodeIcon = ({ size, className }: P) => (
-  <svg {...base(size)} className={className}>
-    <path d="M3 6V5a1 1 0 0 1 1-1h2M18 4h2a1 1 0 0 1 1 1v1M21 18v1a1 1 0 0 1-1 1h-2M6 20H4a1 1 0 0 1-1-1v-1" />
-    <path d="M7 8v8M10.5 8v8M14 8v8M17 8v8" />
-  </svg>
-);
-// Capsula cheia + arco, o mesmo desenho do botao grande do Gravador.
-export const MicIcon = ({ size, className }: P) => (
-  <svg {...base(size)} className={className}>
-    <rect x="8.25" y="2.75" width="7.5" height="12" rx="3.75" fill="currentColor" stroke="none" />
-    <path d="M5.25 11.25a6.75 6.75 0 0 0 13.5 0M12 18v3" />
-  </svg>
-);
-export const HeartIcon = ({ size, className }: P) => (
-  <svg {...base(size)} className={className}>
-    <path d="M12 20s-7-4.4-9.3-8.6C1 8 3 4.5 6.5 4.5c2 0 3.3 1.1 5.5 3.3 2.2-2.2 3.5-3.3 5.5-3.3C21 4.5 23 8 21.3 11.4 19 15.6 12 20 12 20z" />
-  </svg>
-);
-export const CameraIcon = ({ size, className }: P) => (
-  <svg {...base(size)} className={className}>
-    <path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z" />
-    <circle cx="12" cy="13.5" r="3.5" />
-  </svg>
-);
 
-// Adicionar item: um pacote com um "+" em cima (topo do app: falar, escrever ou foto).
-export const AddItemIcon = ({ size, className, contraste = "var(--card, #fff)" }: P & { contraste?: string }) => (
-  <svg {...base(size)} className={className}>
-    <path d="M3.5 9.5 11 6l7.5 3.5V18L11 21.5 3.5 18Z" />
-    <path d="M3.5 9.5 11 13l7.5-3.5M11 13v8.5" />
-    <circle cx="18.5" cy="5.5" r="4.2" fill="currentColor" stroke="none" />
-    <path d="M18.5 3.6v3.8M16.6 5.5h3.8" stroke={contraste} strokeWidth="1.8" />
-  </svg>
-);
-
-// Localizacao: preenchida = ligada e funcionando; contorno com risco = desligada.
-export const PinIcon = ({ size, className, ligado }: P & { ligado: boolean }) => (
-  <svg {...base(size)} className={className}>
-    <path
-      d="M12 21.5s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11Z"
-      fill={ligado ? "currentColor" : "none"}
-    />
-    <circle cx="12" cy="10.5" r="2.3" fill={ligado ? "var(--card, #fff)" : "none"} stroke={ligado ? "none" : "currentColor"} />
-    {!ligado && <path d="M3.5 3.5l17 17" />}
-  </svg>
-);

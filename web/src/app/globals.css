@@ -83,6 +83,21 @@ input:focus, select:focus { outline: none; }
   .processo * { animation: none !important; }
 }
 
+/* Icones animados, sem exagero: so quando algo muda ou de vez em quando. */
+@keyframes icPop { 0% { transform: scale(.7); } 60% { transform: scale(1.15); } 100% { transform: scale(1); } }
+@keyframes icGira { from { transform: rotate(-90deg) scale(.6); opacity: 0; } to { transform: rotate(0) scale(1); opacity: 1; } }
+@keyframes icCai { 0% { transform: translateY(-6px); opacity: .3; } 60% { transform: translateY(1px); opacity: 1; } 100% { transform: translateY(0); } }
+@keyframes icMexe { 0%, 88%, 100% { transform: rotate(0); } 91% { transform: rotate(-12deg); } 94% { transform: rotate(10deg); } 97% { transform: rotate(-5deg); } }
+.ic-pop { animation: icPop .35s cubic-bezier(.3,1.5,.6,1) both; }
+.ic-gira { animation: icGira .4s cubic-bezier(.3,1.4,.6,1) both; }
+.ic-cai { animation: icCai .45s cubic-bezier(.3,1.4,.6,1) both; }
+.ic-mexe { animation: icMexe 7s ease-in-out 2s infinite; transform-origin: 50% 60%; }
+.ic-toque { transition: transform .15s ease; }
+.ic-toque:active { transform: scale(.88); }
+@media (prefers-reduced-motion: reduce) {
+  .ic-pop, .ic-gira, .ic-cai, .ic-mexe { animation: none !important; }
+}
+
 /* Gravador (popup de voz): halo que respira parado, ondas que saem gravando,
    barras de som no modo do aparelho (sem medidor) e o giro do "entendendo". */
 @keyframes respira { 0%, 100% { transform: scale(1); opacity: .55; } 50% { transform: scale(1.08); opacity: .25; } }

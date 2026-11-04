@@ -25,11 +25,15 @@ export function TabBar({ className = "" }: { className?: string }) {
             key={href}
             href={href}
             aria-current={active ? "page" : undefined}
-            className={`flex min-h-[56px] flex-1 flex-col items-center justify-center gap-1 ${
+            className={`ic-toque relative flex min-h-[56px] flex-1 flex-col items-center justify-center gap-1 ${
               active ? "text-brand" : "text-text-3"
             }`}
           >
-            <Icon size={24} />
+            {active && <span className="absolute top-0 h-[3px] w-7 rounded-b-full bg-brand" aria-hidden />}
+            {/* key: ao trocar de aba, o icone da aba nova "salta" uma vez */}
+            <span key={String(active)} className={active ? "ic-pop" : ""}>
+              <Icon size={23} />
+            </span>
             <span className="text-[11px] font-semibold">{label}</span>
           </Link>
         );

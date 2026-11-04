@@ -9,9 +9,11 @@ export function ThemeToggle() {
     <button
       onClick={toggle}
       aria-label="Alternar tema"
-      className="grid h-10 w-10 place-items-center rounded-xl text-text-2 hover:bg-card-2"
+      className="ic-toque grid h-10 w-10 place-items-center rounded-xl text-text-2 hover:bg-card-2"
     >
-      {isDark ? <SunIcon size={20} /> : <MoonIcon size={20} />}
+      <span key={String(isDark)} className="ic-gira">
+        {isDark ? <SunIcon size={20} /> : <MoonIcon size={20} />}
+      </span>
     </button>
   );
 }
