@@ -122,7 +122,7 @@ function grade(c: HTMLCanvasElement, boxes: Box[]): string {
   boxes.forEach((b, i) => {
     const x = (i % cols) * lado;
     const y = Math.floor(i / cols) * lado;
-    ctx.drawImage(recorte(c, b, lado - 8, 0.08), x + 4, y + 4);
+    ctx.drawImage(recorte(c, b, lado - 8, 0.03), x + 4, y + 4);
     ctx.fillStyle = "#111";
     ctx.fillRect(x + 4, y + 4, 34, 26);
     ctx.fillStyle = "#fff";

@@ -85,10 +85,18 @@ export function corDe(p: {
   conferido: string | null | undefined; // undefined = conferencia nao rodou; "" = recorte sem produto
   daMemoria: boolean;
   conhecidos: string[]; // nomes do estoque e da memoria
+  vizinhos?: string[]; // nomes dos outros quadrados da mesma foto
 }): Cor {
   if (!p.nome) return "vermelho";
   const conferiu = p.conferido !== undefined && p.conferido !== null;
-  if (conferiu && !mesmoProduto(p.conferido!, p.nome)) return "vermelho";
+  if (conferiu && !mesmoProduto(p.conferido!, p.nome)) {
+    // Produtos encostados (sachês sobrepostos): o recorte pega o vizinho. Se a segunda
+    // olhada viu o nome de OUTRO quadrado da foto, e sobra do vizinho, nao erro: vale
+    // a leitura do rotulo.
+    const doVizinho = !!p.conferido && (p.vizinhos ?? []).some((v) => mesmoProduto(v, p.conferido!));
+    if (doVizinho && p.legivel) return "verde";
+    return p.legivel ? "amarelo" : "vermelho";
+  }
   // Leu o rotulo E a segunda olhada no recorte concorda: e obvio, ja entra.
   if (p.legivel && conferiu) return "verde";
   if (p.daMemoria || p.conhecidos.some((k) => mesmoProduto(k, p.nome))) return p.legivel || conferiu ? "verde" : "amarelo";

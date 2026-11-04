@@ -44,9 +44,12 @@ describe("quadrados da prateleira", () => {
     expect(corDe({ ...base, nome: "leite italac", legivel: false })).toBe("amarelo"); // palpite de algo que a casa tem: confirma
     expect(corDe({ ...base, nome: "molho pomarola", legivel: false })).toBe("vermelho");
     // recorte mostra outro produto: o quadrado esta no lugar errado
-    expect(corDe({ ...base, nome: "leite italac", conferido: "detergente ype" })).toBe("vermelho");
+    expect(corDe({ ...base, nome: "leite italac", legivel: false, conferido: "detergente ype" })).toBe("vermelho");
+    expect(corDe({ ...base, nome: "leite italac", conferido: "detergente ype" })).toBe("amarelo"); // leu o rotulo: confirma
+    // sachês sobrepostos: o recorte pegou o vizinho, vale o rotulo
+    expect(corDe({ ...base, nome: "passata pramesa", conferido: "molho de tomate predilecta", vizinhos: ["molho de tomate predilecta"] })).toBe("verde");
     expect(corDe({ ...base, nome: "leite italac", conferido: "leite" })).toBe("verde");
-    expect(corDe({ ...base, nome: "leite italac", conferido: "" })).toBe("vermelho");
+    expect(corDe({ ...base, nome: "leite italac", conferido: "" })).toBe("amarelo");
     // leu e o recorte concorda: obvio, verde mesmo sendo a primeira vez
     expect(corDe({ ...base, nome: "passata pramesa", conferido: "passata pramesa" })).toBe("verde");
   });

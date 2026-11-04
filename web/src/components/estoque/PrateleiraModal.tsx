@@ -136,8 +136,9 @@ export function PrateleiraModal({
       const lembrado = a.nome ? daMemoria(a.nome, memoria) : null;
       const nome = lembrado ?? a.nome;
       const conf = conferidos[i] ?? undefined;
-      const cor = corDe({ nome, legivel: a.legivel || !!lembrado, conferido: conf, daMemoria: !!lembrado, conhecidos });
-      const opcoes = cor === "vermelho" ? [...new Set([conf, nome].filter((x): x is string => !!x))] : undefined;
+      const vizinhos = achados.filter((_, k) => k !== i).map((x) => x.nome).filter(Boolean);
+      const cor = corDe({ nome, legivel: a.legivel || !!lembrado, conferido: conf, daMemoria: !!lembrado, conhecidos, vizinhos });
+      const opcoes = cor !== "verde" ? [...new Set([nome, conf].filter((x): x is string => !!x))] : undefined;
       return { id: `c${i}`, box: a.box, lido: a.nome, nome: cor === "vermelho" ? (conf || nome || "") : nome, cor, corInicial: cor, pronto: cor === "verde", unidades: unidadesDe(a), opcoes };
     });
     setSrc(job.src);
