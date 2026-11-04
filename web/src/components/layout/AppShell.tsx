@@ -117,7 +117,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <button
         onClick={() => setFalar(true)}
         aria-label="Adicionar item"
-        className={`fixed right-4 z-30 grid h-[60px] w-[60px] place-items-center rounded-full bg-brand text-brand-ink shadow-[0_8px_22px_rgba(193,95,60,.45)] ring-4 ring-bg transition-transform active:scale-95 lg:bottom-8 lg:right-8 ${
+        className={`fixed right-4 z-20 grid h-[60px] w-[60px] place-items-center rounded-full bg-brand text-brand-ink shadow-[0_8px_22px_rgba(193,95,60,.45)] ring-4 ring-bg transition-transform active:scale-95 lg:bottom-8 lg:right-8 ${
           path.startsWith("/app/lista") ? "bottom-[calc(env(safe-area-inset-bottom)+124px)]" : "bottom-[calc(env(safe-area-inset-bottom)+72px)]"
         }`}
       >

@@ -142,7 +142,7 @@ export function CartPanel({ onScan }: { onScan?: () => void }) {
       <div className="p-[18px] pt-3.5">
       {trip.items.length === 0 ? (
         <p className="text-[14px] leading-relaxed text-text-2">
-          Leia o <b>Código</b> ou <b>Fale</b> o que pegou (botões embaixo). O total sobe aqui na hora.
+          Toque no <b>+</b> (canto de baixo) para tirar foto, ler o código ou falar o que pegou. O total sobe aqui na hora.
         </p>
       ) : (
         <ul className="space-y-2">
