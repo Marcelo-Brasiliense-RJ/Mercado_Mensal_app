@@ -15,7 +15,6 @@ import { reduzir } from "@/lib/reconhecer";
 import { Gravador } from "./Gravador";
 import { FotoItem } from "@/components/ui/FotoItem";
 import { PrateleiraModal } from "@/components/estoque/PrateleiraModal";
-import { enfileirarFoto } from "@/lib/filaFotos";
 import { acertarEstoque as acertarNoEstoque } from "@/lib/acertarEstoque";
 import type { ShopItem } from "@/lib/types";
 import {
@@ -799,7 +798,7 @@ export function VoiceModal({
           setPrateleira(false);
           fechar();
         }}
-        onUmSo={(f) => void enfileirarFoto(f, "estoque")}
+        destino="estoque"
       />
     )}
     <Modal open={open && !prateleira} onClose={fechar} maxWidth={460}>

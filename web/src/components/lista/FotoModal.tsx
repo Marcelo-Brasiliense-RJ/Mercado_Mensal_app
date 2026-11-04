@@ -53,10 +53,7 @@ export function FotoModal({
     return (
       <PrateleiraModal
         onClose={() => setPrateleira(false)}
-        onUmSo={(f) => {
-          void enfileirarFoto(f, destino);
-          setDesta((n) => n + 1);
-        }}
+        destino={destino}
       />
     );
   }

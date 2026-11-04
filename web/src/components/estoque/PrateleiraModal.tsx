@@ -13,13 +13,13 @@ import {
   chaveLido,
   corDe,
   daMemoria,
-  limpar,
   qualidadeDe,
   unidadesDe,
-  type Achado,
   type Box,
   type Cor,
 } from "@/lib/prateleira";
+import { canvasDe, enfileirarPrateleira, recorte, tirarJob, type JobFoto } from "@/lib/filaPrateleira";
+import type { Destino } from "@/lib/filaFotos";
 
 // Foto da prateleira (pedido do dono): cada produto ganha um quadrado colorido em
 // cima dele. Verde ja entra; amarelo confirma com um toque; vermelho a pessoa diz o
@@ -48,65 +48,13 @@ type Caixa = {
 
 type Fase = "foto" | "lendo" | "marcar" | "revisar" | "salvando";
 
-const LADO = 1600; // px do lado maior: nitido para ler rotulo, leve para subir no 4G
-
-async function prepararFoto(arquivo: File): Promise<HTMLCanvasElement> {
-  // imageOrientation: a foto do iPhone vem deitada no arquivo; aqui ela ja fica de pe,
-  // e e ESSA que vai para a IA e para a tela (os quadrados batem nas duas).
-  const img = await createImageBitmap(arquivo, { imageOrientation: "from-image" });
-  const k = Math.min(1, LADO / Math.max(img.width, img.height));
-  const c = document.createElement("canvas");
-  c.width = Math.round(img.width * k);
-  c.height = Math.round(img.height * k);
-  c.getContext("2d")!.drawImage(img, 0, 0, c.width, c.height);
-  return c;
-}
-
-function recorte(c: HTMLCanvasElement, b: Box, lado: number): HTMLCanvasElement {
-  const x = b[1] * c.width;
-  const y = b[0] * c.height;
-  const w = Math.max(1, (b[3] - b[1]) * c.width);
-  const h = Math.max(1, (b[2] - b[0]) * c.height);
-  const k = Math.min(lado / w, lado / h);
-  const r = document.createElement("canvas");
-  r.width = lado;
-  r.height = lado;
-  const g = r.getContext("2d")!;
-  g.fillStyle = "#fff";
-  g.fillRect(0, 0, lado, lado);
-  g.drawImage(c, x, y, w, h, (lado - w * k) / 2, (lado - h * k) / 2, w * k, h * k);
-  return r;
-}
-
-// Grade numerada dos recortes, para a conferencia (uma chamada so para todos).
-function grade(c: HTMLCanvasElement, boxes: Box[]): string {
-  const lado = 200;
-  const cols = Math.ceil(Math.sqrt(boxes.length));
-  const linhas = Math.ceil(boxes.length / cols);
-  const g = document.createElement("canvas");
-  g.width = cols * lado;
-  g.height = linhas * lado;
-  const ctx = g.getContext("2d")!;
-  ctx.fillStyle = "#fff";
-  ctx.fillRect(0, 0, g.width, g.height);
-  boxes.forEach((b, i) => {
-    const x = (i % cols) * lado;
-    const y = Math.floor(i / cols) * lado;
-    ctx.drawImage(recorte(c, b, lado - 8), x + 4, y + 4);
-    ctx.fillStyle = "#111";
-    ctx.fillRect(x + 4, y + 4, 34, 26);
-    ctx.fillStyle = "#fff";
-    ctx.font = "bold 18px sans-serif";
-    ctx.fillText(String(i + 1), x + 10, y + 24);
-  });
-  return g.toDataURL("image/jpeg", 0.85);
-}
-
 const COR: Record<Cor, string> = { verde: "#16a34a", amarelo: "#eab308", vermelho: "#dc2626" };
 
-export function PrateleiraModal({ onClose, onUmSo }: { onClose: () => void; onUmSo?: (f: File) => void }) {
+// Sem `job`: escolher a foto, que vai para a fila em segundo plano (lib/filaPrateleira)
+// e a tela fecha na hora. Com `job` (a foto ja lida): marcar, conferir e guardar.
+export function PrateleiraModal({ onClose, destino = "estoque", job }: { onClose: () => void; destino?: Destino; job?: JobFoto }) {
   const { stock, addStock, showToast } = useStore();
-  const [fase, setFase] = useState<Fase>("foto");
+  const [fase, setFase] = useState<Fase>(job ? "lendo" : "foto");
   const [src, setSrc] = useState("");
   const [caixas, setCaixas] = useState<Caixa[]>([]);
   const [sel, setSel] = useState<string | null>(null);
@@ -124,13 +72,14 @@ export function PrateleiraModal({ onClose, onUmSo }: { onClose: () => void; onUm
   const inicioDesenho = useRef<[number, number] | null>(null);
   const segurar = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [memoria, setMemoria] = useState<Map<string, string>>(() => new Map());
+  const [memoriaPronta, setMemoriaPronta] = useState(false);
 
   // Memoria da casa (0053). Sem a migration aplicada, so nao lembra: o resto funciona.
   useEffect(() => {
     void Promise.resolve(createClient().rpc("mercado_visao_web")).then(({ data }) => {
       const d = data as { ok?: boolean; memoria?: { lido: string; nome: string }[] } | null;
       if (d?.ok) setMemoria(new Map((d.memoria ?? []).map((m) => [m.lido, m.nome])));
-    });
+    }).finally(() => setMemoriaPronta(true));
   }, []);
 
   const conhecidos = useMemo(() => [...stock.map((s) => s.name), ...memoria.values()], [stock, memoria]);
@@ -138,72 +87,35 @@ export function PrateleiraModal({ onClose, onUmSo }: { onClose: () => void; onUm
   async function ler(arquivo: File | undefined) {
     if (!arquivo) return;
     setErro("");
-    setFase("lendo");
     try {
-      const c = await prepararFoto(arquivo);
-      canvasRef.current = c;
-      const foto = c.toDataURL("image/jpeg", 0.85);
-      setSrc(foto);
-      const r = await fetch("/api/prateleira", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ foto }),
-      });
-      const d = (await r.json().catch(() => null)) as
-        | { ok: true; itens: Achado[] }
-        | { ok: false; erro: string; espera?: number }
-        | null;
-      if (!d?.ok) {
-        setErro(
-          d?.erro === "limite"
-            ? `A IA está no limite agora. Tente em ${d.espera ?? 30}s.`
-            : d?.erro === "ia_indisponivel"
-              ? "A IA de fotos não está configurada."
-              : "Não consegui ler a foto. Tente de novo.",
-        );
-        return setFase("foto");
-      }
-      const achados = limpar(d.itens);
-      if (!achados.length) {
-        setErro("Não achei produtos nessa foto. Tente de novo um pouco mais perto.");
-        return setFase("foto");
-      }
-      // Um produto so: e foto de produto, nao de prateleira. Vai pelo caminho de sempre.
-      if (achados.length === 1 && unidadesDe(achados[0]) === 1 && onUmSo) {
-        onUmSo(arquivo);
-        return onClose();
-      }
-
-      // Conferencia: o recorte de cada quadrado e lido de novo. Falhou? Segue sem ela.
-      let conferidos: (string | undefined)[] = achados.map(() => undefined);
-      try {
-        const rc = await fetch("/api/prateleira", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ grade: grade(c, achados.map((a) => a.box)), n: achados.length }),
-        });
-        const dc = (await rc.json().catch(() => null)) as { ok?: boolean; nomes?: string[] } | null;
-        if (dc?.ok && dc.nomes) conferidos = dc.nomes;
-      } catch {
-        /* sem conferencia: a cor fica so pela leitura e pela base */
-      }
-
-      const mem = memoria;
-      const lista: Caixa[] = achados.map((a, i) => {
-        const lembrado = a.nome ? daMemoria(a.nome, mem) : null;
-        const nome = lembrado ?? a.nome;
-        const cor = corDe({ nome, legivel: a.legivel || !!lembrado, conferido: conferidos[i], daMemoria: !!lembrado, conhecidos });
-        const segunda = conferidos[i];
-        const opcoes = cor === "vermelho" ? [...new Set([segunda, nome].filter((x): x is string => !!x))] : undefined;
-        return { id: `c${i}`, box: a.box, lido: a.nome, nome: cor === "vermelho" ? (segunda || nome || "") : nome, cor, corInicial: cor, pronto: cor === "verde", unidades: unidadesDe(a), opcoes };
-      });
-      setCaixas(lista);
-      setFase("marcar");
+      await enfileirarPrateleira(arquivo, destino);
+      showToast("📸 Analisando a foto. Pode seguir usando o app: aviso quando ficar pronta.");
+      onClose();
     } catch {
       setErro("Não consegui abrir essa foto. Tente outra.");
-      setFase("foto");
     }
   }
+
+  // Foto ja lida em segundo plano: monta os quadrados com a memoria da casa.
+  const montado = useRef(false);
+  useEffect(() => {
+    if (!job || !memoriaPronta || montado.current) return;
+    montado.current = true;
+    void canvasDe(job.src).then((c) => (canvasRef.current = c)).catch(() => {});
+    const achados = job.achados ?? [];
+    const conferidos = job.conferidos ?? [];
+    const lista: Caixa[] = achados.map((a, i) => {
+      const lembrado = a.nome ? daMemoria(a.nome, memoria) : null;
+      const nome = lembrado ?? a.nome;
+      const conf = conferidos[i] ?? undefined;
+      const cor = corDe({ nome, legivel: a.legivel || !!lembrado, conferido: conf, daMemoria: !!lembrado, conhecidos });
+      const opcoes = cor === "vermelho" ? [...new Set([conf, nome].filter((x): x is string => !!x))] : undefined;
+      return { id: `c${i}`, box: a.box, lido: a.nome, nome: cor === "vermelho" ? (conf || nome || "") : nome, cor, corInicial: cor, pronto: cor === "verde", unidades: unidadesDe(a), opcoes };
+    });
+    setSrc(job.src);
+    setCaixas(lista);
+    setFase("marcar");
+  }, [job, memoriaPronta, memoria, conhecidos]);
 
   const atual = caixas.find((c) => c.id === sel) ?? null;
   const prontos = caixas.filter((c) => c.pronto).length;
@@ -276,6 +188,7 @@ export function PrateleiraModal({ onClose, onUmSo }: { onClose: () => void; onUm
         .filter(Boolean)
         .join(" · "),
     );
+    if (job) tirarJob(job.id);
     onClose();
   }
 
@@ -289,7 +202,7 @@ export function PrateleiraModal({ onClose, onUmSo }: { onClose: () => void; onUm
             : fase === "marcar" || fase === "salvando"
             ? `${prontos} de ${caixas.length} prontos`
             : fase === "lendo"
-              ? "Procurando os produtos…"
+              ? "Abrindo…"
               : "Fotografe um produto ou vários"}
         </div>
         {fase === "marcar" && (
@@ -583,6 +496,18 @@ export function PrateleiraModal({ onClose, onUmSo }: { onClose: () => void; onUm
           <button onClick={irGuardar} className="h-[54px] rounded-[14px] bg-brand text-[16px] font-extrabold text-brand-ink">
             🏠 Guardar {prontos} na despensa
           </button>
+          {job && (
+            <button
+              onClick={() => {
+                tirarJob(job.id);
+                showToast("Foto descartada");
+                onClose();
+              }}
+              className="h-10 text-[13px] font-bold text-text-3 underline"
+            >
+              🗑 Descartar esta foto
+            </button>
+          )}
         </div>
       )}
       {fase === "salvando" && <p className="mt-3 text-center text-[14px] font-bold text-text-2">Guardando…</p>}

@@ -1,5 +1,6 @@
 "use client";
 
+import { FilaPrateleira } from "@/components/estoque/FilaPrateleira";
 import Link from "next/link";
 import { FilaFotos } from "@/components/lista/FilaFotos";
 import { usePathname } from "next/navigation";
@@ -102,6 +103,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       <ReceiptModal open={receiptOpen} onClose={closeReceipt} />
       <FilaFotos />
+      <FilaPrateleira />
       <VoiceModal open={falar} onClose={() => setFalar(false)} tela="auto" />
       {/* Desktop nao tem o topo do celular: o microfone fica no canto. */}
       <button
