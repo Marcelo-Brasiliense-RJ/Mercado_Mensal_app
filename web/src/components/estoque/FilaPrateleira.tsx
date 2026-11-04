@@ -55,7 +55,9 @@ export function FilaPrateleira() {
             <span className="h-3 w-3 animate-spin rounded-full border-2 border-bg/40 border-t-bg" />
             {descanso > 0
               ? `⏸ IA no limite · volta em ${descanso}s`
-              : lendo[0].etapa === "conferindo"
+              : lendo[0].etapa === "faltou"
+                ? `🔍 Achei ${lendo[0].achados?.length ?? 0} · procurando o que faltou`
+                : lendo[0].etapa === "conferindo"
                 ? `✨ Achei ${lendo[0].achados?.length ?? 0} produtos · conferindo`
                 : `🔎 Analisando ${lendo.length > 1 ? `${lendo.length} fotos` : "a foto"} dos produtos…`}
             <span className="underline opacity-80">ver</span>

@@ -14,7 +14,7 @@ export type Box = [number, number, number, number]; // ymin, xmin, ymax, xmax em
 export type Achado = { box: Box; nome: string; rotulo: string; legivel: boolean; unidades?: number };
 export type Cor = "verde" | "amarelo" | "vermelho";
 
-const area = (b: Box) => Math.max(0, b[2] - b[0]) * Math.max(0, b[3] - b[1]);
+export const area = (b: Box) => Math.max(0, b[2] - b[0]) * Math.max(0, b[3] - b[1]);
 function intersecao(a: Box, b: Box): number {
   const y0 = Math.max(a[0], b[0]);
   const x0 = Math.max(a[1], b[1]);
@@ -211,4 +211,37 @@ export function dividir(b: Box, n: number): Box[] {
       ? ([b[0], b[1] + ((b[3] - b[1]) * i) / n, b[2], b[1] + ((b[3] - b[1]) * (i + 1)) / n] as Box)
       : ([b[0] + ((b[2] - b[0]) * i) / n, b[1], b[0] + ((b[2] - b[0]) * (i + 1)) / n, b[3]] as Box),
   );
+}
+
+// ---- segunda olhada ("o que faltou?") ----
+// A primeira passada para nos produtos grandes e legiveis. A segunda manda a foto em
+// duas metades com zoom (sobrepostas 20%, cortadas no lado maior), com os quadrados ja
+// achados desenhados, e pede so o que esta sem quadrado.
+
+export function metades(w: number, h: number): Box[] {
+  return h >= w
+    ? [[0, 0, 0.6, 1], [0.4, 0, 1, 1]]
+    : [[0, 0, 1, 0.6], [0, 0.4, 1, 1]];
+}
+
+// Quadrado de dentro de uma regiao (0..1 da regiao) -> 0..1 da foto inteira.
+export function paraFoto(b: Box, r: Box): Box {
+  const h = r[2] - r[0];
+  const w = r[3] - r[1];
+  return [r[0] + b[0] * h, r[1] + b[1] * w, r[0] + b[2] * h, r[1] + b[3] * w];
+}
+
+// Vale a segunda olhada? Nao quando e um produto so, de perto (foto de produto na mao).
+export const precisaFaltou = (achados: Achado[]) => !(achados.length === 1 && area(achados[0].box) > 0.3);
+
+// So os novos de verdade: some o que cai quase todo (60%) dentro de um quadrado ja achado
+// (a IA marcou de novo o mesmo produto) e o repetido entre as duas metades.
+export function somarNovos(achados: Achado[], extras: Achado[]): Achado[] {
+  const out = [...achados];
+  for (const e of extras) {
+    const a = area(e.box) || 1;
+    if (out.some((o) => intersecao(e.box, o.box) / a > 0.6 || iou(e.box, o.box) > 0.5)) continue;
+    out.push(e);
+  }
+  return out;
 }

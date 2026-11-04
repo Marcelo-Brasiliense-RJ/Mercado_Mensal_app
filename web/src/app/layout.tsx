@@ -3,6 +3,7 @@ import "./globals.css";
 import { AppStoreProvider } from "@/lib/store";
 import { Toast } from "@/components/ui/Toast";
 import { AutoAtualizar } from "@/components/AutoAtualizar";
+import { LimparCampo } from "@/components/ui/LimparCampo";
 
 export const metadata: Metadata = {
   title: "Despensa",
@@ -34,6 +35,7 @@ export default function RootLayout({
           {children}
           <Toast />
           <AutoAtualizar />
+          <LimparCampo />
         </AppStoreProvider>
       </body>
     </html>

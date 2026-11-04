@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { agrupar, corDe, daMemoria, iou, juntarIguais, limpar, marcarCarrinho, mesmoProduto, type Achado } from "./prateleira";
+import { agrupar, corDe, daMemoria, iou, juntarIguais, limpar, marcarCarrinho, mesmoProduto, metades, paraFoto, precisaFaltou, somarNovos, type Achado, type Box } from "./prateleira";
 
 const a = (box: [number, number, number, number], nome = "x", legivel = true): Achado => ({ box, nome, rotulo: "", legivel });
 
@@ -148,5 +148,25 @@ describe("opcoes claras", () => {
   });
   it("separa um quadrado em 4", () => {
     expect(dividir([0, 0, 0.5, 1], 4)).toHaveLength(4);
+  });
+});
+
+describe("segunda olhada", () => {
+  it("metades cortam no lado maior e se sobrepoem", () => {
+    expect(metades(1000, 1600)).toEqual([[0, 0, 0.6, 1], [0.4, 0, 1, 1]]);
+    expect(metades(1600, 1000)).toEqual([[0, 0, 1, 0.6], [0, 0.4, 1, 1]]);
+  });
+  it("paraFoto leva o quadrado da metade para a foto inteira", () => {
+    expect(paraFoto([0.5, 0, 1, 0.5], [0.4, 0, 1, 1]).map((v) => +v.toFixed(3))).toEqual([0.7, 0, 1, 0.5]);
+  });
+  it("somarNovos ignora o que ja tinha quadrado e o repetido das duas metades", () => {
+    const a = (box: Box, nome = "x"): Achado => ({ box, nome, rotulo: "", legivel: true });
+    const ja = [a([0, 0, 0.5, 0.5], "arroz")];
+    const r = somarNovos(ja, [a([0.1, 0.1, 0.4, 0.4], "arroz"), a([0.6, 0.6, 0.9, 0.9], "mel"), a([0.61, 0.61, 0.9, 0.9], "mel")]);
+    expect(r.map((x) => x.nome)).toEqual(["arroz", "mel"]);
+  });
+  it("produto unico de perto nao gasta a segunda olhada", () => {
+    expect(precisaFaltou([{ box: [0, 0, 0.9, 0.9], nome: "x", rotulo: "", legivel: true }])).toBe(false);
+    expect(precisaFaltou([{ box: [0, 0, 0.3, 0.3], nome: "x", rotulo: "", legivel: true }])).toBe(true);
   });
 });

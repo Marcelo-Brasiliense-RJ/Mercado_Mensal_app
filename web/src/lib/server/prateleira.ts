@@ -81,12 +81,22 @@ const limparNomes = (nomes?: unknown) =>
     .filter((n, i, a) => a.indexOf(n) === i)
     .slice(0, 120);
 
-export async function detectar(foto: string, nomesCasa?: unknown): Promise<{ ok: true; itens: Achado[] } | Erro> {
+// Segunda passada ("o que faltou?"): a mesma foto com os quadrados ja achados
+// desenhados em magenta e numerados. Numa passada so, a IA para nos produtos grandes e
+// legiveis e larga o resto (tampinha atras, lata embaixo de outra, saco no canto).
+const FALTOU = (ja: string[]) => `
+ATENÇÃO: esta é uma SEGUNDA olhada. Os produtos já achados estão com contorno MAGENTA e número na foto:
+${ja.map((n, i) => `${i + 1}. ${n || "(sem nome)"}`).join("\n")}
+Ache SÓ os produtos que estão SEM contorno magenta. Varra a foto inteira por partes (cima à esquerda, cima à direita, meio, baixo, bordas) e procure principalmente: produtos pequenos (tampa, sachê, pote), os de trás que aparecem só um pedaço, os que estão embaixo ou atrás de outro, deitados, cortados na borda da foto, sacos e potes sem rótulo.
+Não repita nenhum produto já contornado. Os "box_2d" são da foto inteira (o contorno magenta não faz parte do produto). Se não faltar nenhum, devolva lista vazia.`;
+
+// ja: nomes dos quadrados ja desenhados na foto (segunda passada).
+export async function detectar(foto: string, nomesCasa?: unknown, ja?: string[]): Promise<{ ok: true; itens: Achado[] } | Erro> {
   const img = partes(foto);
   if (!img) return { ok: false, erro: "ia_falhou" };
   const g = await gemini(
     {
-      contents: [{ parts: [{ inline_data: img }, { text: DETECTAR + COM_NOMES(limparNomes(nomesCasa)) }] }],
+      contents: [{ parts: [{ inline_data: img }, { text: DETECTAR + (ja ? FALTOU(ja) : "") + COM_NOMES(limparNomes(nomesCasa)) }] }],
       generationConfig: { responseMimeType: "application/json", responseSchema: ESQUEMA_DETECTAR, temperature: 0 },
     },
     true, // posicao: o modelo mais forte na frente (o "lite" erra mais o quadrado)

@@ -86,12 +86,15 @@ export function PrateleiraModal({
   const [nomeEdit, setNomeEdit] = useState("");
   const [buscando, setBuscando] = useState(false); // busca padrao de produto aberta
   const [editando, setEditando] = useState(false); // trocar o nome / "nao e nenhum desses"
+  const [digitando, setDigitando] = useState(false); // teclado aberto: foto encolhe
   // Confronto com o estoque, por produto: so a pessoa sabe se e contagem ou compra nova.
   const [modos, setModos] = useState<Record<string, Modo>>({});
   const [desenhando, setDesenhando] = useState(false);
   const [rascunho, setRascunho] = useState<Box | null>(null);
   const [erro, setErro] = useState("");
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const seqMarcado = useRef(0); // id dos quadrados marcados a mao
+  const [recorteAtual, setRecorteAtual] = useState(""); // recorte do quadrado aberto
   const camera = useRef<HTMLInputElement>(null);
   const galeria = useRef<HTMLInputElement>(null);
   const papel = useRef<HTMLInputElement>(null);
@@ -139,7 +142,9 @@ export function PrateleiraModal({
   useEffect(() => {
     if (!job || !memoriaPronta || montado.current) return;
     montado.current = true;
-    void canvasDe(job.src).then((c) => (canvasRef.current = c)).catch(() => {});
+    void canvasDe(job.src)
+      .then((c) => (canvasRef.current = c))
+      .catch(() => {});
     const achados = job.achados ?? [];
     const conferidos = job.conferidos ?? [];
     const lista: Caixa[] = achados.map((a, i) => {
@@ -160,12 +165,24 @@ export function PrateleiraModal({
   }, [job, memoriaPronta, memoria, conhecidos, noMercado, trip]);
 
   const atual = caixas.find((c) => c.id === sel) ?? null;
+  // Recorte do quadrado aberto, ao lado do campo: com o teclado aberto a foto encolhe e
+  // a pessoa continua vendo qual produto esta corrigindo.
   const prontos = caixas.filter((c) => c.pronto).length;
 
   function abrir(c: Caixa) {
     setSel(c.id);
     setEditando(false);
-    setNomeEdit(c.pronto || c.cor !== "vermelho" ? "" : c.nome);
+    // Sempre vazio: o palpite errado aparece de dica (placeholder), nao para apagar.
+    setNomeEdit("");
+    // Recorte ao lado do campo: com o teclado aberto a foto encolhe e a pessoa continua
+    // vendo qual produto esta corrigindo.
+    let rc = "";
+    try {
+      if (canvasRef.current) rc = recorte(canvasRef.current, c.box, 160, 0.08).toDataURL("image/jpeg", 0.8);
+    } catch {
+      /* sem recorte: so o texto */
+    }
+    setRecorteAtual(rc);
     setBuscando(false);
   }
 
@@ -548,7 +565,7 @@ export function PrateleiraModal({
             if (!desenhando) return;
             inicioDesenho.current = null;
             if (rascunho && (rascunho[2] - rascunho[0]) * (rascunho[3] - rascunho[1]) > 0.002) {
-              const nova: Caixa = { id: `m${Date.now()}`, box: rascunho, lido: "", nome: "", cor: "vermelho", corInicial: "vermelho", pronto: false, unidades: 1 };
+              const nova: Caixa = { id: `m${++seqMarcado.current}`, box: rascunho, lido: "", nome: "", cor: "vermelho", corInicial: "vermelho", pronto: false, unidades: 1 };
               setCaixas((l) => [...l, nova]);
               abrir(nova);
             }
@@ -557,7 +574,7 @@ export function PrateleiraModal({
           }}
         >
           {/* eslint-disable-next-line @next/next/no-img-element -- a mesma imagem que foi para a IA */}
-          <img src={src} alt="Foto dos produtos" className={`block h-auto max-h-[46dvh] w-auto max-w-full ${fase === "lendo" ? "opacity-60" : ""}`} draggable={false} />
+          <img src={src} alt="Foto dos produtos" className={`block h-auto w-auto max-w-full transition-[max-height] ${digitando ? "max-h-[18dvh]" : "max-h-[46dvh]"} ${fase === "lendo" ? "opacity-60" : ""}`} draggable={false} />
           {fase === "lendo" && (
             <div className="absolute inset-0 grid place-items-center">
               <div className="flex items-center gap-2 rounded-full bg-black/70 px-4 py-2 text-[14px] font-bold text-white">
@@ -676,8 +693,11 @@ export function PrateleiraModal({
                   )}
                   {(atual.pronto || !atual.nome || editando || !(atual.opcoes && atual.opcoes.length > 1)) && (
                     <>
-                      <div className="mb-1.5 text-[13px] font-bold text-text-2">
-                        {atual.nome ? "Não é? Escreva o produto certo" : "Que produto é este? (pode ditar pelo teclado)"}
+                      <div className="mb-1.5 flex items-center gap-2">
+                        {recorteAtual && <img src={recorteAtual} alt="" className="h-14 w-14 shrink-0 rounded-[10px] border-2 object-cover" style={{ borderColor: COR[atual.cor] }} />}
+                        <span className="text-[13px] font-bold text-text-2">
+                          {atual.nome ? "Não é? Escreva o produto certo" : "Que produto é este? (pode ditar pelo teclado)"}
+                        </span>
                       </div>
                       <div className="flex gap-2">
                         <input
@@ -687,7 +707,9 @@ export function PrateleiraModal({
                             setNomeEdit(e.target.value);
                             setBuscando(true);
                           }}
-                          placeholder="Ex.: iogurte"
+                          onFocus={() => setDigitando(true)}
+                          onBlur={() => setDigitando(false)}
+                          placeholder={atual.nome ? `Não é "${nomeBonito(atual.nome).slice(0, 28)}"` : "Ex.: iogurte"}
                           enterKeyHint="done"
                           className="h-12 min-w-0 flex-1 rounded-[13px] border border-border bg-card-2 px-3 text-[16px]"
                         />

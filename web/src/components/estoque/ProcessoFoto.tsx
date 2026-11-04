@@ -15,6 +15,7 @@ import { useDescanso } from "@/lib/filaFotos";
 export function ProcessoFoto({ job, onClose }: { job: JobFoto; onClose: () => void }) {
   const achados = job.achados ?? [];
   const conferindo = job.estado === "lendo" && job.etapa === "conferindo" && achados.length > 0;
+  const faltou = job.estado === "lendo" && job.etapa === "faltou";
   const falhou = job.estado === "falhou";
   const descanso = useDescanso(job.espera ?? 0);
   const [foco, setFoco] = useState(0);
@@ -30,7 +31,9 @@ export function ProcessoFoto({ job, onClose }: { job: JobFoto; onClose: () => vo
     ? "Não deu certo"
     : descanso > 0
       ? `IA no limite · volta em ${descanso}s`
-      : conferindo
+      : faltou
+        ? `Achei ${achados.length} · procurando mais`
+        : conferindo
         ? `Achei ${achados.length} ${achados.length > 1 ? "produtos" : "produto"}`
         : "Procurando os produtos";
 
@@ -52,7 +55,9 @@ export function ProcessoFoto({ job, onClose }: { job: JobFoto; onClose: () => vo
           <div className="text-[13px] text-text-2">
             {falhou
               ? job.erro
-              : conferindo
+              : faltou
+                ? "Olhando de novo, com zoom, os cantos e o que ficou atrás…"
+                : conferindo
                 ? "Conferindo um por um para não trocar um produto pelo vizinho…"
                 : "A IA está olhando cada canto da foto."}
           </div>

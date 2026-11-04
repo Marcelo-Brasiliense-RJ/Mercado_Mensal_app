@@ -3,7 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { conferir, detectar } from "@/lib/server/prateleira";
 
 // Foto da prateleira: {foto} -> quadrados com o que a IA leu; {grade, n} -> o nome de
-// cada recorte numerado (a conferencia que segura o quadrado no produto certo).
+// cada recorte numerado (a conferencia que segura o quadrado no produto certo);
+// {foto, ja} -> segunda olhada: so o que esta sem quadrado desenhado.
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
@@ -14,7 +15,7 @@ export async function POST(req: Request) {
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ ok: false, erro: "nao_autenticado" }, { status: 401 });
 
-  let b: { foto?: unknown; grade?: unknown; n?: unknown; nomes?: unknown } = {};
+  let b: { foto?: unknown; grade?: unknown; n?: unknown; nomes?: unknown; ja?: unknown } = {};
   try {
     b = await req.json();
   } catch {
@@ -24,7 +25,7 @@ export async function POST(req: Request) {
   if (!img.startsWith("data:image/")) return NextResponse.json({ ok: false, erro: "sem_imagem" }, { status: 400 });
   if (img.length > 4_000_000) return NextResponse.json({ ok: false, erro: "imagem_grande" }, { status: 413 });
 
-  const r = typeof b.foto === "string" ? await detectar(img, b.nomes) : await conferir(img, Math.min(60, Number(b.n) || 0), b.nomes);
+  const r = typeof b.foto === "string" ? await detectar(img, b.nomes, Array.isArray(b.ja) ? b.ja.slice(0, 60).map((n) => String(n ?? "").slice(0, 60)) : undefined) : await conferir(img, Math.min(60, Number(b.n) || 0), b.nomes);
   if (r.ok) return NextResponse.json(r);
   if (r.erro === "limite") return NextResponse.json({ ok: false, erro: "limite", espera: r.espera }, { status: 429 });
   return NextResponse.json({ ok: false, erro: r.erro }, { status: r.erro === "ia_indisponivel" ? 503 : 502 });
