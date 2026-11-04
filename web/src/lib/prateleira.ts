@@ -86,10 +86,14 @@ export function corDe(p: {
   daMemoria: boolean;
   conhecidos: string[]; // nomes do estoque e da memoria
 }): Cor {
-  if (!p.nome || !p.legivel) return "vermelho";
-  if (p.conferido !== undefined && p.conferido !== null && !mesmoProduto(p.conferido, p.nome)) return "vermelho";
-  if (p.daMemoria || p.conhecidos.some((k) => mesmoProduto(k, p.nome))) return "verde";
-  return "amarelo";
+  if (!p.nome) return "vermelho";
+  const conferiu = p.conferido !== undefined && p.conferido !== null;
+  if (conferiu && !mesmoProduto(p.conferido!, p.nome)) return "vermelho";
+  // Leu o rotulo E a segunda olhada no recorte concorda: e obvio, ja entra.
+  if (p.legivel && conferiu) return "verde";
+  if (p.daMemoria || p.conhecidos.some((k) => mesmoProduto(k, p.nome))) return p.legivel || conferiu ? "verde" : "amarelo";
+  if (p.legivel || conferiu) return "amarelo";
+  return "vermelho";
 }
 
 // O nome da casa para o que a IA leu: memoria primeiro ("pilao trad" -> "Café Pilão").
@@ -136,4 +140,42 @@ export function marcarCarrinho<T extends { nome: string; unidades: number; carri
     resta.set(k, r);
     return c;
   });
+}
+
+// Mesmo produto em quadrados vizinhos (4 oleos lado a lado marcados um a um) vira UM
+// quadrado com a soma das unidades. E um quadrado sem nome quase todo em cima de um
+// grupo (a garrafa de tras, so a tampa aparecendo) entra nesse grupo como +1.
+export function juntarIguais(achados: Achado[]): Achado[] {
+  const encosta = (a: Box, b: Box) => {
+    const vy = Math.min(a[2], b[2]) - Math.max(a[0], b[0]);
+    const alt = Math.min(a[2] - a[0], b[2] - b[0]);
+    const gap = Math.max(a[1], b[1]) - Math.min(a[3], b[3]); // <0 = se sobrepoem
+    return vy > alt * 0.4 && gap < 0.03;
+  };
+  const uniao = (a: Box, b: Box): Box => [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[2], b[2]), Math.max(a[3], b[3])];
+  let lista = achados.map((a) => ({ ...a, unidades: a.unidades ?? 1 }));
+  for (let mudou = true; mudou; ) {
+    mudou = false;
+    fora: for (let i = 0; i < lista.length; i++)
+      for (let j = i + 1; j < lista.length; j++) {
+        const a = lista[i];
+        const b = lista[j];
+        const iguais = a.nome && b.nome && mesmoProduto(a.nome, b.nome) && encosta(a.box, b.box);
+        const semNome = (x: Achado, y: Achado) => !x.nome && y.nome && intersecao(x.box, y.box) / (area(x.box) || 1) > 0.5;
+        if (!iguais && !semNome(a, b) && !semNome(b, a)) continue;
+        const dono = a.nome ? a : b;
+        lista[i] = {
+          ...dono,
+          box: uniao(a.box, b.box),
+          nome: a.nome.length >= b.nome.length ? a.nome : b.nome,
+          rotulo: a.rotulo || b.rotulo,
+          legivel: a.legivel || b.legivel,
+          unidades: (a.unidades ?? 1) + (b.unidades ?? 1),
+        };
+        lista = lista.filter((_, k) => k !== j);
+        mudou = true;
+        break fora;
+      }
+  }
+  return lista;
 }

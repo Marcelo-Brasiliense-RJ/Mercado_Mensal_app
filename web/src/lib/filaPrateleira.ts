@@ -2,7 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 import { enfileirarFoto, type Destino } from "./filaFotos";
-import { limpar, mesmoProduto, unidadesDe, type Achado, type Box } from "./prateleira";
+import { juntarIguais, limpar, mesmoProduto, unidadesDe, type Achado, type Box } from "./prateleira";
 
 // Foto dos produtos em SEGUNDO PLANO (pedido do dono): a pessoa tira a foto e o app
 // fica livre. A IA procura e confere cada produto aqui fora da tela; quando termina,
@@ -174,7 +174,7 @@ async function ler(x: JobFoto): Promise<void> {
                 : "A IA não conseguiu ler a foto.",
     });
   }
-  const achados = limpar(d.itens);
+  const achados = juntarIguais(limpar(d.itens));
   if (!achados.length) return trocar(x.id, { estado: "falhou", erro: "Não achei produtos nessa foto." });
 
   // Um produto so: e foto de produto. Vai pela fila de sempre (popup de conferir).

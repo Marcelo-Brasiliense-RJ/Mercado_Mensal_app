@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { agrupar, corDe, daMemoria, iou, limpar, marcarCarrinho, mesmoProduto, type Achado } from "./prateleira";
+import { agrupar, corDe, daMemoria, iou, juntarIguais, limpar, marcarCarrinho, mesmoProduto, type Achado } from "./prateleira";
 
 const a = (box: [number, number, number, number], nome = "x", legivel = true): Achado => ({ box, nome, rotulo: "", legivel });
 
@@ -41,11 +41,14 @@ describe("quadrados da prateleira", () => {
     expect(corDe({ ...base, nome: "molho pomarola" })).toBe("amarelo"); // primeira vez
     expect(corDe({ ...base, nome: "molho pomarola", daMemoria: true })).toBe("verde");
     expect(corDe({ ...base, nome: "", legivel: false })).toBe("vermelho");
-    expect(corDe({ ...base, nome: "leite italac", legivel: false })).toBe("vermelho");
+    expect(corDe({ ...base, nome: "leite italac", legivel: false })).toBe("amarelo"); // palpite de algo que a casa tem: confirma
+    expect(corDe({ ...base, nome: "molho pomarola", legivel: false })).toBe("vermelho");
     // recorte mostra outro produto: o quadrado esta no lugar errado
     expect(corDe({ ...base, nome: "leite italac", conferido: "detergente ype" })).toBe("vermelho");
     expect(corDe({ ...base, nome: "leite italac", conferido: "leite" })).toBe("verde");
     expect(corDe({ ...base, nome: "leite italac", conferido: "" })).toBe("vermelho");
+    // leu e o recorte concorda: obvio, verde mesmo sendo a primeira vez
+    expect(corDe({ ...base, nome: "passata pramesa", conferido: "passata pramesa" })).toBe("verde");
   });
 
   it("memoria troca o que a IA leu pelo nome da casa", () => {
@@ -101,5 +104,26 @@ describe("foto do carrinho: so o novo", () => {
       ],
     );
     expect(r.map((c) => !!c.carrinho)).toEqual([true, true, false, false]);
+  });
+});
+
+describe("juntar iguais vizinhos", () => {
+  it("4 oleos marcados um a um (e a tampa de tras) viram um quadrado x4", () => {
+    const r = juntarIguais([
+      { box: [0.4, 0.4, 0.8, 0.5], nome: "óleo de soja coamo", rotulo: "", legivel: true },
+      { box: [0.4, 0.49, 0.82, 0.6], nome: "óleo de soja coamo", rotulo: "", legivel: true },
+      { box: [0.4, 0.58, 0.8, 0.7], nome: "oleo coamo", rotulo: "", legivel: false },
+      { box: [0.4, 0.52, 0.45, 0.57], nome: "", rotulo: "", legivel: false },
+      { box: [0.45, 0.05, 0.8, 0.2], nome: "passata pramesa", rotulo: "", legivel: true },
+    ]);
+    expect(r).toHaveLength(2);
+    expect(r.find((a) => a.nome.includes("coamo"))!.unidades).toBe(4);
+  });
+  it("produtos diferentes encostados ficam separados", () => {
+    const r = juntarIguais([
+      { box: [0.4, 0.05, 0.8, 0.2], nome: "passata pramesa", rotulo: "", legivel: true },
+      { box: [0.4, 0.19, 0.8, 0.3], nome: "molho de tomate pramesa", rotulo: "", legivel: true },
+    ]);
+    expect(r).toHaveLength(2);
   });
 });
