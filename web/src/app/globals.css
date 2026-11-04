@@ -2,7 +2,7 @@
 
 :root {
   --desk:#E7DFD5; --bg:#F4EEE7; --card:#FFFFFF; --card-2:#F3EDE6;
-  --text:#241E1A; --text-2:#786C63; --text-3:#A99E94; --border:#EAE1D8;
+  --text:#241E1A; --text-2:#5E534B; --text-3:#766A61; --border:#EAE1D8;
   --brand:#C15F3C; --brand-ink:#FFF8F4; --brand-soft:#F6E7E2;
   --pos:#17935B; --pos-ink:#0A1710; --pos-soft:#E2F1E9;
   --warn:#C57814; --warn-ink:#3A2400; --warn-soft:#FBEAD2;
@@ -11,7 +11,7 @@
 }
 [data-theme="dark"] {
   --desk:#0C0908; --bg:#161210; --card:#211B17; --card-2:#2A231D;
-  --text:#F3EBE3; --text-2:#B4A89E; --text-3:#7D7167; --border:#33291F;
+  --text:#F3EBE3; --text-2:#C8BDB3; --text-3:#9E9288; --border:#33291F;
   --brand:#CD7A5C; --brand-ink:#2A130B; --brand-soft:#2C1A13;
   --pos:#37B37F; --pos-ink:#08140E; --pos-soft:#17281F;
   --warn:#E7A33C; --warn-ink:#2E1C00; --warn-soft:#352814;

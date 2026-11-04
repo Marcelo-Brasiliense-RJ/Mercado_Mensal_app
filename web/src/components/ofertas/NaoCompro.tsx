@@ -49,7 +49,7 @@ export function NaoCompro({ ofertas, escondidas = 0 }: { ofertas: Oferta[]; esco
       >
         <span>
           <span className="block text-[16px] font-extrabold">🚫 Não comprar</span>
-          <span className="block text-[12px] text-text-2">
+          <span className="block text-[14px] text-text-2">
             {resumo || "Produtos ruins e o que já tem demais em casa"}
           </span>
         </span>
@@ -103,14 +103,14 @@ function Grupo({
     <div className="flex flex-col gap-2">
       <div className="px-1">
         <div className="text-[15px] font-extrabold">
-          {icone} {titulo} <span className="font-bold text-text-3">({itens.length})</span>
+          {icone} {titulo} <span className="font-extrabold text-text">({itens.length})</span>
         </div>
-        <div className="text-[12px] text-text-3">{dica}</div>
+        <div className="text-[14px] font-medium text-text-2">{dica}</div>
       </div>
       {itens.length ? (
         itens.map((e) => <Cartao key={e.id} e={e} />)
       ) : (
-        <p className="rounded-2xl border border-dashed border-border px-3 py-2.5 text-[13px] text-text-3">{vazio}</p>
+        <p className="rounded-2xl border border-dashed border-text-3/50 px-3 py-2.5 text-[14px] text-text-2">{vazio}</p>
       )}
     </div>
   );
@@ -155,7 +155,7 @@ function Cartao({ e }: { e: Evitar }) {
             {excesso ? "Em excesso" : "Produto ruim"}
           </span>
         </div>
-        <div className="line-clamp-2 text-[12px] leading-snug text-text-2">
+        <div className="line-clamp-2 text-[14px] leading-snug text-text-2">
           {excesso
             ? liberado
               ? `✓ Já baixou: tem ${emCasa!.current} ${emCasa!.unit}. Pode comprar de novo.`

@@ -219,7 +219,7 @@ export function CartPanel({ onScan }: { onScan?: () => void }) {
           type="button"
           onClick={finalizar}
           disabled={busy || trip.items.length === 0}
-          className="h-[50px] flex-[2] rounded-[14px] bg-brand text-[15px] font-bold text-brand-ink disabled:opacity-50"
+          className="h-[50px] flex-[2] rounded-[14px] bg-brand text-[15px] font-bold text-brand-ink disabled:opacity-60"
         >
           {busy ? "Finalizando…" : "Finalizar compra"}
         </button>
