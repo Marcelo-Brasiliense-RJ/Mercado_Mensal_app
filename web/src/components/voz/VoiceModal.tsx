@@ -88,6 +88,9 @@ type Pergunta = {
   lidos: VozItem[];
   aviso: string; // "Tirei: leite" (saiu da lista)
   feitos: string[]; // "📦 leite", "👎 café Pilão"
+  // o que ja foi gravado antes da pergunta ("🏠 Estoque: arroz 5 kg"): adicao e uma
+  // coisa, "nao comprar" e outra; a pessoa ve a primeira pronta e so entao responde.
+  gravado: string;
 };
 type Marca = { marca: string; foto: string | null };
 
@@ -428,9 +431,29 @@ export function VoiceModal({
     setDestino(destinoDaTela(telaAgora, intencao));
 
     const tirarItens = lidosTodos.filter((i) => i.remover && i.nome.trim());
-    const lidos = lidosTodos.filter((i) => !i.remover);
+    let lidos = lidosTodos.filter((i) => !i.remover);
     if (tirarItens.length) {
       setFase("salvando");
+      // 1) As adicoes primeiro, ja gravadas: "tenho 5 kg de arroz" entra no estoque e
+      // "preciso de cafe" na lista, antes de qualquer pergunta sobre o que nao comprar.
+      const gravados: string[] = [];
+      const est = lidos.filter((i) => i.destino === "estoque");
+      if (est.length) gravados.push(await acertarEstoque(est));
+      const naLista = lidos.filter((i) => i.destino === "lista" && !i.duvida && i.nome.trim().length >= 2);
+      const foram: string[] = [];
+      for (const it of naLista) {
+        const r = await addShopItem({
+          name: it.nome.trim(),
+          desired_quantity: Number(it.qtd) || 1,
+          unit: it.unidade,
+          estimated_price: it.preco ?? findByName(it.nome, stock)?.priceLast ?? null,
+        });
+        if (r.ok) foram.push(it.nome.trim());
+      }
+      if (foram.length) gravados.push(`📝 Lista: ${foram.join(", ")}`);
+      lidos = lidos.filter((i) => !est.includes(i) && !(naLista.includes(i) && foram.includes(i.nome.trim())));
+      const gravado = gravados.filter(Boolean).join(" · ");
+      // 2) Depois, o que nao comprar.
       const aviso = await tirarDaLista(tirarItens.map((i) => i.nome.trim()));
       // Excesso ja dito na fala ("ja tem muito fermento") guarda sem perguntar.
       const feitos: string[] = [];
@@ -439,11 +462,11 @@ export function VoiceModal({
       }
       const fila = tirarItens.filter((i) => i.motivo !== "excesso").map((i) => i.nome.trim());
       if (fila.length) {
-        setPergunta({ fila, i: 0, frase, intencao, lidos, aviso, feitos });
+        setPergunta({ fila, i: 0, frase, intencao, lidos, aviso: [gravado, aviso].filter(Boolean).join(" · "), feitos, gravado });
         setFase("motivo");
         return;
       }
-      const tudo = [aviso, feitos.length ? `Não comprar: ${feitos.join(", ")}` : ""].filter(Boolean).join(" · ");
+      const tudo = [gravado, aviso, feitos.length ? `Não comprar: ${feitos.join(", ")}` : ""].filter(Boolean).join(" · ");
       return processar(frase, intencao, lidos, tudo);
     }
     await processar(frase, intencao, lidos, "");
@@ -1011,6 +1034,12 @@ function PerguntaNaoComprar({
   const ocupado = fase === "salvando";
   return (
     <div className="flex flex-col gap-3">
+      {p.gravado && (
+        <div className="rounded-[13px] border-2 border-pos/40 bg-pos-soft p-3">
+          <div className="text-[13px] font-extrabold text-pos">✓ Já gravei</div>
+          <div className="text-[14px] font-bold">{p.gravado}</div>
+        </div>
+      )}
       <p className="rounded-[13px] border border-border bg-card-2 p-3 text-[13px] leading-relaxed text-text-2">
         “{p.frase}”
         {p.fila.length > 1 && (
