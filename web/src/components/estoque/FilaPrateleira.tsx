@@ -21,7 +21,7 @@ export function FilaPrateleira() {
   if (!fila.length) return null;
   return (
     <>
-      <div className="pointer-events-none fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+205px)] z-30 flex flex-col items-center gap-2 px-4 lg:bottom-24">
+      <div className="pointer-events-none fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+160px)] z-30 flex flex-col items-center gap-2 px-4 text-center lg:bottom-24">
         {prontas[0] && (
           <button
             type="button"
@@ -44,7 +44,7 @@ export function FilaPrateleira() {
           </div>
         )}
         {lendo.length > 0 && (
-          <div className="flex items-center gap-2 rounded-full bg-text px-4 py-2 text-[13px] font-bold text-bg shadow-lg">
+          <div className="flex items-center justify-center gap-2 rounded-full bg-text px-4 py-2 text-[13px] font-bold text-bg shadow-lg">
             <span className="h-3 w-3 animate-spin rounded-full border-2 border-bg/40 border-t-bg" />
             {descanso > 0
               ? `⏸ IA no limite · volta em ${descanso}s`
