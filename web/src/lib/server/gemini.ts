@@ -3,12 +3,16 @@
 // dividem a cota e o descanso de cada chave.
 // So no servidor: a chave nunca chega ao navegador.
 
-const MODELOS = ["gemini-2.5-flash-lite", "gemini-flash-lite-latest", "gemini-2.5-flash", "gemini-3.5-flash"];
+// gemini-2.5-flash-lite saiu (404 nas tres chaves, conferido em 2026-11-04).
+const MODELOS = ["gemini-flash-lite-latest", "gemini-2.5-flash", "gemini-3.5-flash"];
 
 // Estado do rodizio, por instancia do servidor (melhor esforco: outra instancia comeca
 // do zero e no maximo leva um 429 a mais, que tambem e respeitado).
 let vez = 0;
 const descanso = new Map<string, number>(); // "modelo|chave" -> livre a partir de (ms)
+// "modelo|chave" que deu 404: essa chave nao tem esse modelo. Fica fora do rodizio
+// (nao entra na conta de "espera", senao a fila acharia que e cota e pararia).
+const semModelo = new Set<string>();
 
 // O 429 do Gemini diz quanto esperar (RetryInfo.retryDelay, ex.: "23s").
 async function pausaPedida(r: Response): Promise<number | null> {
@@ -48,6 +52,7 @@ export async function gemini(corpo: unknown, forte = false, timeoutMs = 20000, p
       const id = `${modelo}|${i}`;
       const sobra = fim - Date.now();
       if (sobra < 4000) break;
+      if (semModelo.has(id)) continue;
       const livre = descanso.get(id) ?? 0;
       if (livre > Date.now()) {
         espera = Math.min(espera, livre - Date.now());
@@ -70,7 +75,13 @@ export async function gemini(corpo: unknown, forte = false, timeoutMs = 20000, p
           descanso.set(id, Date.now() + 3_600_000); // chave sem permissao: fora por 1 h
           continue;
         }
-        if (r.status === 404 || r.status >= 500) break; // modelo fora: tenta o proximo
+        if (r.status === 404) {
+          // modelo que ESTA chave nao tem (as chaves 2 e 3 nao tem o 2.5-flash): fora so
+          // nesta chave; as outras ainda tentam o mesmo modelo
+          semModelo.add(id);
+          continue;
+        }
+        if (r.status >= 500) break; // modelo fora do ar: tenta o proximo
         if (!r.ok) continue;
         const j = (await r.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
         const txt = j.candidates?.[0]?.content?.parts?.[0]?.text;
