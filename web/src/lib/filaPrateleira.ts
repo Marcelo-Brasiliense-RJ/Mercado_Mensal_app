@@ -2,7 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 import { enfileirarFoto, type Destino } from "./filaFotos";
-import { juntarIguais, limpar, mesmoProduto, metades, paraFoto, precisaFaltou, somarNovos, unidadesDe, type Achado, type Box } from "./prateleira";
+import { juntarIguais, limpar, mesmoProduto, faixas, paraFoto, precisaFaltou, somarNovos, unidadesDe, type Achado, type Box } from "./prateleira";
 
 // Foto dos produtos em SEGUNDO PLANO (pedido do dono): a pessoa tira a foto e o app
 // fica livre. A IA procura e confere cada produto aqui fora da tela; quando termina,
@@ -148,26 +148,34 @@ function pedaco(c: HTMLCanvasElement, r: Box): string {
   return p.toDataURL("image/jpeg", 0.85);
 }
 
-// Busca nas duas metades com zoom, AO MESMO TEMPO que a foto inteira (nao soma tempo).
-// Falhou ou estourou a cota? Fica so com a foto inteira (nunca derruba a foto).
-// Testado na foto do carrinho do dono: de 11-14 produtos para 20.
-async function buscarNasMetades(x: JobFoto): Promise<Achado[]> {
+// Busca nas tres faixas com zoom, AO MESMO TEMPO que a foto inteira (nao soma tempo).
+// Faixa que pegou limite por minuto tenta mais uma vez; falhou de novo, fica sem ela
+// (nunca derruba a foto). carrinho: alguma faixa viu carrinho de mercado.
+async function buscarNasFaixas(x: JobFoto): Promise<{ itens: Achado[]; carrinho: boolean }> {
   try {
     const c = await canvasDe(x.src);
+    const pedir = async (foto: string) => {
+      const res = await fetch("/api/prateleira", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ foto, nomes: x.nomes }),
+      }).catch(() => null);
+      return (await res?.json().catch(() => null)) as { ok?: boolean; itens?: Achado[]; carrinho?: boolean; erro?: string; espera?: number } | null;
+    };
     const partes = await Promise.all(
-      metades(c.width, c.height).map(async (r) => {
-        const res = await fetch("/api/prateleira", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ foto: pedaco(c, r), nomes: x.nomes }),
-        }).catch(() => null);
-        const d = (await res?.json().catch(() => null)) as { ok?: boolean; itens?: Achado[] } | null;
-        return d?.ok ? limpar(d.itens ?? []).map((a) => ({ ...a, box: paraFoto(a.box, r) })) : [];
+      faixas(c.width, c.height).map(async (r, k) => {
+        const foto = pedaco(c, r);
+        let d = await pedir(foto);
+        if (d?.erro === "limite" && (d.espera ?? 99) <= 20) {
+          await dormir(((d.espera ?? 5) + k) * 1000);
+          d = await pedir(foto);
+        }
+        return d?.ok ? { itens: limpar(d.itens ?? []).map((a) => ({ ...a, box: paraFoto(a.box, r) })), carrinho: !!d.carrinho } : { itens: [], carrinho: false };
       }),
     );
-    return partes.flat();
+    return { itens: partes.flatMap((p) => p.itens), carrinho: partes.some((p) => p.carrinho) };
   } catch {
-    return [];
+    return { itens: [], carrinho: false };
   }
 }
 
@@ -183,7 +191,7 @@ let rodando = false;
 
 async function ler(x: JobFoto): Promise<void> {
   trocar(x.id, { etapa: "procurando", achados: undefined });
-  const metadesP = buscarNasMetades(x);
+  const faixasP = buscarNasFaixas(x);
   const r = await fetch("/api/prateleira", {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -214,13 +222,16 @@ async function ler(x: JobFoto): Promise<void> {
                 : "A IA não conseguiu ler a foto.",
     });
   }
-  if (d.carrinho) trocar(x.id, { fotoDeCarrinho: true });
   let achados = limpar(d.itens);
-  // Produto unico de perto: as metades so cortariam ele em pedacos.
+  let carrinho = !!d.carrinho;
+  // Produto unico de perto: as faixas so cortariam ele em pedacos.
   if (precisaFaltou(achados)) {
     trocar(x.id, { etapa: "faltou", achados: juntarIguais(achados) });
-    achados = somarNovos(achados, await metadesP);
+    const f = await faixasP;
+    achados = somarNovos(achados, f.itens);
+    carrinho ||= f.carrinho;
   }
+  if (carrinho) trocar(x.id, { fotoDeCarrinho: true });
   achados = juntarIguais(achados);
   if (!achados.length) return trocar(x.id, { estado: "falhou", erro: "Não achei produtos nessa foto." });
 

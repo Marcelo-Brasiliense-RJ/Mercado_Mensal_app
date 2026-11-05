@@ -213,16 +213,16 @@ export function dividir(b: Box, n: number): Box[] {
   );
 }
 
-// ---- busca com zoom nas metades ----
-// Numa foto cheia a IA para nos produtos grandes e legiveis. A mesma busca em duas
-// metades com zoom (sobrepostas 20%, cortadas no lado maior) acha os pequenos, os de
-// tras e os do canto; o que se repete com a foto inteira some em somarNovos.
+// ---- busca com zoom em faixas ----
+// Numa foto cheia a IA para nos produtos grandes e legiveis. A mesma busca em tres
+// faixas com zoom (sobrepostas, cortadas no lado maior) acha os pequenos, os de tras e
+// os do canto; o que se repete com a foto inteira some em somarNovos. Na foto do
+// carrinho do dono: 2 metades achavam 15-17, 3 faixas 19-23.
 // (Pedir "so o que falta" com os quadrados desenhados nao funcionou: a IA respondia vazio.)
 
-export function metades(w: number, h: number): Box[] {
-  return h >= w
-    ? [[0, 0, 0.6, 1], [0.4, 0, 1, 1]]
-    : [[0, 0, 1, 0.6], [0, 0.4, 1, 1]];
+export function faixas(w: number, h: number): Box[] {
+  const cortes: [number, number][] = [[0, 0.45], [0.275, 0.725], [0.55, 1]];
+  return cortes.map(([a, b]) => (h >= w ? [a, 0, b, 1] : [0, a, 1, b]));
 }
 
 // Quadrado de dentro de uma regiao (0..1 da regiao) -> 0..1 da foto inteira.

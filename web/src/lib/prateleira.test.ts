@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { agrupar, corDe, daMemoria, iou, juntarIguais, limpar, marcarCarrinho, mesmoProduto, metades, paraFoto, precisaFaltou, somarNovos, type Achado, type Box } from "./prateleira";
+import { agrupar, corDe, daMemoria, iou, juntarIguais, limpar, marcarCarrinho, mesmoProduto, faixas, paraFoto, precisaFaltou, somarNovos, type Achado, type Box } from "./prateleira";
 
 const a = (box: [number, number, number, number], nome = "x", legivel = true): Achado => ({ box, nome, rotulo: "", legivel });
 
@@ -152,9 +152,9 @@ describe("opcoes claras", () => {
 });
 
 describe("segunda olhada", () => {
-  it("metades cortam no lado maior e se sobrepoem", () => {
-    expect(metades(1000, 1600)).toEqual([[0, 0, 0.6, 1], [0.4, 0, 1, 1]]);
-    expect(metades(1600, 1000)).toEqual([[0, 0, 1, 0.6], [0, 0.4, 1, 1]]);
+  it("faixas cortam no lado maior, sobrepostas, cobrindo a foto toda", () => {
+    expect(faixas(1000, 1600)).toEqual([[0, 0, 0.45, 1], [0.275, 0, 0.725, 1], [0.55, 0, 1, 1]]);
+    expect(faixas(1600, 1000)[2]).toEqual([0, 0.55, 1, 1]);
   });
   it("paraFoto leva o quadrado da metade para a foto inteira", () => {
     expect(paraFoto([0.5, 0, 1, 0.5], [0.4, 0, 1, 1]).map((v) => +v.toFixed(3))).toEqual([0.7, 0, 1, 0.5]);

@@ -352,9 +352,7 @@ export function PrateleiraModal({
             </div>
           </div>
         )}
-        {fase === "marcar" && job?.fotoDeCarrinho && destino !== "carrinho" && vaiPara === "carrinho" && (
-          <p className="mt-1 text-[12px] text-text-3">Parece foto de carrinho de mercado: vai para o carrinho, com preço.</p>
-        )}
+
       </div>
 
       {fase === "foto" && (
