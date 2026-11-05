@@ -2,7 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 import { enfileirarFoto, type Destino } from "./filaFotos";
-import { juntarIguais, limpar, mesmoProduto, faixas, paraFoto, precisaFaltou, somarNovos, unidadesDe, type Achado, type Box } from "./prateleira";
+import { juntarIguais, limpar, mesmoProduto, faixas, paraFoto, segundaOpiniao, precisaFaltou, somarNovos, unidadesDe, type Achado, type Box } from "./prateleira";
 
 // Foto dos produtos em SEGUNDO PLANO (pedido do dono): a pessoa tira a foto e o app
 // fica livre. A IA procura e confere cada produto aqui fora da tela; quando termina,
@@ -222,12 +222,15 @@ async function ler(x: JobFoto): Promise<void> {
                 : "A IA não conseguiu ler a foto.",
     });
   }
-  let achados = limpar(d.itens);
+  const daFoto = limpar(d.itens);
+  let achados = daFoto;
+  let daFaixa: Achado[] = [];
   let carrinho = !!d.carrinho;
   // Produto unico de perto: as faixas so cortariam ele em pedacos.
   if (precisaFaltou(achados)) {
     trocar(x.id, { etapa: "faltou", achados: juntarIguais(achados) });
     const f = await faixasP;
+    daFaixa = f.itens;
     achados = somarNovos(achados, f.itens);
     carrinho ||= f.carrinho;
   }
@@ -245,14 +248,21 @@ async function ler(x: JobFoto): Promise<void> {
   // A tela do processo ja mostra os quadrados achados enquanto confere.
   trocar(x.id, { etapa: "conferindo", achados, tentativas: 0 });
 
-  // Conferencia: o recorte de cada quadrado e lido de novo. Falhou? Segue sem ela.
+  // Conferencia. Primeiro a de graca: produto que a foto inteira e uma faixa acharam no
+  // mesmo lugar ja tem segunda opiniao. A rodada extra (recortes numerados) so vai para
+  // quem ficou sem opiniao E sem leitura segura (sem nome ou nao legivel): na maioria das
+  // fotos ela nem roda (carrinho do dono: 1 de 23 precisaria), e a foto fica pronta uma
+  // chamada mais cedo.
   // O que ja estava no carrinho nao e conferido de novo (economiza a IA).
-  let conferidos: (string | null)[] = achados.map(() => null);
+  const opinioes = segundaOpiniao(achados, daFoto, daFaixa);
+  const doCarrinho = (a: Achado) => a.legivel && (x.carrinho ?? []).some((n) => mesmoProduto(n, a.nome));
+  let conferidos: (string | null)[] = achados.map((a, i) => (doCarrinho(a) ? a.nome : (opinioes[i] ?? null)));
   const conferir = achados
     .map((a, i) => ({ a, i }))
-    .filter(({ a }) => !(a.legivel && (x.carrinho ?? []).some((n) => mesmoProduto(n, a.nome))));
+    .filter(({ a, i }) => conferidos[i] === null && (!a.nome || !a.legivel));
   try {
-    if (conferir.length) {
+    // 1 ou 2 sem opiniao nao valem uma rodada inteira: ficam vermelhos e a pessoa diz o nome.
+    if (conferir.length >= 3) {
       const c = await canvasDe(x.src);
       const rc = await fetch("/api/prateleira", {
         method: "POST",
@@ -261,7 +271,7 @@ async function ler(x: JobFoto): Promise<void> {
       });
       const dc = (await rc.json().catch(() => null)) as { ok?: boolean; nomes?: string[] } | null;
       if (dc?.ok && dc.nomes) {
-        conferidos = achados.map((a) => a.nome); // do carrinho: confere com ele mesmo
+        conferidos = [...conferidos];
         conferir.forEach(({ i }, k) => (conferidos[i] = dc.nomes![k] ?? ""));
       }
     }

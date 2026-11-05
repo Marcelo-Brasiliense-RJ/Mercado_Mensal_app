@@ -246,3 +246,20 @@ export function somarNovos(achados: Achado[], extras: Achado[]): Achado[] {
   }
   return out;
 }
+
+// Segunda opiniao sem chamada extra: o mesmo produto achado pela foto inteira E por uma
+// faixa com zoom (quadrados quase iguais) e uma conferencia de graca. Devolve, para cada
+// achado final, o nome que a OUTRA passada deu (undefined = so uma passada viu).
+export function segundaOpiniao(finais: Achado[], foto: Achado[], faixa: Achado[]): (string | undefined)[] {
+  const casa = (a: Box, b: Box) => iou(a, b) > 0.45 || intersecao(a, b) / (Math.min(area(a), area(b)) || 1) > 0.8;
+  return finais.map((f) => {
+    const daFoto = foto.filter((o) => casa(f.box, o.box));
+    const daFaixa = faixa.filter((o) => casa(f.box, o.box));
+    if (!daFoto.length || !daFaixa.length) return undefined;
+    // As duas passadas concordam entre si: conferido. Senao, vale o nome diferente do
+    // achado (a outra passada viu outra coisa ali: quadrado duvidoso).
+    const acordo = daFaixa.find((q) => q.nome && daFoto.some((o) => o.nome && mesmoProduto(o.nome, q.nome)));
+    if (acordo) return acordo.nome;
+    return [...daFaixa, ...daFoto].find((o) => o.nome && !mesmoProduto(o.nome, f.nome))?.nome ?? "";
+  });
+}

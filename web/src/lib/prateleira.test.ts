@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { agrupar, corDe, daMemoria, iou, juntarIguais, limpar, marcarCarrinho, mesmoProduto, faixas, paraFoto, precisaFaltou, somarNovos, type Achado, type Box } from "./prateleira";
+import { agrupar, corDe, daMemoria, iou, juntarIguais, limpar, marcarCarrinho, mesmoProduto, faixas, paraFoto, precisaFaltou, somarNovos, segundaOpiniao, type Achado, type Box } from "./prateleira";
 
 const a = (box: [number, number, number, number], nome = "x", legivel = true): Achado => ({ box, nome, rotulo: "", legivel });
 
@@ -168,5 +168,16 @@ describe("segunda olhada", () => {
   it("produto unico de perto nao gasta a segunda olhada", () => {
     expect(precisaFaltou([{ box: [0, 0, 0.9, 0.9], nome: "x", rotulo: "", legivel: true }])).toBe(false);
     expect(precisaFaltou([{ box: [0, 0, 0.3, 0.3], nome: "x", rotulo: "", legivel: true }])).toBe(true);
+  });
+});
+
+describe("segundaOpiniao", () => {
+  const a = (box: Box, nome: string, legivel = true): Achado => ({ box, nome, rotulo: "", legivel });
+  it("produto achado pela foto e pela faixa no mesmo lugar ganha a opiniao da outra passada", () => {
+    const foto = [a([0, 0, 0.3, 0.3], "arroz"), a([0.5, 0.5, 0.8, 0.8], "feijão")];
+    const faixa = [a([0.01, 0.01, 0.3, 0.29], "arroz tio joão"), a([0.5, 0.5, 0.8, 0.8], "café")];
+    const novo = a([0.85, 0.1, 0.95, 0.2], "mel");
+    const finais = [...foto, novo];
+    expect(segundaOpiniao(finais, foto, [...faixa, novo])).toEqual(["arroz tio joão", "café", undefined]);
   });
 });
