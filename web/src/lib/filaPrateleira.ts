@@ -24,6 +24,7 @@ export type JobFoto = {
   etapa?: "procurando" | "faltou" | "conferindo"; // para a tela do processo
   nomes?: string[]; // nomes que a casa usa (estoque + carrinho): a IA repete o mesmo nome
   carrinho?: string[]; // foto no mercado: o que ja estava no carrinho (nao confere de novo)
+  fotoDeCarrinho?: boolean; // a IA viu um carrinho/cesta de mercado: a tela abre no carrinho
 };
 
 const CHAVE = "fila_prateleira";
@@ -132,9 +133,9 @@ function grade(c: HTMLCanvasElement, boxes: Box[]): string {
   return g.toDataURL("image/jpeg", 0.85);
 }
 
-// Pedaco da foto (regiao 0..1) com os quadrados ja achados desenhados em magenta e
-// numerados, ampliado ate LADO: a segunda olhada ve os produtos pequenos com zoom.
-function pedacoMarcado(c: HTMLCanvasElement, r: Box, achados: Achado[]): { src: string; ja: string[] } {
+// Pedaco da foto (regiao 0..1), ampliado ate LADO: com zoom a IA ve os produtos
+// pequenos, os de tras e os do canto, que na foto inteira ela larga.
+function pedaco(c: HTMLCanvasElement, r: Box): string {
   const sx = r[1] * c.width;
   const sy = r[0] * c.height;
   const sw = (r[3] - r[1]) * c.width;
@@ -143,48 +144,30 @@ function pedacoMarcado(c: HTMLCanvasElement, r: Box, achados: Achado[]): { src: 
   const p = document.createElement("canvas");
   p.width = Math.round(sw * k);
   p.height = Math.round(sh * k);
-  const g = p.getContext("2d")!;
-  g.drawImage(c, sx, sy, sw, sh, 0, 0, p.width, p.height);
-  const ja: string[] = [];
-  g.lineWidth = Math.max(3, p.width / 250);
-  g.font = "bold 20px sans-serif";
-  for (const a of achados) {
-    const x0 = (a.box[1] * c.width - sx) * k;
-    const y0 = (a.box[0] * c.height - sy) * k;
-    const x1 = (a.box[3] * c.width - sx) * k;
-    const y1 = (a.box[2] * c.height - sy) * k;
-    if (x1 <= 0 || y1 <= 0 || x0 >= p.width || y0 >= p.height) continue; // fora deste pedaco
-    ja.push(a.nome);
-    g.strokeStyle = "#ff00ff";
-    g.strokeRect(x0, y0, x1 - x0, y1 - y0);
-    g.fillStyle = "#ff00ff";
-    g.fillRect(Math.max(0, x0), Math.max(0, y0), 34, 26);
-    g.fillStyle = "#fff";
-    g.fillText(String(ja.length), Math.max(0, x0) + 6, Math.max(0, y0) + 21);
-  }
-  return { src: p.toDataURL("image/jpeg", 0.85), ja };
+  p.getContext("2d")!.drawImage(c, sx, sy, sw, sh, 0, 0, p.width, p.height);
+  return p.toDataURL("image/jpeg", 0.85);
 }
 
-// Segunda olhada nas duas metades, ao mesmo tempo. Falhou ou estourou a cota? Fica so
-// com a primeira passada (nunca derruba a foto).
-async function procurarFaltou(x: JobFoto, achados: Achado[]): Promise<Achado[]> {
+// Busca nas duas metades com zoom, AO MESMO TEMPO que a foto inteira (nao soma tempo).
+// Falhou ou estourou a cota? Fica so com a foto inteira (nunca derruba a foto).
+// Testado na foto do carrinho do dono: de 11-14 produtos para 20.
+async function buscarNasMetades(x: JobFoto): Promise<Achado[]> {
   try {
     const c = await canvasDe(x.src);
-    const extras = await Promise.all(
+    const partes = await Promise.all(
       metades(c.width, c.height).map(async (r) => {
-        const { src, ja } = pedacoMarcado(c, r, achados);
         const res = await fetch("/api/prateleira", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ foto: src, ja, nomes: x.nomes }),
+          body: JSON.stringify({ foto: pedaco(c, r), nomes: x.nomes }),
         }).catch(() => null);
         const d = (await res?.json().catch(() => null)) as { ok?: boolean; itens?: Achado[] } | null;
         return d?.ok ? limpar(d.itens ?? []).map((a) => ({ ...a, box: paraFoto(a.box, r) })) : [];
       }),
     );
-    return somarNovos(achados, extras.flat());
+    return partes.flat();
   } catch {
-    return achados;
+    return [];
   }
 }
 
@@ -200,13 +183,14 @@ let rodando = false;
 
 async function ler(x: JobFoto): Promise<void> {
   trocar(x.id, { etapa: "procurando", achados: undefined });
+  const metadesP = buscarNasMetades(x);
   const r = await fetch("/api/prateleira", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ foto: x.src, nomes: x.nomes }),
   }).catch(() => null);
   const d = (await r?.json().catch(() => null)) as
-    | { ok: true; itens: Achado[] }
+    | { ok: true; itens: Achado[]; carrinho?: boolean }
     | { ok: false; erro: string; espera?: number }
     | null;
   if (!d?.ok) {
@@ -230,11 +214,12 @@ async function ler(x: JobFoto): Promise<void> {
                 : "A IA não conseguiu ler a foto.",
     });
   }
+  if (d.carrinho) trocar(x.id, { fotoDeCarrinho: true });
   let achados = limpar(d.itens);
+  // Produto unico de perto: as metades so cortariam ele em pedacos.
   if (precisaFaltou(achados)) {
-    // A tela mostra os quadrados da primeira passada enquanto procura o que faltou.
     trocar(x.id, { etapa: "faltou", achados: juntarIguais(achados) });
-    achados = await procurarFaltou(x, achados);
+    achados = somarNovos(achados, await metadesP);
   }
   achados = juntarIguais(achados);
   if (!achados.length) return trocar(x.id, { estado: "falhou", erro: "Não achei produtos nessa foto." });

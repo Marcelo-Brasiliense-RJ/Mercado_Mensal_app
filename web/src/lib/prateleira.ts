@@ -213,10 +213,11 @@ export function dividir(b: Box, n: number): Box[] {
   );
 }
 
-// ---- segunda olhada ("o que faltou?") ----
-// A primeira passada para nos produtos grandes e legiveis. A segunda manda a foto em
-// duas metades com zoom (sobrepostas 20%, cortadas no lado maior), com os quadrados ja
-// achados desenhados, e pede so o que esta sem quadrado.
+// ---- busca com zoom nas metades ----
+// Numa foto cheia a IA para nos produtos grandes e legiveis. A mesma busca em duas
+// metades com zoom (sobrepostas 20%, cortadas no lado maior) acha os pequenos, os de
+// tras e os do canto; o que se repete com a foto inteira some em somarNovos.
+// (Pedir "so o que falta" com os quadrados desenhados nao funcionou: a IA respondia vazio.)
 
 export function metades(w: number, h: number): Box[] {
   return h >= w

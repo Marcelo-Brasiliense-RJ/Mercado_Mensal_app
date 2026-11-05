@@ -4,7 +4,7 @@
 //    novo "o que tem em cada recorte?". Recorte que nao bate com o nome = quadrado
 //    vermelho. E isso que garante o quadrado no produto certo, nao no vizinho.
 // So no servidor.
-import { gemini, type RespostaGemini } from "./gemini";
+import { gemini, MODELOS_FOTO, type RespostaGemini } from "./gemini";
 
 export type Achado = {
   box: [number, number, number, number]; // ymin, xmin, ymax, xmax em 0..1
@@ -32,21 +32,30 @@ Para cada quadrado devolva:
 - "nome": o produto como se fala em casa, minúsculo, produto + marca + variante quando importa, sem tamanho ("café pilão", "leite italac", "molho de tomate pramesa", "passata pramesa"). Vazio se não sabe o que é.
 - "unidades": inteiro, quantas unidades daquele produto o quadrado tem.
 - "legivel": true se você leu a marca/produto com segurança; false se é palpite pelo formato/conteúdo, sem ler.
-Não marque prateleira, parede, móvel, prendedor, sacola de mercado vazia nem reflexo. Máximo de 40 quadrados.`;
+Não marque prateleira, parede, móvel, prendedor, sacola de mercado vazia nem reflexo. Máximo de 40 quadrados.
+Se a foto é de um CARRINHO ou cesta de mercado: marque só o que está DENTRO do carrinho/cesta; produtos da loja ao fundo (gôndola, prateleira do mercado, outro carrinho) não contam.
+Devolva também "carrinho": true se a foto é de um carrinho ou cesta de compras de mercado (grade de metal/plástico do carrinho, loja ao fundo), false se é em casa (armário, despensa, geladeira, mesa, bancada).`;
+
+const ITEM = {
+  type: "OBJECT",
+  properties: {
+    box_2d: { type: "ARRAY", items: { type: "INTEGER" } },
+    rotulo: { type: "STRING" },
+    nome: { type: "STRING" },
+    legivel: { type: "BOOLEAN" },
+    unidades: { type: "INTEGER" },
+  },
+  required: ["box_2d", "rotulo", "nome", "legivel", "unidades"],
+};
 
 const ESQUEMA_DETECTAR = {
-  type: "ARRAY",
-  items: {
-    type: "OBJECT",
-    properties: {
-      box_2d: { type: "ARRAY", items: { type: "INTEGER" } },
-      rotulo: { type: "STRING" },
-      nome: { type: "STRING" },
-      legivel: { type: "BOOLEAN" },
-      unidades: { type: "INTEGER" },
-    },
-    required: ["box_2d", "rotulo", "nome", "legivel", "unidades"],
+  type: "OBJECT",
+  properties: {
+    carrinho: { type: "BOOLEAN" },
+    itens: { type: "ARRAY", items: ITEM },
   },
+  required: ["carrinho", "itens"],
+  propertyOrdering: ["carrinho", "itens"],
 };
 
 type Erro = Exclude<RespostaGemini, { ok: true }>;
@@ -81,27 +90,19 @@ const limparNomes = (nomes?: unknown) =>
     .filter((n, i, a) => a.indexOf(n) === i)
     .slice(0, 120);
 
-// Segunda passada ("o que faltou?"): a mesma foto com os quadrados ja achados
-// desenhados em magenta e numerados. Numa passada so, a IA para nos produtos grandes e
-// legiveis e larga o resto (tampinha atras, lata embaixo de outra, saco no canto).
-const FALTOU = (ja: string[]) => `
-ATENÇÃO: esta é uma SEGUNDA olhada. Os produtos já achados estão com contorno MAGENTA e número na foto:
-${ja.map((n, i) => `${i + 1}. ${n || "(sem nome)"}`).join("\n")}
-Ache SÓ os produtos que estão SEM contorno magenta. Varra a foto inteira por partes (cima à esquerda, cima à direita, meio, baixo, bordas) e procure principalmente: produtos pequenos (tampa, sachê, pote), os de trás que aparecem só um pedaço, os que estão embaixo ou atrás de outro, deitados, cortados na borda da foto, sacos e potes sem rótulo.
-Não repita nenhum produto já contornado. Os "box_2d" são da foto inteira (o contorno magenta não faz parte do produto). Se não faltar nenhum, devolva lista vazia.`;
-
-// ja: nomes dos quadrados ja desenhados na foto (segunda passada).
-export async function detectar(foto: string, nomesCasa?: unknown, ja?: string[]): Promise<{ ok: true; itens: Achado[] } | Erro> {
+// carrinho: a IA achou que e foto de carrinho de mercado (a tela ja abre no "carrinho").
+export async function detectar(foto: string, nomesCasa?: unknown): Promise<{ ok: true; itens: Achado[]; carrinho: boolean } | Erro> {
   const img = partes(foto);
   if (!img) return { ok: false, erro: "ia_falhou" };
   const g = await gemini(
     {
-      contents: [{ parts: [{ inline_data: img }, { text: DETECTAR + (ja ? FALTOU(ja) : "") + COM_NOMES(limparNomes(nomesCasa)) }] }],
+      contents: [{ parts: [{ inline_data: img }, { text: DETECTAR + COM_NOMES(limparNomes(nomesCasa)) }] }],
       generationConfig: { responseMimeType: "application/json", responseSchema: ESQUEMA_DETECTAR, temperature: 0 },
     },
-    true, // posicao: o modelo mais forte na frente (o "lite" erra mais o quadrado)
+    true,
     50000,
     55000, // a rota tem 60 s: responde antes de o servidor cortar
+    MODELOS_FOTO,
   );
   if (!g.ok) return g;
   // Resposta cortada no meio (muitos produtos) ainda aproveita os que vieram inteiros.
@@ -111,13 +112,18 @@ export async function detectar(foto: string, nomesCasa?: unknown, ja?: string[])
   } catch {
     const corte = g.texto.lastIndexOf("}");
     try {
-      bruto = JSON.parse(g.texto.slice(0, corte + 1).replace(/^[^[]*/, "") + "]");
+      bruto = {
+        carrinho: /"carrinho"\s*:\s*true/.test(g.texto),
+        itens: JSON.parse(g.texto.slice(0, corte + 1).replace(/^[^[]*/, "") + "]"),
+      };
     } catch {
       return { ok: false, erro: "ia_falhou" };
     }
   }
+  const obj = bruto as { carrinho?: unknown; itens?: unknown } | null;
+  const lista = Array.isArray(bruto) ? bruto : Array.isArray(obj?.itens) ? obj.itens : [];
   const itens: Achado[] = [];
-  for (const o of Array.isArray(bruto) ? bruto : []) {
+  for (const o of lista) {
     const b = (o as { box_2d?: unknown }).box_2d;
     if (!Array.isArray(b) || b.length !== 4 || !b.every((n) => typeof n === "number")) continue;
     const [y0, x0, y1, x1] = (b as number[]).map((n) => Math.min(1000, Math.max(0, n)) / 1000);
@@ -134,7 +140,7 @@ export async function detectar(foto: string, nomesCasa?: unknown, ja?: string[])
       unidades: Number.isFinite(u) ? Math.min(48, Math.max(1, u)) : 1,
     });
   }
-  return { ok: true, itens };
+  return { ok: true, itens, carrinho: obj?.carrinho === true };
 }
 
 const CONFERIR = (n: number) => `A imagem é uma grade com ${n} recortes numerados (o número fica no canto de cada recorte).

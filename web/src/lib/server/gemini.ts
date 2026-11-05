@@ -4,7 +4,12 @@
 // So no servidor: a chave nunca chega ao navegador.
 
 // gemini-2.5-flash-lite saiu (404 nas tres chaves, conferido em 2026-11-04).
-const MODELOS = ["gemini-flash-lite-latest", "gemini-2.5-flash", "gemini-3.5-flash"];
+// Cota gratis (conferida em 2026-11-05): gemini-3.5-flash e 2.5-flash = 20 pedidos/dia
+// por chave. Os "lite" aguentam bem mais, e o 3.5-flash-lite achou MAIS produtos na foto
+// do carrinho que o 3.5-flash (22 x 16). Por isso ele vai na frente.
+const MODELOS = ["gemini-3.5-flash-lite", "gemini-flash-lite-latest", "gemini-2.5-flash", "gemini-3.5-flash"];
+// Foto de varios produtos: o melhor em achar produto primeiro, o 3.5-flash (escasso) so de reserva.
+export const MODELOS_FOTO = ["gemini-3.5-flash-lite", "gemini-3.5-flash", "gemini-flash-lite-latest", "gemini-2.5-flash"];
 
 // Estado do rodizio, por instancia do servidor (melhor esforco: outra instancia comeca
 // do zero e no maximo leva um 429 a mais, que tambem e respeitado).
@@ -37,7 +42,8 @@ export type RespostaGemini = { ok: true; texto: string } | { ok: false; erro: "l
 // corpo: o JSON do generateContent. forte: modelo mais forte na frente.
 // prazoTotalMs: teto da chamada inteira (todas as tentativas), para caber no limite da
 // rota no servidor (estourar = a foto falha sem resposta nenhuma).
-export async function gemini(corpo: unknown, forte = false, timeoutMs = 20000, prazoTotalMs?: number): Promise<RespostaGemini> {
+// modelos: ordem propria (ignora `forte`).
+export async function gemini(corpo: unknown, forte = false, timeoutMs = 20000, prazoTotalMs?: number, modelos?: string[]): Promise<RespostaGemini> {
   const fim = prazoTotalMs ? Date.now() + prazoTotalMs : Infinity;
   const ks = chavesGemini();
   if (!ks.length) return { ok: false, erro: "ia_indisponivel" };
@@ -46,7 +52,7 @@ export async function gemini(corpo: unknown, forte = false, timeoutMs = 20000, p
   // levou 429 descansa o tempo que o Google pediu, por modelo.
   const inicio = vez++ % ks.length;
   let espera = Infinity;
-  for (const modelo of forte ? [...MODELOS].reverse() : MODELOS) {
+  for (const modelo of modelos ?? (forte ? [...MODELOS].reverse() : MODELOS)) {
     for (let n = 0; n < ks.length; n++) {
       const i = (inicio + n) % ks.length;
       const id = `${modelo}|${i}`;

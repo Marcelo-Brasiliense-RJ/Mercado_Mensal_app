@@ -76,7 +76,10 @@ export function PrateleiraModal({
   onListaEscrita?: (f: File) => void; // foto de lista no papel: vai para o "entender" (voz)
 }) {
   const { stock, addStock, addTripItem, trip, showToast } = useStore();
-  const noMercado = destino === "carrinho";
+  // Para onde vai: comeca pelo GPS (destino) ou pela IA, que reconhece foto de carrinho
+  // de mercado. A pessoa troca na tela de conferir (GPS desligado nao manda pro estoque).
+  const [vaiPara, setVaiPara] = useState<Destino>(job?.fotoDeCarrinho ? "carrinho" : destino);
+  const noMercado = vaiPara === "carrinho";
   const ofertas = useListaOfertas();
   const [precos, setPrecos] = useState<Record<string, { qtd: number; preco: string }>>({});
   const [fase, setFase] = useState<Fase>(job ? "lendo" : "foto");
@@ -329,6 +332,28 @@ export function PrateleiraModal({
           <div className="mt-2 h-2 overflow-hidden rounded-full bg-card-2">
             <div className="h-full rounded-full bg-pos transition-[width] duration-300" style={{ width: `${(prontos / (caixas.length || 1)) * 100}%` }} />
           </div>
+        )}
+        {fase === "marcar" && (
+          <div className="mt-3 flex items-center gap-2">
+            <span className="text-[13px] font-bold text-text-2">Vai para</span>
+            <div className="flex flex-1 rounded-[12px] bg-card-2 p-1" role="radiogroup" aria-label="Para onde vão os produtos">
+              {(["estoque", "carrinho"] as const).map((d) => (
+                <button
+                  key={d}
+                  type="button"
+                  role="radio"
+                  aria-checked={vaiPara === d}
+                  onClick={() => setVaiPara(d)}
+                  className={`h-9 flex-1 rounded-[9px] text-[14px] font-bold ${vaiPara === d ? "bg-card text-text shadow" : "text-text-3"}`}
+                >
+                  {d === "estoque" ? "🏠 Despensa" : "🛒 Carrinho"}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {fase === "marcar" && job?.fotoDeCarrinho && destino !== "carrinho" && vaiPara === "carrinho" && (
+          <p className="mt-1 text-[12px] text-text-3">Parece foto de carrinho de mercado: vai para o carrinho, com preço.</p>
         )}
       </div>
 
