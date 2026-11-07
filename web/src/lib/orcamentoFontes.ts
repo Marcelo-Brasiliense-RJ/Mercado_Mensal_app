@@ -50,7 +50,24 @@ export function dasFontesSalvas(
   return [{ nome: "", valor: total > 0 ? valorTexto(total) : "" }];
 }
 
-// 600 -> "600", 150.5 -> "150,50"
+const milhar = (inteiro: string) => inteiro.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+
+// 600 -> "600", 1400 -> "1.400", 150.5 -> "150,50"
 export function valorTexto(n: number): string {
-  return Number.isInteger(n) ? String(n) : n.toFixed(2).replace(".", ",");
+  const [i, d] = (Number.isInteger(n) ? String(n) : n.toFixed(2)).split(".");
+  return d ? `${milhar(i)},${d}` : milhar(i);
+}
+
+// Enquanto digita: so digitos e uma virgula, milhar com ponto, no maximo 2
+// centavos. "1400" -> "1.400", "1400,5" -> "1.400,5". Ponto digitado no fim vira
+// virgula (teclado de alguns aparelhos so tem ponto).
+export function formatarDigitando(txt: string): string {
+  // Ponto no meio e o milhar que o proprio campo pos (sai e e refeito; apagar um
+  // digito de "1.400" da "140", nao "1,40"). Ponto no FIM e a pessoa pedindo decimal.
+  const t = (txt ?? "").replace(/\.$/, ",").replace(/\./g, "");
+  const limpo = t.replace(/[^\d,]/g, "");
+  const [int, ...resto] = limpo.split(",");
+  const inteiro = int.replace(/^0+(?=\d)/, "");
+  if (!resto.length) return milhar(inteiro);
+  return `${milhar(inteiro || "0")},${resto.join("").slice(0, 2)}`;
 }

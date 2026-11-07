@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dasFontesSalvas, lerValor, nomeLivre, paraSalvar, somar } from "./orcamentoFontes";
+import { dasFontesSalvas, formatarDigitando, lerValor, valorTexto, nomeLivre, paraSalvar, somar } from "./orcamentoFontes";
 
 describe("orcamento por fontes", () => {
   it("le valor como brasileiro digita", () => {
@@ -35,5 +35,26 @@ describe("orcamento por fontes", () => {
     ]);
     expect(dasFontesSalvas([{ nome: "VR", valor: 600 }], 900)).toEqual([{ nome: "", valor: "900" }]);
     expect(dasFontesSalvas([], 0)).toEqual([{ nome: "", valor: "" }]);
+  });
+});
+
+describe("valor enquanto digita", () => {
+  it("poe milhar e limita centavos", () => {
+    expect(formatarDigitando("1400")).toBe("1.400");
+    expect(formatarDigitando("1.4005")).toBe("14.005");
+    expect(formatarDigitando("1.400,")).toBe("1.400,");
+    expect(formatarDigitando("1.400,509")).toBe("1.400,50");
+    expect(formatarDigitando("150.")).toBe("150,");
+    expect(formatarDigitando("1.40")).toBe("140"); // apagou um digito de 1.400
+    expect(formatarDigitando(",5")).toBe("0,5");
+    expect(formatarDigitando("007")).toBe("7");
+    expect(formatarDigitando("")).toBe("");
+    expect(lerValor(formatarDigitando("1234567"))).toBe(1234567);
+  });
+
+  it("mostra salvo com milhar", () => {
+    expect(valorTexto(1400)).toBe("1.400");
+    expect(valorTexto(150.5)).toBe("150,50");
+    expect(valorTexto(600)).toBe("600");
   });
 });
