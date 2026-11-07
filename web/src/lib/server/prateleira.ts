@@ -5,6 +5,7 @@
 //    vermelho. E isso que garante o quadrado no produto certo, nao no vizinho.
 // So no servidor.
 import { gemini, MODELOS_FOTO, type RespostaGemini } from "./gemini";
+import { generico } from "../prateleira";
 
 export type Achado = {
   box: [number, number, number, number]; // ymin, xmin, ymax, xmax em 0..1
@@ -14,7 +15,7 @@ export type Achado = {
   unidades: number; // quantas unidades dentro da embalagem (fardo de 12 leites = 12)
 };
 
-const DETECTAR = `Foto tirada no celular de um ou vários produtos de uma casa brasileira: pode ser um produto só na mão ou na mesa, ou um armário, despensa, geladeira, chão, bancada, ou o CARRINHO/cesta do mercado (produtos misturados, deitados, um em cima do outro, com a grade do carrinho na frente).
+export const DETECTAR = `Foto tirada no celular de um ou vários produtos de uma casa brasileira: pode ser um produto só na mão ou na mesa, ou um armário, despensa, geladeira, chão, bancada, ou o CARRINHO/cesta do mercado (produtos misturados, deitados, um em cima do outro, com a grade do carrinho na frente).
 A foto costuma ser RUIM e é normal: torta ou de lado (rótulo de cabeça para baixo ou deitado), escura, de cima, meio desfocada, bagunçada, com produtos empilhados, um na frente do outro, caídos, cortados na borda da foto.
 As embalagens também: pacotes abertos, dobrados, amassados ou fechados com prendedor de roupa; caixa de fardo (ex.: caixa de 12 leites); produto passado para saco plástico transparente ou pote sem rótulo.
 Agrupe do jeito que se conta estoque em casa, UM quadrado por PRODUTO, com a quantidade:
@@ -48,7 +49,7 @@ const ITEM = {
   required: ["box_2d", "rotulo", "nome", "legivel", "unidades"],
 };
 
-const ESQUEMA_DETECTAR = {
+export const ESQUEMA_DETECTAR = {
   type: "OBJECT",
   properties: {
     carrinho: { type: "BOOLEAN" },
@@ -79,11 +80,11 @@ function partes(dataUrl: string) {
 
 // Nomes que a casa ja usa (estoque, carrinho): mesmo produto = mesmo nome. Isso deixa
 // mais quadrados verdes e permite saber o que ja esta no carrinho (foto no mercado).
-const COM_NOMES = (nomes: string[]) =>
+export const COM_NOMES = (nomes: string[]) =>
   nomes.length
     ? `\nNomes que esta casa já usa. Se o produto da foto for um destes, use EXATAMENTE este nome em "nome". Se NÃO for nenhum destes, escreva o nome normalmente pelo rótulo: a lista é só ajuda, NUNCA deixe "nome" vazio para um produto que você leu.\n${nomes.map((n) => `- ${n}`).join("\n")}`
     : "";
-const limparNomes = (nomes?: unknown) =>
+export const limparNomes = (nomes?: unknown) =>
   (Array.isArray(nomes) ? nomes : [])
     .filter((n): n is string => typeof n === "string" && n.trim().length > 1)
     .map((n) => n.trim().toLowerCase().slice(0, 60))
@@ -107,6 +108,13 @@ export async function detectar(foto: string, nomesCasa?: unknown): Promise<{ ok:
     MODELOS_FOTO,
   );
   if (!g.ok) return g;
+  const r = lerDeteccao(g.texto);
+  return r ? { ok: true, ...r } : { ok: false, erro: "ia_falhou" };
+}
+
+// Texto da IA -> quadrados (0..1). null = resposta ilegivel.
+export function lerDeteccao(texto: string): { itens: Achado[]; carrinho: boolean } | null {
+  const g = { texto };
   // Resposta cortada no meio (muitos produtos) ainda aproveita os que vieram inteiros.
   let bruto: unknown;
   try {
@@ -119,7 +127,7 @@ export async function detectar(foto: string, nomesCasa?: unknown): Promise<{ ok:
         itens: JSON.parse(g.texto.slice(0, corte + 1).replace(/^[^[]*/, "") + "]"),
       };
     } catch {
-      return { ok: false, erro: "ia_falhou" };
+      return null;
     }
   }
   const obj = bruto as { carrinho?: unknown; itens?: unknown } | null;
@@ -132,17 +140,22 @@ export async function detectar(foto: string, nomesCasa?: unknown): Promise<{ ok:
     const r = o as { nome?: unknown; rotulo?: unknown; legivel?: unknown; unidades?: unknown };
     // A IA as vezes le o rotulo e deixa "nome" vazio: o nome sai do proprio rotulo.
     const rotulo = String(r.rotulo ?? "").trim();
-    const nome = String(r.nome ?? "").trim().toLowerCase() || nomeDoRotulo(rotulo);
+    // E as vezes da so a categoria ("biscoito", "produto") tendo lido a marca no rotulo.
+    let nome = String(r.nome ?? "").trim().toLowerCase();
+    if (!nome || generico(nome)) {
+      const doRotulo = nomeDoRotulo(rotulo);
+      if (doRotulo && !generico(doRotulo)) nome = doRotulo;
+    }
     const u = Math.round(Number(r.unidades));
     itens.push({
       box: [Math.min(y0, y1), Math.min(x0, x1), Math.max(y0, y1), Math.max(x0, x1)],
       nome,
       rotulo,
-      legivel: r.legivel === true && !!nome,
+      legivel: r.legivel === true && !!nome && !generico(nome), // so a categoria: a pessoa confirma
       unidades: Number.isFinite(u) ? Math.min(48, Math.max(1, u)) : 1,
     });
   }
-  return { ok: true, itens, carrinho: obj?.carrinho === true };
+  return { itens, carrinho: obj?.carrinho === true };
 }
 
 const CONFERIR = (n: number) => `A imagem é uma grade com ${n} recortes numerados (o número fica no canto de cada recorte).
