@@ -2,7 +2,8 @@
 
 import { useEffect, type RefObject } from "react";
 import { useRouter } from "next/navigation";
-import { ABAS, destinoDoGesto, gestoValeu, indiceAba } from "@/lib/gestos";
+import { abasCom, destinoDoGesto, gestoValeu, indiceAba } from "@/lib/gestos";
+import { useModoMercado } from "@/lib/modoMercado";
 
 // Arrastar o dedo na tela (so no celular):
 // - nas abas: pra esquerda = proxima aba, pra direita = aba anterior;
@@ -25,13 +26,15 @@ export function useGestosTela(
   conteudoRef: RefObject<HTMLElement | null>,
 ) {
   const router = useRouter();
+  const modoMercado = useModoMercado();
 
   // Deixa as abas vizinhas pre-carregadas: a troca pelo gesto fica instantanea.
   useEffect(() => {
-    const i = indiceAba(path);
+    const abas = abasCom(modoMercado);
+    const i = indiceAba(path, abas);
     if (i < 0) return;
-    [ABAS[i - 1], ABAS[i + 1]].forEach((h) => h && router.prefetch(h));
-  }, [path, router]);
+    [abas[i - 1], abas[i + 1]].forEach((h) => h && router.prefetch(h));
+  }, [path, router, modoMercado]);
 
   // Ao chegar na tela nova, limpa o deslocamento que o dedo deixou.
   useEffect(() => {
@@ -84,7 +87,7 @@ export function useGestosTela(
       }
       e.preventDefault(); // trava a rolagem vertical enquanto arrasta pro lado
       dx = ddx;
-      const tem = destinoDoGesto(path, dx) !== null;
+      const tem = destinoDoGesto(path, dx, abasCom(modoMercado)) !== null;
       // Com destino acompanha o dedo; na ponta, resistencia de elastico.
       mover(tem ? dx * 0.55 : dx * 0.12);
     };
@@ -95,7 +98,7 @@ export function useGestosTela(
         return;
       }
       estado = "nada";
-      const destino = destinoDoGesto(path, dx);
+      const destino = destinoDoGesto(path, dx, abasCom(modoMercado));
       if (!destino || !gestoValeu(dx, e.timeStamp - t0, window.innerWidth)) {
         mover(0, 220);
         return;
@@ -127,5 +130,5 @@ export function useGestosTela(
       area.removeEventListener("touchend", fim);
       area.removeEventListener("touchcancel", fim);
     };
-  }, [path, router, areaRef, conteudoRef]);
+  }, [path, router, areaRef, conteudoRef, modoMercado]);
 }

@@ -23,10 +23,17 @@ import { useLivelo } from "@/components/ofertas/useLivelo";
 import { comPontos, ofertasLivelo } from "@/lib/livelo";
 import { corMercado, corredor, faltaEmCasa, maisBarataPara, nomeMercado, porMercado, resumir } from "@/lib/ofertas";
 import { MercadoModal, type ItemMercado } from "./MercadoModal";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { Interruptor } from "@/components/ui/Interruptor";
+import { CartIcon } from "@/components/ui/icons";
+import { setModoMercado, useModoMercado } from "@/lib/modoMercado";
 
 export function ListView() {
   const { shopping, trip, buyItems, removeItems, addTripItem, showToast, reloadTrip, stock, stockToList, dataReady } =
     useStore();
+  const router = useRouter();
+  const modoMercado = useModoMercado();
   const [addManualOpen, setAddManualOpen] = useState(false);
   const [fotoOpen, setFotoOpen] = useState(false);
   const [scanOpen, setScanOpen] = useState(false);
@@ -188,6 +195,33 @@ export function ListView() {
       <ScreenHeader title="Lista de compras" action={addBtn} />
 
       <div className="space-y-4 lg:space-y-6">
+        {/* Modo mercado: liga a aba do carrinho (escondida ate ligar), so de pegar. */}
+        <div className="flex items-center gap-3 rounded-[18px] border border-border bg-card p-3.5 shadow-[0_1px_3px_var(--shadow)]">
+          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-[13px] bg-brand-soft text-brand">
+            <CartIcon size={22} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="text-[16px] font-extrabold">Modo mercado</div>
+            <div className="text-[13px] leading-snug text-text-2">
+              {modoMercado ? (
+                <Link href="/app/mercado" className="font-bold text-brand">
+                  Abrir a aba Mercado ›
+                </Link>
+              ) : (
+                "Aba própria do carrinho: por categoria, o que falta e o valor"
+              )}
+            </div>
+          </div>
+          <Interruptor
+            ligado={modoMercado}
+            rotulo="Modo mercado"
+            onChange={(v) => {
+              setModoMercado(v);
+              if (v) router.push("/app/mercado");
+            }}
+          />
+        </div>
+
         {/* O carrinho vem antes dos cards: dentro do mercado e o numero que muda. */}
         <CartPanel onScan={() => setScanOpen(true)} />
 
