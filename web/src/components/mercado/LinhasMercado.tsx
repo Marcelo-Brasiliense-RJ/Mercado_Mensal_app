@@ -125,6 +125,10 @@ export function LinhaCarrinho({
               quanto da lista ja pegou e a diferenca para o pesquisado. */}
           <span className="block truncate text-[12px] font-bold leading-tight text-text-3">
             {t.quantity !== 1 ? `${brl(t.unit_price)}/${t.unit}` : fora ? "fora da lista" : "da lista"}
+            {/* Pego com o nome do rotulo: mostra qual item da lista ele cobriu. */}
+            {pego && !fora && pego.item.name.trim().toLowerCase() !== t.name.trim().toLowerCase() && (
+              <span className="text-pos"> · = {pego.item.name}</span>
+            )}
             {parcial && <span className="text-warn"> · {qtdTxt(t.quantity)} de {qtdTxt(pego!.item.desired_quantity)}</span>}
             {diff != null && (
               <span className={diff > 0 ? "text-neg" : "text-pos"}>

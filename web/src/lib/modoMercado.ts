@@ -55,7 +55,9 @@ export function useModoMercado(): boolean {
 // dela. No finalizar, a tela tira esses itens da lista (o carrinho repoe o estoque).
 const CHAVE_TROCAS = "mercado_trocas_v1";
 const EVENTO_TROCAS = "mercado-trocas";
-type Trocas = { trip: string; itens: Record<string, string> }; // id da lista -> nome no carrinho
+// itens: id da lista -> nome no carrinho. nao: pares "id da lista|nome no carrinho" que a
+// pessoa ja respondeu "Nao, nao e o mesmo" (a pergunta nao volta nesta compra).
+type Trocas = { trip: string; itens: Record<string, string>; nao?: string[] };
 let trocasMem: Trocas = { trip: "", itens: {} };
 let trocasCache: { cru: string | null; v: Trocas } = { cru: null, v: trocasMem };
 
@@ -98,11 +100,26 @@ export function useTrocas(tripId: string | null): Record<string, string> {
 
 export function marcarTroca(tripId: string, listaId: string, nomeCarrinho: string | null): void {
   const t = lerTrocas();
-  const itens = t.trip === tripId ? { ...t.itens } : {};
+  const mesma = t.trip === tripId;
+  const itens = mesma ? { ...t.itens } : {};
   if (nomeCarrinho) itens[listaId] = nomeCarrinho;
   else delete itens[listaId];
-  gravarTrocas({ trip: tripId, itens });
+  gravarTrocas({ trip: tripId, itens, nao: mesma ? t.nao : [] });
 }
+
+export function naoEoMesmo(tripId: string, listaId: string, nomeCarrinho: string): void {
+  const t = lerTrocas();
+  const mesma = t.trip === tripId;
+  const nao = [...(mesma ? (t.nao ?? []) : []), `${listaId}|${norm(nomeCarrinho)}`];
+  gravarTrocas({ trip: tripId, itens: mesma ? t.itens : {}, nao });
+}
+
+const SEM_NAO: string[] = [];
+export function useNaoEoMesmo(tripId: string | null): string[] {
+  const t = useSyncExternalStore(ouvirTrocas, lerTrocas, () => trocasMem);
+  return tripId && t.trip === tripId ? (t.nao ?? SEM_NAO) : SEM_NAO;
+}
+export const chaveNao = (listaId: string, nomeCarrinho: string) => `${listaId}|${norm(nomeCarrinho)}`;
 
 export function limparTrocas(): void {
   gravarTrocas({ trip: "", itens: {} });
@@ -115,6 +132,13 @@ const norm = (s: string) =>
 // Mesmo produto: nome igual (sem acento/caixa), como o finalizar casa a lista.
 export const mesmoNome = (a: string, b: string) => norm(a) === norm(b);
 
+// Primeira palavra que sozinha nao diz o produto: "gel dental" x "gel adesivo sanitario",
+// "creme de leite" x "creme dental" (visto no uso real). Com ela, so as 2 palavras em comum.
+const INICIO_VAGO = new Set([
+  "gel", "creme", "papel", "molho", "leite", "oleo", "agua", "pasta", "saco", "filme", "po", "massa", "doce",
+  "suco", "tempero", "pao", "queijo", "carne", "bebida", "kit", "refil", "liquido", "spray", "lenco", "pano",
+]);
+
 // Parecido o bastante para perguntar "e o mesmo?": as regras do `parecidos` (2 palavras
 // em comum) ou o mesmo tipo de produto (primeira palavra que identifica: "desinfetante
 // veja" x "desinfetante pinho sol"). Quem chama garante a mesma categoria.
@@ -122,7 +146,19 @@ export function parecido(a: string, b: string): boolean {
   if (mesmoNome(a, b)) return false;
   if (parecidos(a, [{ name: b }]).length) return true;
   const pa = palavras(a)[0];
-  return !!pa && pa === palavras(b)[0];
+  return !!pa && !INICIO_VAGO.has(pa) && pa === palavras(b)[0];
+}
+
+// O item da lista esta DENTRO do nome do produto pego: lista "absorvente" e carrinho
+// "absorvente diana"; lista "lava roupas" e carrinho "lava roupas liquido urca 3l". A
+// foto e o codigo trazem o nome do rotulo (marca, tamanho), a lista tem o nome generico:
+// sem isto tudo que entrava pela foto aparecia "fora da lista". Quem chama garante a
+// mesma categoria ("leite" nao casa com "leite condensado", que e Mercearia).
+export function contem(lista: string, carrinho: string): boolean {
+  const pl = palavras(lista);
+  if (!pl.length) return false;
+  const pc = new Set(palavras(carrinho));
+  return pl.every((p) => pc.has(p));
 }
 
 // Item da lista ja resolvido: pego com o mesmo nome (carrinho) ou trocado por outro.
@@ -156,6 +192,9 @@ export type ResumoMercado = {
   valorFora: number; // R$ no carrinho fora da lista
   qtdFora: number;
   vsPesquisado: number; // soma de (pesquisado - pago) x qtd: >0 economizou, <0 pagou mais
+  // Itens da lista cobertos por produto de OUTRO nome (troca ou "contem"). O finalizar do
+  // banco so baixa a lista por nome igual; estes a tela tira da lista depois de finalizar.
+  paraLimpar: string[];
 };
 
 const mesmaUnidade = (a: string, b: string) => norm(a) === norm(b);
@@ -179,13 +218,31 @@ export function montarMercado(
   };
 
   const usados = new Set<string>(); // ids do carrinho que casaram com a lista
+  // Quem cobre cada item da lista: nome igual primeiro; depois, o produto pego que
+  // contem o nome da lista (mesma categoria, sem reaproveitar o mesmo produto).
+  const cobre = new Map<string, TripItem>();
+  for (const i of pendentes) {
+    const c = carrinho.find((t) => mesmoNome(t.name, i.name));
+    if (c) {
+      cobre.set(i.id, c);
+      usados.add(c.id);
+    }
+  }
+  for (const i of pendentes) {
+    if (cobre.has(i.id) || trocas[i.id]) continue;
+    const cat = categoria(i.name);
+    const c = carrinho.find((t) => !usados.has(t.id) && categoria(t.name) === cat && contem(i.name, t.name));
+    if (c) {
+      cobre.set(i.id, c);
+      usados.add(c.id);
+    }
+  }
   let vsPesquisado = 0;
   for (const i of pendentes) {
     const g = grupo(categoria(i.name));
-    const c = carrinho.find((t) => mesmoNome(t.name, i.name));
+    const c = cobre.get(i.id);
     const est = i.estimated_price && i.estimated_price > 0 ? i.estimated_price : null;
     if (c) {
-      usados.add(c.id);
       const faltaQtd = mesmaUnidade(c.unit, i.unit) ? Math.max(0, +(i.desired_quantity - c.quantity).toFixed(3)) : 0;
       const diffPreco = est != null ? +(c.unit_price - est).toFixed(2) : null;
       if (diffPreco != null) vsPesquisado += -diffPreco * c.quantity;
@@ -241,6 +298,9 @@ export function montarMercado(
     valorFora,
     qtdFora,
     vsPesquisado: +vsPesquisado.toFixed(2),
+    paraLimpar: lista_.flatMap((g) =>
+      g.pegos.filter((p) => p.trocadoPor || (p.carrinho && !mesmoNome(p.carrinho.name, p.item.name))).map((p) => p.item.id),
+    ),
   };
 }
 

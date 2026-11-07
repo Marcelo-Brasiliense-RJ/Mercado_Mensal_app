@@ -1,5 +1,6 @@
 "use client";
 
+import { tempoCurto } from "@/lib/format";
 import { useState } from "react";
 import { PrateleiraModal } from "./PrateleiraModal";
 import { ProcessoFoto } from "./ProcessoFoto";
@@ -54,7 +55,7 @@ export function FilaPrateleira() {
           >
             <span className="h-3 w-3 animate-spin rounded-full border-2 border-bg/40 border-t-bg" />
             {descanso > 0
-              ? `⏸ IA no limite · volta em ${descanso}s`
+              ? `⏸ IA no limite · volta em ${tempoCurto(descanso)}`
               : lendo[0].etapa === "faltou"
                 ? `🔍 Achei ${lendo[0].achados?.length ?? 0} · procurando o que faltou`
                 : lendo[0].etapa === "conferindo"
