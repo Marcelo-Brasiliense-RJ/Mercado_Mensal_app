@@ -28,7 +28,7 @@ import {
 } from "@/lib/modoMercado";
 import { DigitarCarrinho } from "./DigitarCarrinho";
 import { PainelGasto } from "./PainelGasto";
-import { CardFalta, LinhaCarrinho, LinhaTroca } from "./LinhasMercado";
+import { CardFalta, LinhaCarrinho, LinhaFaltaCompacta, LinhaTroca } from "./LinhasMercado";
 import { RevisarFim } from "./RevisarFim";
 
 type Aba = "falta" | "carrinho";
@@ -65,6 +65,29 @@ export function MercadoView() {
   const [cat, setCat] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [buscando, setBuscando] = useState(false);
+  // Grade de fotos (4 por linha) ou lista de uma linha por item. Lembrado no aparelho.
+  const [visual, setVisualState] = useState<"grade" | "lista">(() => {
+    try {
+      return typeof window !== "undefined" && localStorage.getItem("mercado_visual") === "lista" ? "lista" : "grade";
+    } catch {
+      return "grade";
+    }
+  });
+  function setVisual(v: "grade" | "lista") {
+    setVisualState(v);
+    try {
+      localStorage.setItem("mercado_visual", v);
+    } catch {}
+  }
+  // Categorias recolhidas: com 70 itens, ver so os titulos e abrir a do corredor.
+  const [fechadas, setFechadas] = useState<Set<string>>(new Set());
+  const alternar = (c: string) =>
+    setFechadas((f) => {
+      const n = new Set(f);
+      if (n.has(c)) n.delete(c);
+      else n.add(c);
+      return n;
+    });
   const [busy, setBusy] = useState<string | null>(null);
   const [pegando, setPegando] = useState<Set<string>>(new Set());
   const [foto, setFoto] = useState(false);
@@ -338,6 +361,15 @@ export function MercadoView() {
             >
               {buscando ? "✕" : <SearchIcon size={16} />}
             </button>
+            {aba === "falta" && (
+              <button
+                onClick={() => setVisual(visual === "grade" ? "lista" : "grade")}
+                aria-label={visual === "grade" ? "Ver em lista" : "Ver em grade"}
+                className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-border bg-card text-[16px] text-text-2"
+              >
+                {visual === "grade" ? "☰" : "▦"}
+              </button>
+            )}
             <button
               onClick={() => setCat(null)}
               aria-pressed={!catAtiva}
@@ -438,8 +470,42 @@ export function MercadoView() {
     </div>
   );
 
-  // Aba "Falta": grade de fotos por categoria. Tocar = peguei. Parcial (pegou menos do
-  // que a lista pedia) aparece em amarelo, e tocar completa a quantidade.
+  // Titulo da categoria: toque recolhe/abre. Fechada, mostra so a contagem e o valor.
+  function titulo_(c: string, direita: React.ReactNode, extra?: React.ReactNode) {
+    const fechada = fechadas.has(c);
+    return (
+      <button
+        onClick={() => alternar(c)}
+        aria-expanded={!fechada}
+        className="flex min-h-[40px] w-full items-center gap-2 px-1 text-left text-[15px] font-extrabold"
+      >
+        <span className={`text-[12px] text-text-3 transition-transform ${fechada ? "-rotate-90" : ""}`} aria-hidden>
+          ▼
+        </span>
+        <span className="text-[19px]" aria-hidden>{iconeDe(cats, c)}</span>
+        <span className="truncate">{c}</span>
+        {extra}
+        <span className="ml-auto shrink-0 text-[13px] font-bold tabular-nums text-text-2">{direita}</span>
+      </button>
+    );
+  }
+
+  function recolherTudo(nomes: string[]) {
+    const todas = nomes.every((n) => fechadas.has(n));
+    return (
+      nomes.length > 2 && (
+        <button
+          onClick={() => setFechadas(todas ? new Set() : new Set(nomes))}
+          className="h-8 shrink-0 rounded-full px-2 text-[13px] font-bold text-brand"
+        >
+          {todas ? "Abrir todas" : "Recolher todas"}
+        </button>
+      )
+    );
+  }
+
+  // Aba "Falta": grade de fotos (4 por linha) ou lista de uma linha, por categoria.
+  // Tocar = peguei. Parcial (pegou menos do que a lista pedia) em amarelo; tocar completa.
   function abaFalta() {
     const secoes = grupos
       .map((g) => ({
@@ -467,57 +533,68 @@ export function MercadoView() {
         </div>
       );
 
+    const Item = visual === "grade" ? CardFalta : LinhaFaltaCompacta;
     return (
       <>
-        {carrinho.length === 0 && (
-          <p className="px-1 text-[13px] font-bold text-text-3">👆 Toque no produto quando colocar no carrinho</p>
-        )}
+        <div className="flex items-center justify-between gap-2 px-1">
+          <p className="truncate text-[13px] font-bold text-text-3">
+            {carrinho.length === 0 ? "👆 Toque no produto quando pegar" : `${faltamN} para pegar`}
+          </p>
+          {recolherTudo(secoes.map((x) => x.g.categoria))}
+        </div>
         {secoes.map(({ g, faltam, restos }) => (
           <section key={g.categoria}>
-            <h2 className="mb-2 flex items-center gap-2 px-1 text-[16px] font-extrabold">
-              <span className="text-[20px]" aria-hidden>{iconeDe(cats, g.categoria)}</span>
-              {g.categoria}
-              {g.categoria === aqui && (
-                <span className="rounded-full bg-warn-soft px-2 py-[1px] text-[11px] font-extrabold text-warn">📍 você está aqui</span>
-              )}
-              <span className="ml-auto text-[13px] font-bold tabular-nums text-text-3">
+            {titulo_(
+              g.categoria,
+              <>
                 {faltam.length + restos.length}
-                {g.falta > 0 && ` · ~${brl(g.falta)}`}
-              </span>
-            </h2>
-            <ul className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6">
-              {restos.map((p) => (
-                <CardFalta
-                  key={p.item.id}
-                  nome={p.item.name}
-                  qtd={p.faltaQtd}
-                  unidade={p.item.unit}
-                  preco={null}
-                  resto
-                  pegando={busy === p.carrinho!.id}
-                  onPegar={() => mudarQtd(p.carrinho!, p.item.desired_quantity)}
-                />
-              ))}
-              {faltam.map((i) => (
-                <CardFalta
-                  key={i.id}
-                  nome={i.name}
-                  qtd={i.desired_quantity}
-                  unidade={i.unit}
-                  preco={i.estimated_price}
-                  emCasa={i.em_estoque}
-                  pegando={pegando.has(i.id)}
-                  onPegar={() => peguei(i)}
-                />
-              ))}
-            </ul>
+                {g.falta > 0 && <span className="text-text-3"> · ~{brl(g.falta)}</span>}
+              </>,
+              g.categoria === aqui && (
+                <span className="shrink-0 rounded-full bg-warn-soft px-2 py-[1px] text-[11px] font-extrabold text-warn">📍 aqui</span>
+              ),
+            )}
+            {!fechadas.has(g.categoria) && (
+              <ul
+                className={
+                  visual === "grade"
+                    ? "mt-1 grid grid-cols-4 gap-1.5 sm:grid-cols-5 lg:grid-cols-8"
+                    : "mt-1 divide-y divide-border overflow-hidden rounded-[14px] border border-border bg-card"
+                }
+              >
+                {restos.map((p) => (
+                  <Item
+                    key={p.item.id}
+                    nome={p.item.name}
+                    qtd={p.faltaQtd}
+                    unidade={p.item.unit}
+                    preco={null}
+                    resto
+                    pegando={busy === p.carrinho!.id}
+                    onPegar={() => mudarQtd(p.carrinho!, p.item.desired_quantity)}
+                  />
+                ))}
+                {faltam.map((i) => (
+                  <Item
+                    key={i.id}
+                    nome={i.name}
+                    qtd={i.desired_quantity}
+                    unidade={i.unit}
+                    preco={i.estimated_price}
+                    emCasa={i.em_estoque}
+                    pegando={pegando.has(i.id)}
+                    onPegar={() => peguei(i)}
+                  />
+                ))}
+              </ul>
+            )}
           </section>
         ))}
       </>
     );
   }
 
-  // Aba "No carrinho": o que ja pegou, por categoria, com quanto deu em cada uma.
+  // Aba "No carrinho": uma linha por item, agrupado por categoria com quanto deu em cada.
   function abaCarrinho() {
     const secoes = grupos
       .map((g) => {
@@ -547,38 +624,44 @@ export function MercadoView() {
 
     return (
       <>
+        <div className="flex items-center justify-between gap-2 px-1">
+          <p className="truncate text-[13px] font-bold text-text-3">
+            {carrinho.length} {carrinho.length === 1 ? "item" : "itens"} · {brl(total)}
+          </p>
+          {recolherTudo(secoes.map((x) => x.g.categoria))}
+        </div>
         {secoes.map(({ g, pegoDe, itens, trocados }) => (
-          <section key={g.categoria} className="space-y-2">
-            <h2 className="flex items-center gap-2 px-1 text-[16px] font-extrabold">
-              <span className="text-[20px]" aria-hidden>{iconeDe(cats, g.categoria)}</span>
-              {g.categoria}
-              <span className="ml-auto text-[15px] font-extrabold tabular-nums">{brl(g.total)}</span>
-            </h2>
-            <ul className="space-y-2">
-              {itens.map((t) => {
-                const p = pegoDe.get(t.id);
-                return (
+          <section key={g.categoria}>
+            {titulo_(
+              g.categoria,
+              <>
+                <span className="text-text-3">{itens.length} · </span>
+                <span className="text-[14px] font-extrabold text-text">{brl(g.total)}</span>
+              </>,
+            )}
+            {!fechadas.has(g.categoria) && (
+              <ul className="mt-1 divide-y divide-border overflow-hidden rounded-[14px] border border-border bg-card">
+                {itens.map((t) => (
                   <LinhaCarrinho
                     key={t.id}
                     t={t}
-                    pego={p}
+                    pego={pegoDe.get(t.id)}
                     fora={g.foraDaLista.includes(t)}
                     busy={busy === t.id}
                     onQtd={(n) => mudarQtd(t, n)}
                     onEditar={() => setEditar(t)}
-                    onResto={p && p.faltaQtd > 0 ? () => mudarQtd(t, p.item.desired_quantity) : undefined}
                   />
-                );
-              })}
-              {trocados.map(({ item, trocadoPor }) => (
-                <LinhaTroca
-                  key={item.id}
-                  item={item}
-                  por={trocadoPor!}
-                  onDesfazer={() => trip && marcarTroca(trip.trip_id, item.id, null)}
-                />
-              ))}
-            </ul>
+                ))}
+                {trocados.map(({ item, trocadoPor }) => (
+                  <LinhaTroca
+                    key={item.id}
+                    item={item}
+                    por={trocadoPor!}
+                    onDesfazer={() => trip && marcarTroca(trip.trip_id, item.id, null)}
+                  />
+                ))}
+              </ul>
+            )}
           </section>
         ))}
       </>
