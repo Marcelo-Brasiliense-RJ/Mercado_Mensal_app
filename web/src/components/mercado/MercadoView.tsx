@@ -1,12 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import { brl } from "@/lib/format";
 import { useStore } from "@/lib/store";
 import type { ShopItem, TripItem } from "@/lib/types";
 import { BarcodeIcon, CameraIcon, CartIcon, MicIcon, PlusIcon, SearchIcon } from "@/components/ui/icons";
-import { Interruptor } from "@/components/ui/Interruptor";
 import { FotoModal } from "@/components/lista/FotoModal";
 import { BarcodeModal } from "@/components/lista/BarcodeModal";
 import { CartItemModal } from "@/components/lista/CartItemModal";
@@ -41,7 +39,6 @@ type Aba = "falta" | "carrinho";
 // - chips de categoria que filtram e, no carrinho, mostram quanto deu em cada uma.
 // Logica pura em lib/modoMercado.ts.
 export function MercadoView() {
-  const router = useRouter();
   const ligado = useModoMercado();
   const {
     trip,
@@ -401,18 +398,7 @@ export function MercadoView() {
       <div ref={inicioRef} className="scroll-mt-[160px]" aria-hidden />
       {aba === "falta" ? abaFalta() : abaCarrinho()}
 
-      {/* Sair do modo e cancelar ficam no fim: longe do polegar, sem toque sem querer. */}
-      <div className="flex items-center justify-between gap-3 rounded-[16px] border border-border bg-card px-4 py-3">
-        <span className="text-[14px] font-bold text-text-2">Modo mercado</span>
-        <Interruptor
-          ligado
-          rotulo="Desligar modo mercado"
-          onChange={() => {
-            setModoMercado(false);
-            router.push("/app/lista");
-          }}
-        />
-      </div>
+      {/* Desligar o modo mercado fica na Lista e nos Ajustes, fora do caminho do polegar. */}
       {trip && (
         <button onClick={cancelar} disabled={busy === "fim"} className="mx-auto block h-11 px-4 text-[14px] font-bold text-neg disabled:opacity-50">
           Cancelar compra

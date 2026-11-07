@@ -17,6 +17,8 @@ import { useStore } from "@/lib/store";
 import { useHousehold } from "@/lib/household";
 import { createClient } from "@/lib/supabase/client";
 import { BOT_HANDLE, botDeepLink } from "@/lib/config";
+import { Interruptor } from "@/components/ui/Interruptor";
+import { setModoMercado, useModoMercado } from "@/lib/modoMercado";
 
 const cardCls =
   "rounded-[20px] border border-border bg-card p-[18px] shadow-[0_2px_12px_var(--shadow)] lg:p-[22px]";
@@ -28,6 +30,7 @@ const btn2 = "h-11 rounded-[12px] border border-border bg-card-2 px-4 text-[14px
 
 export function FamiliaView() {
   const cats = useCategorias();
+  const modoMercado = useModoMercado();
   const [categoriasAberto, setCategoriasAberto] = useState(false);
   const { household, reload } = useHousehold();
   const { showToast, budget } = useStore();
@@ -169,6 +172,14 @@ export function FamiliaView() {
         {categoriasAberto && <CategoriasEditor onClose={() => setCategoriasAberto(false)} />}
 
         <div className={secao}>O que o app faz sozinho</div>
+        {/* Modo mercado: liga/desliga a aba do carrinho (tambem no topo da Lista). */}
+        <div className={`${cardCls} flex items-center gap-3`}>
+          <div className="min-w-0 flex-1">
+            <div className="text-[16px] font-extrabold">🛒 Modo mercado</div>
+            <div className="text-[13px] text-text-2">Aba Mercado na barra de baixo: o que falta, o carrinho e o valor.</div>
+          </div>
+          <Interruptor ligado={modoMercado} onChange={setModoMercado} rotulo="Modo mercado" />
+        </div>
         {/* Avisos no celular */}
         <AvisoCelular />
 
