@@ -100,7 +100,9 @@ export async function detectar(foto: string, nomesCasa?: unknown): Promise<{ ok:
       generationConfig: { responseMimeType: "application/json", responseSchema: ESQUEMA_DETECTAR, temperature: 0 },
     },
     true,
-    50000,
+    // 35 s por tentativa: pedido travado cai para a proxima chave/modelo e ainda sobra
+    // tempo para ela (com 50 s, um travado derrubava a foto inteira).
+    35000,
     55000, // a rota tem 60 s: responde antes de o servidor cortar
     MODELOS_FOTO,
   );

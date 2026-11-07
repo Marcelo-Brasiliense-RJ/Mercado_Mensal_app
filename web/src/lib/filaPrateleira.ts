@@ -2,6 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 import { enfileirarFoto, type Destino } from "./filaFotos";
+import { aplicarCurva, curvaDeRealce, histograma } from "./realce";
 import { juntarIguais, limpar, mesmoProduto, faixas, paraFoto, segundaOpiniao, precisaFaltou, somarNovos, unidadesDe, type Achado, type Box } from "./prateleira";
 
 // Foto dos produtos em SEGUNDO PLANO (pedido do dono): a pessoa tira a foto e o app
@@ -41,6 +42,8 @@ function gravar() {
 }
 function mudar(f: JobFoto[]) {
   fila = f;
+  // faixas da original so enquanto a foto esta sendo lida (liberam memoria depois)
+  for (const id of faixasProntas.keys()) if (!f.some((x) => x.id === id && x.estado === "lendo")) faixasProntas.delete(id);
   gravar();
   ouvintes.forEach((x) => x());
 }
@@ -54,24 +57,63 @@ function carregar() {
   } catch {
     fila = [];
   }
-  void processar();
+  processar();
 }
 
 // ---- imagem ----
 
 const LADO = 1600; // px do lado maior: nitido para ler rotulo, leve para subir no 4G
+const QUALIDADE = 0.82; // JPEG: rotulo continua legivel e o envio fica ~15% menor que 0.85
+
+// Realce automatico (lib/realce): foto escura ou sem contraste ganha contraste e sombra
+// clareada; foto boa fica igual. A curva sai da foto reduzida e vale para as faixas.
+function realcar(c: HTMLCanvasElement, lut?: Uint8Array | null): Uint8Array | null {
+  try {
+    const g = c.getContext("2d", { willReadFrequently: true })!;
+    const d = g.getImageData(0, 0, c.width, c.height);
+    const curva = lut === undefined ? curvaDeRealce(histograma(d.data)) : lut;
+    if (!curva) return null;
+    aplicarCurva(d.data, curva);
+    g.putImageData(d, 0, 0);
+    return curva;
+  } catch {
+    return null; // navegador sem getImageData: segue com a foto como veio
+  }
+}
+
+// Desenha a regiao r (0..1) da imagem em ate `lado` px no lado maior (zoom ate 2x).
+function desenhar(img: CanvasImageSource & { width: number; height: number }, r: Box, lado: number): HTMLCanvasElement {
+  const sx = r[1] * img.width;
+  const sy = r[0] * img.height;
+  const sw = (r[3] - r[1]) * img.width;
+  const sh = (r[2] - r[0]) * img.height;
+  const k = Math.min(2, lado / Math.max(sw, sh));
+  const p = document.createElement("canvas");
+  p.width = Math.max(1, Math.round(sw * k));
+  p.height = Math.max(1, Math.round(sh * k));
+  const g = p.getContext("2d")!;
+  g.imageSmoothingQuality = "high"; // reduzir 12 MP sem serrilhar a letra do rotulo
+  g.drawImage(img, sx, sy, sw, sh, 0, 0, p.width, p.height);
+  return p;
+}
+
+// imageOrientation: a foto do iPhone vem deitada no arquivo; aqui ela ja fica de pe,
+// e e ESSA que vai para a IA e para a tela (os quadrados batem nas duas).
+const abrir = (arquivo: File) => createImageBitmap(arquivo, { imageOrientation: "from-image" });
 
 export async function prepararFoto(arquivo: File): Promise<HTMLCanvasElement> {
-  // imageOrientation: a foto do iPhone vem deitada no arquivo; aqui ela ja fica de pe,
-  // e e ESSA que vai para a IA e para a tela (os quadrados batem nas duas).
-  const img = await createImageBitmap(arquivo, { imageOrientation: "from-image" });
-  const k = Math.min(1, LADO / Math.max(img.width, img.height));
-  const c = document.createElement("canvas");
-  c.width = Math.round(img.width * k);
-  c.height = Math.round(img.height * k);
-  c.getContext("2d")!.drawImage(img, 0, 0, c.width, c.height);
+  const img = await abrir(arquivo);
+  const c = desenhar(img, [0, 0, 1, 1], Math.min(LADO, Math.max(img.width, img.height)));
+  img.close();
+  realcar(c);
   return c;
 }
+
+// Faixas com zoom feitas da foto ORIGINAL (12 MP do celular), nao da reduzida: o zoom
+// traz detalhe de verdade (letra pequena do rotulo), em vez de so ampliar pixel.
+// Ficam so na memoria (grandes demais para o localStorage); sem elas (app reaberto),
+// as faixas saem da foto guardada, como antes.
+const faixasProntas = new Map<string, Promise<{ r: Box; foto: string }[]>>();
 
 export function canvasDe(src: string): Promise<HTMLCanvasElement> {
   return new Promise((ok, falha) => {
@@ -135,25 +177,17 @@ function grade(c: HTMLCanvasElement, boxes: Box[]): string {
 
 // Pedaco da foto (regiao 0..1), ampliado ate LADO: com zoom a IA ve os produtos
 // pequenos, os de tras e os do canto, que na foto inteira ela larga.
-function pedaco(c: HTMLCanvasElement, r: Box): string {
-  const sx = r[1] * c.width;
-  const sy = r[0] * c.height;
-  const sw = (r[3] - r[1]) * c.width;
-  const sh = (r[2] - r[0]) * c.height;
-  const k = Math.min(2, LADO / Math.max(sw, sh));
-  const p = document.createElement("canvas");
-  p.width = Math.round(sw * k);
-  p.height = Math.round(sh * k);
-  p.getContext("2d")!.drawImage(c, sx, sy, sw, sh, 0, 0, p.width, p.height);
-  return p.toDataURL("image/jpeg", 0.85);
-}
+const pedaco = (c: HTMLCanvasElement, r: Box) => desenhar(c, r, LADO).toDataURL("image/jpeg", QUALIDADE);
 
 // Busca nas tres faixas com zoom, AO MESMO TEMPO que a foto inteira (nao soma tempo).
 // Faixa que pegou limite por minuto tenta mais uma vez; falhou de novo, fica sem ela
 // (nunca derruba a foto). carrinho: alguma faixa viu carrinho de mercado.
 async function buscarNasFaixas(x: JobFoto): Promise<{ itens: Achado[]; carrinho: boolean }> {
   try {
-    const c = await canvasDe(x.src);
+    const prontas = (await faixasProntas.get(x.id)?.catch(() => [])) ?? [];
+    const lista = prontas.length
+      ? prontas
+      : await canvasDe(x.src).then((c) => faixas(c.width, c.height).map((r) => ({ r, foto: pedaco(c, r) })));
     const pedir = async (foto: string) => {
       const res = await fetch("/api/prateleira", {
         method: "POST",
@@ -163,8 +197,7 @@ async function buscarNasFaixas(x: JobFoto): Promise<{ itens: Achado[]; carrinho:
       return (await res?.json().catch(() => null)) as { ok?: boolean; itens?: Achado[]; carrinho?: boolean; erro?: string; espera?: number } | null;
     };
     const partes = await Promise.all(
-      faixas(c.width, c.height).map(async (r, k) => {
-        const foto = pedaco(c, r);
+      lista.map(async ({ r, foto }, k) => {
         let d = await pedir(foto);
         if (d?.erro === "limite" && (d.espera ?? 99) <= 20) {
           await dormir(((d.espera ?? 5) + k) * 1000);
@@ -187,7 +220,10 @@ async function arquivoDe(src: string): Promise<File> {
 // ---- trabalho em segundo plano ----
 
 const dormir = (ms: number) => new Promise((ok) => setTimeout(ok, ms));
-let rodando = false;
+// Duas fotos lidas ao mesmo tempo: quem tira varias fotos seguidas nao espera uma
+// terminar para a outra comecar (cada foto sao ~4 pedidos, as 3 chaves aguentam).
+const AO_MESMO_TEMPO = 2;
+const ativos = new Set<string>();
 
 async function ler(x: JobFoto): Promise<void> {
   trocar(x.id, { etapa: "procurando", achados: undefined });
@@ -281,33 +317,62 @@ async function ler(x: JobFoto): Promise<void> {
   trocar(x.id, { estado: "pronto", achados, conferidos, espera: undefined });
 }
 
-async function processar() {
-  if (rodando) return;
-  rodando = true;
-  try {
-    for (;;) {
-      const x = fila.find((y) => y.estado === "lendo");
-      if (!x) break;
-      if (x.espera && x.espera > Date.now()) await dormir(x.espera - Date.now());
-      await ler(fila.find((y) => y.id === x.id) ?? x);
-    }
-  } finally {
-    rodando = false;
+function processar() {
+  for (const x of fila) {
+    if (ativos.size >= AO_MESMO_TEMPO) return;
+    if (x.estado !== "lendo" || ativos.has(x.id)) continue;
+    ativos.add(x.id);
+    void (async () => {
+      try {
+        if (x.espera && x.espera > Date.now()) await dormir(x.espera - Date.now());
+        const atual = fila.find((y) => y.id === x.id);
+        if (atual?.estado === "lendo") await ler(atual);
+      } catch {
+        // erro inesperado: avisa em vez de tentar de novo sem parar
+        if (fila.some((y) => y.id === x.id)) trocar(x.id, { estado: "falhou", erro: "A IA não conseguiu ler a foto." });
+      } finally {
+        ativos.delete(x.id);
+        processar();
+      }
+    })();
   }
 }
 
 // A pessoa escolheu a foto: prepara, guarda e ja libera a tela.
 export async function enfileirarPrateleira(arquivo: File, destino: Destino, ctx: { nomes?: string[]; carrinho?: string[] } = {}) {
   carregar();
-  const c = await prepararFoto(arquivo);
+  const img = await abrir(arquivo);
+  const c = desenhar(img, [0, 0, 1, 1], Math.min(LADO, Math.max(img.width, img.height)));
+  const curva = realcar(c);
   const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-  mudar([...fila, { id, src: c.toDataURL("image/jpeg", 0.85), destino, estado: "lendo", ...ctx }]);
-  void processar();
+  // As faixas saem da original logo DEPOIS de a foto inteira partir para a IA.
+  faixasProntas.set(
+    id,
+    new Promise<{ r: Box; foto: string }[]>((ok) =>
+      setTimeout(() => {
+        try {
+          ok(
+            faixas(c.width, c.height).map((r) => {
+              const p = desenhar(img, r, LADO);
+              realcar(p, curva);
+              return { r, foto: p.toDataURL("image/jpeg", QUALIDADE) };
+            }),
+          );
+        } catch {
+          ok([]);
+        } finally {
+          img.close();
+        }
+      }, 0),
+    ),
+  );
+  mudar([...fila, { id, src: c.toDataURL("image/jpeg", QUALIDADE), destino, estado: "lendo", ...ctx }]);
+  processar();
 }
 
 export function tentarDeNovo(id: string) {
   trocar(id, { estado: "lendo", erro: undefined, espera: undefined, tentativas: 0 });
-  void processar();
+  processar();
 }
 
 export const tirarJob = (id: string) => mudar(fila.filter((x) => x.id !== id));
