@@ -12,11 +12,11 @@ const GROQ = "https://api.groq.com/openai/v1";
 // desligado em ago/2026 e a voz passou a "ouvir mas nao por nada na lista".
 const MODELOS_TEXTO = ["openai/gpt-oss-120b", "qwen/qwen3.6-27b", "openai/gpt-oss-20b"];
 
-export type Tela = "estoque" | "lista" | "mercado" | "auto";
+export type Tela = "estoque" | "lista" | "mercado" | "auto" | "atualizar";
 
 export const INSTRUCAO = `Você organiza a despensa e as compras de uma família brasileira.
 Recebe uma fala (às vezes longa, misturando assuntos) e devolve SOMENTE JSON, no formato:
-{"intencao":"lista|carrinho|estoque","itens":[{"nome":"","qtd":1,"unidade":"un","preco_total":null,"duvida":false,"acao":"lista|carrinho|estoque|remover","motivo":null}]}
+{"intencao":"lista|carrinho|estoque","itens":[{"nome":"","qtd":1,"unidade":"un","preco_total":null,"duvida":false,"acao":"lista|carrinho|estoque|remover","motivo":null,"zerou":false}]}
 
 Cada ITEM tem a sua "acao", pelo que foi dito sobre ele (uma mesma fala pode ter as quatro):
 - "estoque": a pessoa diz o que TEM em casa agora ("eu tenho 5 quilos de arroz", "tem 3 cartelas de ovos", "sobrou meio pacote"). A qtd é o total que tem.
@@ -58,10 +58,25 @@ Cada pessoa fala de um jeito (gíria, regionalismo, frase pela metade, erro de t
 ${vocabularioParaIA()}
 Quantidade dita com NÚMERO ("tenho 5 kg de arroz", "tem 3 pacotes") = "estoque". Dizer que tem MUITO sem número ("tenho bastante sabonete", "a despensa tá cheia de macarrão", "tem um monte") = "remover" com motivo "excesso".
 Entenda pelo SENTIDO, não pela palavra exata: qualquer outro jeito de dizer isso vale igual. Lugar da casa ("despensa", "armário", "geladeira") não é produto.
-Atualizar estoque: "vou atualizar meu estoque/despensa", "conferir a despensa" é o pedido, NÃO é item; os itens que vêm depois com quantidade são "estoque". "De 3 para 5", "era 3 agora 5", "mudou pra 5" = qtd é o número NOVO (5).`;
+
+ATUALIZAR O ESTOQUE (a pessoa corrige quanto TEM agora):
+- "vou atualizar meu estoque", "bora conferir a despensa", "fazer a contagem", "inventário" é o PEDIDO, nunca item.
+- O número que vale é o de AGORA. "Eu tinha 13 creme de leite, agora tenho 6", "de 13 caiu pra 6", "era 13 agora é 6", "na verdade só tem 6", "o creme de leite tá com 6", "ficou 6", "sobraram 6", "restam 6", "são 6" = UM item "estoque" com qtd 6. Nunca 13, nunca dois itens.
+- Mandar mudar também é estoque: "muda o arroz pra 3", "corrige o leite para 4", "deixa o café como 2", "atualiza o feijão pra 1".
+- Correção no meio da fala vale a ÚLTIMA: "arroz 5, não, pera, 4" / "quer dizer 4" / "ou melhor 4" = arroz qtd 4. "Pera" aí é "espera", não a fruta.
+- O mesmo produto dito duas vezes como estoque = UM item, com o último número.
+- "Acabou", "zerou", "não tem mais", "não sobrou nada" = "acao":"lista" com "zerou":true (zero em casa e precisa comprar). "Tá acabando" / "tá no fim" = "lista" com "zerou":false (ainda tem um pouco).
+- "Tem arroz", "ainda tem café" SEM número = "estoque" com "qtd": null (o app pergunta quanto). Não invente 1.
+- Medida: "meia dúzia" = qtd 0.5 "dz"; "um quilo e meio" = 1.5 "kg"; "meio pacote" = 0.5 "pct"; "500 gramas" = 500 "g".
+- "zerou" só é true no "acabou/zerou/não tem mais"; em todo o resto é false.
+
+Exemplo: "vamos atualizar agora o estoque, tem que comprar arroz, não comprar leite, tem 3 feijão. Olha, eu tinha 13 creme de leite, agora eu tenho 6, e acabou o café" =
+{"intencao":"estoque","itens":[{"nome":"arroz","qtd":1,"unidade":"un","preco_total":null,"duvida":false,"acao":"lista","motivo":null,"zerou":false},{"nome":"leite","qtd":1,"unidade":"un","preco_total":null,"duvida":false,"acao":"remover","motivo":null,"zerou":false},{"nome":"feijão","qtd":3,"unidade":"un","preco_total":null,"duvida":false,"acao":"estoque","motivo":null,"zerou":false},{"nome":"creme de leite","qtd":6,"unidade":"un","preco_total":null,"duvida":false,"acao":"estoque","motivo":null,"zerou":false},{"nome":"café","qtd":1,"unidade":"un","preco_total":null,"duvida":false,"acao":"lista","motivo":null,"zerou":true}]}`;
 
 // A tela de onde a pessoa mandou ajuda a desempatar ("arroz" sozinho na despensa e estoque).
 function contexto(tela: Tela | undefined): string {
+  if (tela === "atualizar")
+    return "\n\nContexto: a pessoa está ATUALIZANDO o estoque. Item com número e sem verbo = estoque, qtd = quanto tem AGORA. Pedido de comprar continua lista; não comprar continua remover.";
   if (tela === "estoque") return "\n\nContexto: a pessoa está na tela do ESTOQUE (despensa). Item sem verbo = estoque.";
   if (tela === "lista") return "\n\nContexto: a pessoa está montando a LISTA de compras. Item sem verbo = lista.";
   if (tela === "mercado") return "\n\nContexto: a pessoa está DENTRO do mercado. Item sem verbo = carrinho.";
@@ -126,7 +141,7 @@ export async function entenderTexto(texto: string, tela?: Tela): Promise<Entendi
   } else if (g.erro !== "ia_indisponivel") {
     console.error("entender: gemini texto", g.erro);
   }
-  return { ...interpretarLocal(texto), por: "regra" };
+  return { ...interpretarLocal(texto, tela === "atualizar"), por: "regra" };
 }
 
 const FOTO = `A imagem é uma FOTO tirada pela pessoa para registrar produtos de casa. Pode ser:

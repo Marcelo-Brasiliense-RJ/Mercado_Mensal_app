@@ -5,7 +5,7 @@ import type { StockItem } from "./types";
 const item = (name: string, current: number, unit: string): StockItem => ({
   id: name, name, category: "", unit, current, normal: 0, priceLast: null, priceAvg: null, trend: 0,
 });
-const stock = [item("Arroz", 3, "kg"), item("Leite", 2, "L")];
+const stock = [item("Arroz", 3, "kg"), item("Leite", 2, "L"), item("Ovos", 12, "un"), item("Creme de leite", 13, "un")];
 
 describe("atualizar estoque: de -> para", () => {
   it("acha o DE no estoque e usa nome e unidade de la", () => {
@@ -39,5 +39,38 @@ describe("atualizar estoque: de -> para", () => {
       return { ok: true } as never;
     });
     expect(enviados).toEqual([{ name: "Arroz", qty: 2 }, { name: "Leite", qty: -2 }]);
+  });
+});
+
+describe("de -> para com as nuances da fala", () => {
+  it("acabou zera e marca lista; acabou do que nao tem e ignorado", () => {
+    expect(
+      linhasDePara(
+        [
+          { nome: "leite", qtd: 1, unidade: "L", zerou: true },
+          { nome: "fermento", qtd: 1, unidade: "un", zerou: true },
+        ],
+        stock,
+      ),
+    ).toEqual([{ nome: "Leite", de: 2, para: 0, unidade: "L", lista: true }]);
+  });
+
+  it("sem numero nao mexe: PARA = DE e pede conferencia", () => {
+    expect(linhasDePara([{ nome: "arroz", qtd: 1, unidade: "kg", semQtd: true }], stock)).toEqual([
+      { nome: "Arroz", de: 3, para: 3, unidade: "kg", conferir: true },
+    ]);
+  });
+
+  it("converte a unidade falada para a do cadastro", () => {
+    expect(linhasDePara([{ nome: "ovos", qtd: 0.5, unidade: "dz" }], stock)[0]).toMatchObject({ para: 6, unidade: "un" });
+    expect(linhasDePara([{ nome: "arroz", qtd: 500, unidade: "g" }], stock)[0]).toMatchObject({ para: 0.5, unidade: "kg" });
+  });
+
+  it("unidade sem conversao avisa; palpite do nome nao avisa", () => {
+    expect(linhasDePara([{ nome: "arroz", qtd: 2, unidade: "pct" }], stock)[0].aviso).toBe("você falou 2 pct");
+    // "creme de leite" sem unidade falada vira "L" pelo nome: nao e aviso
+    expect(linhasDePara([{ nome: "creme de leite", qtd: 6, unidade: "L" }], stock)[0]).toEqual({
+      nome: "Creme de leite", de: 13, para: 6, unidade: "un",
+    });
   });
 });

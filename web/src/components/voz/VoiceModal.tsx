@@ -130,7 +130,7 @@ export function VoiceModal({
   const [gravandoAt, setGravandoAt] = useState(false);
   // O que a fala trouxe e nao e contagem ("preciso de cafe", "nao compra leite"):
   // segue o caminho de sempre depois da atualizacao.
-  const restoAtRef = useRef<{ frase: string; intencao: VozIntencao; itens: VozItem[] } | null>(null);
+  const [restoAt, setRestoAt] = useState<{ frase: string; intencao: VozIntencao; itens: VozItem[] } | null>(null);
 
   // Plano B ligado: o servidor de transcricao nao esta configurado, entao quem
   // ouve e o proprio navegador e quem entende a frase e o interpretador local.
@@ -153,7 +153,10 @@ export function VoiceModal({
   const [codigo, setCodigo] = useState(false);
   const fotoRef = useRef<HTMLInputElement>(null);
   // Tela que vai junto para a IA desempatar ("arroz" sozinho no Estoque e estoque).
-  const telaIA = telaAgora === "estoque" ? "estoque" : telaAgora === "lista" ? "lista" : telaAgora === "auto" ? "auto" : "mercado";
+  // Modo atualizar ligado pelo botao: a IA fica sabendo que numero sem verbo e o que TEM.
+  const telaIA = atualizando
+    ? "atualizar"
+    : telaAgora === "estoque" ? "estoque" : telaAgora === "lista" ? "lista" : telaAgora === "auto" ? "auto" : "mercado";
 
   // Sabe ANTES do primeiro toque se o servidor de voz existe. Ligar o reconhecimento
   // do aparelho depois de uma resposta do servidor (fora do toque) e bloqueado calado
@@ -214,7 +217,7 @@ export function VoiceModal({
     setLinhas([]);
     setGravandoAt(false);
     setAtualizando(false);
-    restoAtRef.current = null;
+    setRestoAt(null);
   }
 
   function fechar() {
@@ -443,18 +446,24 @@ export function VoiceModal({
     await responder(ok ? `👎 ${nome}` : null);
   }
 
-  async function mostrarResultado(frase: string, intencao: VozIntencao, lidosTodos: VozItem[]) {
+  // `depoisDeAtualizar`: o resto da fala, ja fora da tela de-para (senao voltava para ela).
+  async function mostrarResultado(frase: string, intencao: VozIntencao, lidosTodos: VozItem[], depoisDeAtualizar = false) {
     setTexto(frase);
 
     // Atualizar estoque: o que tem quantidade vira DE -> PARA e espera o "Atualizar".
     // "Preciso de"/"nao compra" continuam indo para a lista, depois.
-    if (atualizando || querAtualizarEstoque(frase)) {
-      const contagem = lidosTodos.filter((i) => !i.remover && i.destino !== "lista");
+    // Na tela Estoque, "tenho 6 creme de leite" tambem passa pelo de-para: antes caia
+    // na grade e SOMAVA 6 ao que ja tinha. Foto fica fora (tem a conferencia propria).
+    const pediu = atualizando || querAtualizarEstoque(frase);
+    if (!depoisDeAtualizar && (pediu || (tela === "estoque" && !frase.startsWith("📷")))) {
+      // Contagem: o que a pessoa disse que TEM. "Acabou o X" so zera quando ela pediu
+      // para atualizar; ai vira linha com 0 e segue tambem para a lista.
+      const contagem = lidosTodos.filter((i) => !i.remover && (i.destino === "estoque" || (pediu && i.zerou)));
       const novas = linhasDePara(contagem, stock);
       if (novas.length) {
         setAtualizando(true);
-        const resto = lidosTodos.filter((i) => !contagem.includes(i));
-        restoAtRef.current = resto.length ? { frase, intencao, itens: resto } : null;
+        const resto = lidosTodos.filter((i) => !contagem.includes(i) || (i.zerou && i.destino === "lista"));
+        setRestoAt(resto.length ? { frase, intencao, itens: resto } : null);
         setLinhas(novas);
         setFase("atualizar");
         return;
@@ -727,7 +736,7 @@ export function VoiceModal({
     } catch {
       /* cai na regra local */
     }
-    const local = interpretarLocal(f);
+    const local = interpretarLocal(f, atualizando);
     await mostrarResultado(f, local.intencao, local.itens);
   }
 
@@ -854,14 +863,14 @@ export function VoiceModal({
   }
 
   async function seguirDepoisDeAtualizar() {
-    const resto = restoAtRef.current;
-    restoAtRef.current = null;
+    const resto = restoAt;
+    setRestoAt(null);
     setLinhas([]);
     setAtualizando(false);
     if (!resto) return fechar();
     // O resto da fala segue como sempre (lista, nao comprar...). So tem item de
     // lista/remover, entao mostrarResultado nao cai de novo no modo atualizar.
-    await mostrarResultado(resto.frase, resto.intencao, resto.itens);
+    await mostrarResultado(resto.frase, resto.intencao, resto.itens, true);
   }
 
   const gravando = fase === "gravando";
@@ -919,6 +928,7 @@ export function VoiceModal({
         <AtualizarEstoque
           texto={texto}
           linhas={linhas}
+          resto={restoAt?.itens ?? []}
           setLinhas={setLinhas}
           ocupado={gravandoAt}
           onFalarDeNovo={() => {
@@ -1364,11 +1374,13 @@ function fmtQtd(n: number): string {
   return String(+n.toFixed(2)).replace(".", ",");
 }
 
-// Tela do "Atualizar estoque": uma linha por produto com o que o app tem (DE) e o
-// que a pessoa falou (PARA). Ajuste por toque (- / + / Acabou); digitar e opcao.
-function AtualizarEstoque({
+// Tela do "Atualizar estoque": uma linha por produto com o que o app tem (ANTES) e o
+// que a pessoa falou (AGORA). Ajuste por toque (- / + / Acabou); digitar e opcao.
+// Embaixo, o resto que a fala trouxe (lista, nao comprar), que segue depois.
+export function AtualizarEstoque({
   texto,
   linhas,
+  resto = [],
   setLinhas,
   ocupado,
   onFalarDeNovo,
@@ -1376,69 +1388,95 @@ function AtualizarEstoque({
 }: {
   texto: string;
   linhas: LinhaDePara[];
+  resto?: VozItem[];
   setLinhas: (f: (l: LinhaDePara[]) => LinhaDePara[]) => void;
   ocupado: boolean;
   onFalarDeNovo: () => void;
   onConfirmar: () => void;
 }) {
+  // Mexeu na linha: ja conferiu (some o "quanto tem?").
   const muda = (i: number, para: number) =>
-    setLinhas((l) => l.map((x, k) => (k === i ? { ...x, para: Math.max(0, +para.toFixed(3)) } : x)));
+    setLinhas((l) =>
+      l.map((x, k) => (k === i ? { ...x, para: Math.max(0, +para.toFixed(3)), conferir: false, aviso: undefined } : x)),
+    );
   const passo = (u: string) => (/^(kg|l)$/i.test(u) ? 0.5 : 1);
   const mudaram = linhas.filter((l) => l.de === null || Math.abs(l.para - l.de) > 1e-9).length;
+  const faltaConferir = linhas.filter((l) => l.conferir).length;
+
+  const naLista = resto.filter((i) => !i.remover && i.destino === "lista").map((i) => i.nome);
+  const naoComprar = resto.filter((i) => i.remover).map((i) => i.nome);
+  const outros = resto.filter((i) => !i.remover && i.destino !== "lista").map((i) => i.nome);
 
   return (
     <>
-      <p className="mb-4 rounded-[13px] border border-border bg-card-2 p-3 text-[13px] leading-relaxed text-text-2">
-        “{texto}”
+      <p className="mb-3 rounded-[13px] border border-border bg-card-2 p-3 text-[13px] leading-relaxed text-text-2">
+        <span className="line-clamp-3">“{texto}”</span>
       </p>
-      <ul className="mb-4 flex flex-col gap-2">
+      {faltaConferir > 0 && (
+        <p className="mb-3 rounded-[13px] bg-warn-soft p-3 text-[13px] font-semibold leading-snug text-text">
+          {faltaConferir === 1 ? "Em 1 item" : `Em ${faltaConferir} itens`} você não disse quanto tem. Ajuste no
+          + / − ou deixe como está.
+        </p>
+      )}
+      <ul className="mb-3 flex flex-col gap-2">
         {linhas.map((l, i) => {
           const igual = l.de !== null && Math.abs(l.para - l.de) < 1e-9;
           return (
-            <li key={l.nome} className="rounded-[14px] border border-border bg-card p-3">
-              <div className="mb-2 flex items-center justify-between gap-2">
-                <span className="truncate text-[15px] font-bold">{l.nome}</span>
+            <li
+              key={l.nome}
+              className={`rounded-[16px] border-2 bg-card p-3 ${l.conferir ? "border-warn" : igual ? "border-border" : "border-brand/50"}`}
+            >
+              <div className="mb-2 flex items-start gap-2">
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[16px] font-extrabold">{l.nome}</div>
+                  <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[12px] font-semibold">
+                    <span className="text-text-2">
+                      {l.de === null ? "Novo no estoque" : `Antes: ${fmtQtd(l.de)} ${l.unidade}`}
+                    </span>
+                    {l.conferir && <span className="rounded-full bg-warn-soft px-2 py-0.5 text-warn">quanto tem?</span>}
+                    {l.lista && <span className="rounded-full bg-brand-soft px-2 py-0.5 text-brand">+ lista</span>}
+                    {l.aviso && <span className="rounded-full bg-warn-soft px-2 py-0.5 text-warn">{l.aviso}</span>}
+                  </div>
+                </div>
                 <button
                   type="button"
                   aria-label={`Tirar ${l.nome}`}
                   onClick={() => setLinhas((x) => x.filter((_, k) => k !== i))}
-                  className="h-8 w-8 shrink-0 rounded-full text-text-3"
+                  className="-mr-1 -mt-1 h-9 w-9 shrink-0 rounded-full text-text-3"
                 >
                   ✕
                 </button>
               </div>
               <div className="flex items-center gap-2">
-                <span className="min-w-[64px] text-[14px] text-text-2">
-                  {l.de === null ? "novo" : `${fmtQtd(l.de)} ${l.unidade}`}
-                </span>
-                <span aria-hidden className="text-text-3">→</span>
+                <span className="text-[12px] font-bold uppercase tracking-[0.05em] text-text-3">Agora</span>
                 <button
                   type="button"
-                  aria-label="Menos"
+                  aria-label={`Menos ${l.nome}`}
                   onClick={() => muda(i, l.para - passo(l.unidade))}
-                  className="h-11 w-11 rounded-full border border-border bg-card-2 text-[18px] font-bold"
+                  className="h-11 w-11 shrink-0 rounded-full border border-border bg-card-2 text-[20px] font-bold"
                 >
                   −
                 </button>
                 <CampoQtd
-                  rotulo={`Quantidade nova de ${l.nome}`}
+                  rotulo={`Quantidade agora de ${l.nome}`}
                   valor={l.para}
                   onValor={(n) => muda(i, n)}
                   destaque={!igual}
                 />
                 <button
                   type="button"
-                  aria-label="Mais"
+                  aria-label={`Mais ${l.nome}`}
                   onClick={() => muda(i, l.para + passo(l.unidade))}
-                  className="h-11 w-11 rounded-full border border-border bg-card-2 text-[18px] font-bold"
+                  className="h-11 w-11 shrink-0 rounded-full border border-border bg-card-2 text-[20px] font-bold"
                 >
                   +
                 </button>
-                <span className="text-[13px] text-text-2">{l.unidade}</span>
+                <span className="text-[13px] font-semibold text-text-2">{l.unidade}</span>
                 <button
                   type="button"
                   onClick={() => muda(i, 0)}
-                  className="ml-auto h-11 rounded-full px-3 text-[13px] font-bold text-text-2"
+                  disabled={l.para === 0}
+                  className="ml-auto h-11 shrink-0 rounded-full px-2.5 text-[13px] font-bold text-text-2 disabled:text-text-3 disabled:opacity-60"
                 >
                   Acabou
                 </button>
@@ -1447,6 +1485,16 @@ function AtualizarEstoque({
           );
         })}
       </ul>
+
+      {(naLista.length > 0 || naoComprar.length > 0 || outros.length > 0) && (
+        <div className="mb-4 rounded-[13px] border border-border bg-card-2 p-3 text-[13px] leading-snug">
+          <div className="mb-1 text-[12px] font-bold uppercase tracking-[0.05em] text-text-3">Também entendi, faço depois</div>
+          {naLista.length > 0 && <div>📝 Lista: {naLista.join(", ")}</div>}
+          {naoComprar.length > 0 && <div>🚫 Não comprar: {naoComprar.join(", ")}</div>}
+          {outros.length > 0 && <div>🛒 Para conferir: {outros.join(", ")}</div>}
+        </div>
+      )}
+
       <div data-rodape className="flex gap-3">
         <button
           type="button"
@@ -1462,7 +1510,13 @@ function AtualizarEstoque({
           disabled={ocupado || linhas.length === 0}
           className="h-[50px] flex-[1.6] rounded-[14px] bg-brand text-[15px] font-bold text-brand-ink disabled:opacity-50"
         >
-          {ocupado ? "Atualizando…" : mudaram ? `Atualizar ${mudaram} ${mudaram === 1 ? "item" : "itens"}` : "Nada mudou"}
+          {ocupado
+            ? "Atualizando…"
+            : mudaram
+              ? `Atualizar ${mudaram} ${mudaram === 1 ? "item" : "itens"}`
+              : resto.length
+                ? "Seguir"
+                : "Nada mudou"}
         </button>
       </div>
     </>

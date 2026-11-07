@@ -25,7 +25,8 @@ const MAX_BYTES = 4 * 1024 * 1024;
 const VOCABULARIO =
   "Lista de compras do mercado. Preciso de arroz, feijão, café, açúcar, leite, " +
   "pão, ovos, detergente, sabão em pó, papel higiênico. Eu tenho 5 quilos de arroz e 3 cartelas de ovos. " +
-  "Não precisa comprar leite, já tem muito fermento.";
+  "Não precisa comprar leite, já tem muito fermento. Vou atualizar o estoque: eu tinha 13 creme de leite, " +
+  "agora tenho 6. Acabou o café.";
 
 // Diagnostico sem login: so diz se a chave existe. Nao gasta cota nem expoe nada.
 export async function GET() {

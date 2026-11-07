@@ -8,7 +8,7 @@ import { entenderFoto, entenderTexto, type Tela } from "@/lib/server/entender";
 // "plano B" da voz e entendido por IA, nao so por regra.
 export const runtime = "nodejs";
 
-const TELAS: Tela[] = ["estoque", "lista", "mercado", "auto"];
+const TELAS: Tela[] = ["estoque", "lista", "mercado", "auto", "atualizar"];
 
 export async function POST(req: Request) {
   const supabase = await createClient();

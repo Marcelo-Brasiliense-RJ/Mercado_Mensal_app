@@ -227,3 +227,95 @@ describe("atualizar estoque falando", () => {
     ]);
   });
 });
+
+describe("atualizar estoque: como as pessoas falam de verdade", () => {
+  const ler = (f: string, atualizar = false) =>
+    interpretarLocal(f, atualizar).itens.map((i) => [
+      i.nome,
+      i.qtd,
+      i.remover ? "remover" : i.destino,
+      ...(i.zerou ? ["zerou"] : []),
+      ...(i.semQtd ? ["semQtd"] : []),
+    ]);
+
+  it("audio longo misturando tudo", () => {
+    expect(
+      ler(
+        "Vamos atualizar agora o estoque, tem que comprar arroz, não comprar leite, tem 3 feijão. Olha, eu tinha 13 creme de leite, agora eu tenho 6",
+      ),
+    ).toEqual([
+      ["arroz", 1, "lista"],
+      ["leite", 1, "remover"],
+      ["feijão", 3, "estoque"],
+      ["creme de leite", 6, "estoque"],
+    ]);
+  });
+
+  it("o valor novo e o que vale", () => {
+    expect(ler("na verdade agora eu só tenho 6 creme de leite")).toEqual([["creme de leite", 6, "estoque"]]);
+    expect(ler("o creme de leite tá com 6")).toEqual([["creme de leite", 6, "estoque"]]);
+    expect(ler("de 13 caiu pra 6 o creme de leite")).toEqual([["creme de leite", 6, "estoque"]]);
+    expect(ler("creme de leite agora são 6")).toEqual([["creme de leite", 6, "estoque"]]);
+    expect(ler("tinha 13 creme de leite mas agora só tem 6")).toEqual([["creme de leite", 6, "estoque"]]);
+    expect(ler("arroz era 5 agora é 2")).toEqual([["arroz", 2, "estoque"]]);
+  });
+
+  it("mandar mudar", () => {
+    expect(ler("muda o arroz pra 3")).toEqual([["arroz", 3, "estoque"]]);
+    expect(ler("corrige o leite para 4")).toEqual([["leite", 4, "estoque"]]);
+    expect(ler("deixa o café como 2")).toEqual([["café", 2, "estoque"]]);
+  });
+
+  it("se corrigiu no meio da frase", () => {
+    expect(ler("tenho arroz 5, não, pera, 4")).toEqual([["arroz", 4, "estoque"]]);
+    expect(ler("tenho 5 arroz, quer dizer, 3")).toEqual([["arroz", 3, "estoque"]]);
+    expect(ler("tenho 4 leites, na verdade tenho 2 leites")).toEqual([["leites", 2, "estoque"]]);
+  });
+
+  it("acabou e zero; acabando nao", () => {
+    expect(ler("acabou o leite e zerou o café")).toEqual([
+      ["leite", 1, "lista", "zerou"],
+      ["café", 1, "lista", "zerou"],
+    ]);
+    expect(ler("não tem mais sabão")).toEqual([["sabão", 1, "lista", "zerou"]]);
+    expect(ler("tá acabando o café")).toEqual([["café", 1, "lista"]]);
+  });
+
+  it("sem numero nao vira 1 calado", () => {
+    expect(ler("ainda tem arroz")).toEqual([["arroz", 1, "estoque", "semQtd"]]);
+  });
+
+  it("numero e unidade falados de varios jeitos", () => {
+    expect(interpretarLocal("tenho um quilo e meio de feijão").itens[0]).toMatchObject({ nome: "feijão", qtd: 1.5, unidade: "kg" });
+    expect(ler("sobraram duas latas de milho e ficou só um sabão em pó")).toEqual([
+      ["milho", 2, "estoque"],
+      ["sabão em pó", 1, "estoque"],
+    ]);
+    expect(ler("restam 2 sabonetes")).toEqual([["sabonetes", 2, "estoque"]]);
+  });
+
+  it("no modo atualizar, numero sem verbo e estoque", () => {
+    expect(ler("arroz 3, feijão 2", true)).toEqual([
+      ["arroz", 3, "estoque"],
+      ["feijão", 2, "estoque"],
+    ]);
+    expect(ler("fiz a contagem: 4 leites e 2 cafés")).toEqual([
+      ["leites", 4, "estoque"],
+      ["cafés", 2, "estoque"],
+    ]);
+  });
+
+  it("reconhece o pedido de varios jeitos", async () => {
+    const { querAtualizarEstoque: q } = await import("./voz");
+    for (const f of [
+      "vamos atualizar agora o estoque",
+      "bora arrumar a despensa",
+      "deixa eu conferir o que tem em casa",
+      "vou fazer o inventário",
+      "estoque atualizado: arroz 3",
+      "vou corrigir o estoque",
+    ])
+      expect([f, q(f)]).toEqual([f, true]);
+    expect(q("preciso de arroz")).toBe(false);
+  });
+});

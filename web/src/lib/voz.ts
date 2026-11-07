@@ -25,6 +25,11 @@ export type VozItem = {
   destino?: VozIntencao;
   // Por que nao comprar, quando a fala ja disse ("ja tem muito fermento" = excesso).
   motivo?: "excesso" | "ruim";
+  // "Acabou o leite", "zerou o cafe": o estoque e ZERO (alem de ir para a lista).
+  zerou?: boolean;
+  // Nenhum numero foi dito ("ainda tem arroz"): qtd 1 e so um palpite. Ao atualizar o
+  // estoque isso NAO pode virar 1; a tela pergunta quanto.
+  semQtd?: boolean;
 };
 
 export type VozResposta =
@@ -106,6 +111,10 @@ export function normalizaItens(raw: unknown): VozItem[] {
 
     const q = numero(o.qtd);
     const qtd = q != null && q > 0 ? q : 1;
+    const acao = String(o.acao ?? "");
+    // Zero so conta como "acabou" quando e estoque; em outra acao e so "nao disse".
+    const zerou = o.zerou === true || (q === 0 && acao === "estoque");
+    const semQtd = acao === "estoque" && !zerou && (q == null || q < 0);
 
     const unidade = String(o.unidade ?? "").trim() || unitFor(nome);
 
@@ -113,7 +122,6 @@ export function normalizaItens(raw: unknown): VozItem[] {
     const preco = total != null && total > 0 ? +(total / qtd).toFixed(2) : null;
 
     // So `true` vale como duvida: qualquer outra coisa do modelo e "entendi".
-    const acao = String(o.acao ?? "");
     const remover = o.remover === true || acao === "remover";
     const motivo = o.motivo === "excesso" || o.motivo === "ruim" ? o.motivo : undefined;
     itens.push({
@@ -122,6 +130,8 @@ export function normalizaItens(raw: unknown): VozItem[] {
       unidade,
       preco,
       ...(o.duvida === true ? { duvida: true } : {}),
+      ...(zerou ? { zerou: true } : {}),
+      ...(semQtd ? { semQtd: true } : {}),
       ...(remover ? { remover: true, ...(motivo ? { motivo } : {}) } : {}),
       ...(!remover && INTENCOES.includes(acao as VozIntencao) ? { destino: acao as VozIntencao } : {}),
     });
@@ -224,7 +234,12 @@ const LIXO = new Set([
   "sobrando", "sobra", "olha", "entao", "ne", "tipo", "assim",
   // "vou atualizar o meu estoque": o pedido do modo, nao produto
   "atualizar", "atualizando", "atualiza", "atualizei", "acertar", "acertando", "estoque",
-  "meu", "minha", "meus", "minhas", "vamos", "bora", "contagem", "era", "tinha",
+  "meu", "minha", "meus", "minhas", "vamos", "bora", "contagem", "era", "tinha", "tinham", "havia",
+  // verbo de quantidade que fica grudado no nome ("creme de leite ta com 6", "muda o arroz pra 3")
+  "ta", "esta", "estao", "tao", "sao", "ficou", "ficaram", "sobraram", "restam", "caiu", "baixou",
+  "subiu", "virou", "foi", "muda", "mude", "mudar", "corrige", "corrija", "corrigir", "atualize",
+  "ajusta", "ajuste", "ajustar", "acerte", "troca", "trocar", "deixa", "zerado", "pro", "como",
+  "verdade", "contei", "conto", "fazer", "faz", "fiz", "fizemos", "vez", "inventario",
   // lugar da casa, nao produto ("a despensa ta cheia de macarrao")
   "despensa", "dispensa", "armario", "geladeira", "freezer", "prateleira", "cozinha",
   "cheia", "cheio", "lotada", "lotado",
@@ -237,6 +252,9 @@ const NEGA = /\b(nao (quero|precisa|preciso|vou|compra|comprar|precisamos)|tira|
 const AFIRMA = /\b(quero|preciso|precisamos|compra|comprar|falta|anota|coloca|bota|adiciona)\b/;
 
 const CONECTOR = new Set(["em", "de", "do", "da", "dos", "das", "no", "na", "com"]);
+
+// Palavra antes de um SEGUNDO numero que diz "este e o valor novo".
+const VALOR_NOVO = new Set(["pra", "para", "pro", "agora", "tenho", "so", "sao", "com", "ficou", "ficaram", "caiu", "baixou", "subiu", "virou", "foi", "em"]);
 
 type Pedaco = { nome: string; qtd: number | null; preco: number | null; unidade: string | null };
 
@@ -265,6 +283,9 @@ function lePedaco(txt: string): Pedaco {
       } else if (/reais|real/.test(seguinte) || /^r\$/.test(tk[i])) {
         preco = num;
         if (/reais|real/.test(seguinte)) i += 1;
+      } else if (qtd !== null && VALOR_NOVO.has(tk[i - 1] ?? "")) {
+        // "tinha 13, agora tenho 6", "de 13 caiu pra 6": o segundo numero e o que vale.
+        qtd = num;
       } else if (!Number.isInteger(num)) {
         // Numero quebrado sem unidade e preco falado ("doze e noventa").
         preco = num;
@@ -296,7 +317,8 @@ export function dePara(texto: string): string {
   return texto.replace(
     /\b(?:de|era|tinha)\s+\d+(?:[.,]\d+)?\s+(?:([a-z]+)\s+)?(?:para|pra|agora(?:\s+(?:tem|tenho|e))?)\s+(\d+(?:[.,]\d+)?)/g,
     (todo, un: string | undefined, para: string) =>
-      un && !UNIDADE_PALAVRA[un] ? todo : un ? `${para} ${un}` : para,
+      // "tenho" na frente: falar de-para e sempre sobre o que tem em casa
+      un && !UNIDADE_PALAVRA[un] ? todo : un ? `tenho ${para} ${un}` : `tenho ${para}`,
   );
 }
 
@@ -305,25 +327,61 @@ export function dePara(texto: string): string {
 export function querAtualizarEstoque(frase: string): boolean {
   const t = semAcento((frase ?? "").toLowerCase());
   return (
-    /\b(atualiz\w*|acert\w*|confer\w*|recont\w*|contagem)\b[^.!?]{0,30}\b(estoque|despensa|dispensa|armario|geladeira|freezer)\b/.test(t) ||
-    /\bcontagem\b/.test(t)
+    /\b(atualiz\w*|acert\w*|confer\w*|recont\w*|contagem|revis\w*|arrum\w*|organiz\w*|ajust\w*|corrig\w*)\b[^.!?]{0,30}\b(estoque|despensa|dispensa|armario|geladeira|freezer)\b/.test(t) ||
+    /\b(estoque|despensa|dispensa)\b[^.!?]{0,15}\b(atualiz\w*|em dia)\b/.test(t) ||
+    /\b(contagem|inventario)\b/.test(t) ||
+    /\b(confer\w*|cont\w*|ver)\b[^.!?]{0,12}\bo que (tem|tenho|temos|sobrou)\b/.test(t)
   );
 }
 
-export function interpretarLocal(texto: string): {
+// "Acabou" de verdade (zero em casa) vira uma marca propria ANTES dos sinonimos: la
+// "ta acabando" e "falta" tambem viram "acabou", e esses nao sao zero.
+const ZERO_FORTE =
+  /\b(acabou|acabaram|cabou|zerou|zerei|zeramos|zeraram|zera|zerar|zerado|zerada|terminou|terminaram|nao tem mais|nao tenho mais|nao temos mais|nao sobrou nada|nao sobrou|ja era|nao tem nenhum|nao tem nenhuma|nao tenho nenhum|nao tenho nenhuma)\b/g;
+
+function prepararFala(texto: string): string {
+  return normalizarFala(semAcento((texto ?? "").toLowerCase()).replace(ZERO_FORTE, " zerado "));
+}
+
+// Depois dos numeros: o jeito de falar que muda o valor ou se corrige no meio.
+function ajustarFala(t: string): string {
+  return (
+    dePara(t)
+      // se corrigiu: "arroz 5, nao, pera, 4", "na verdade tenho 6", "quer dizer 3"
+      .replace(/\b(na verdade|quer dizer|ou melhor|melhor dizendo|corrigindo|me enganei|errei|perai|pera ai|espera ai|opa|ops)\b/g, ",")
+      .replace(/\bnao\s*,?\s*(pera|espera)\b/g, ",")
+      .replace(/(^|,|\d)\s*nao\s*,?\s*(?=\d)/g, "$1 , ")
+      // "um quilo e meio" -> 1.5 kg (senao o " e " partia em dois itens)
+      .replace(/\b(\d+(?:\.\d+)?)\s+([a-z]+)\s+e\s+0\.5\b/g, (todo, n: string, un: string) =>
+        UNIDADE_PALAVRA[un] ? `${+n + 0.5} ${un}` : todo,
+      )
+      // "muda o arroz pra 3", "corrige o leite para 4", "deixa o cafe como 2" = tem 3/4/2
+      .replace(
+        /\b(muda|mude|mudar|corrige|corrija|corrigir|atualiza|atualize|ajusta|ajuste|acerta|acerte|troca|deixa|coloca|bota|poe)\s+(?:o |a |os |as )?([^,]+?)\s+(?:para|pra|pro|como|em)\s+(\d+(?:\.\d+)?)/g,
+        "tenho $3 $2",
+      )
+  );
+}
+
+// `atualizar`: a pessoa esta acertando o estoque (botao ou "vou atualizar o estoque"):
+// numero sem verbo e o que TEM agora.
+export function interpretarLocal(texto: string, atualizar = false): {
   intencao: VozIntencao;
   itens: VozItem[];
 } {
   // Cada um fala de um jeito: "ta faltando", "cabou", "risca", "tem um monte" viram a
   // forma padrao antes de ler (lib/sinonimos.ts).
-  const cru = normalizarFala(semAcento((texto ?? "").toLowerCase()));
+  const cru = prepararFala(texto);
+  const atualizando = atualizar || querAtualizarEstoque(texto);
   // "nao quero cafe" sozinho e assunto de lista, nao de estoque.
-  const intencao = /\bnao (quero|precisa)|\btira\b/.test(cru)
-    ? "lista"
-    : (VERBOS.find(([re]) => re.test(cru))?.[1] ?? "lista");
+  const intencao = atualizando
+    ? "estoque"
+    : /\bnao (quero|precisa)|\btira\b/.test(cru)
+      ? "lista"
+      : (VERBOS.find(([re]) => re.test(cru))?.[1] ?? "lista");
 
   // Jeito de falar ANTES dos numeros: "tem um monte" nao pode virar "tem 1 monte".
-  const brutos = dePara(numerosPorExtenso(normalizarFala(semAcento((texto ?? "").toLowerCase()))))
+  const brutos = ajustarFala(numerosPorExtenso(cru))
     .replace(/\b(mas|porem)\b/g, ", mas")
     .split(/,| e /)
     .map((p) => p.trim())
@@ -335,17 +393,22 @@ export function interpretarLocal(texto: string): {
   let acao: VozIntencao | "remover" = intencao;
   const pedacos = brutos.map((b) => {
     const excesso = /\b(muito|muita|demais|bastante|sobrando|de sobra)\b/.test(b);
+    const zerou = /\bzerado\b/.test(b);
     // Falou mal do produto: nao comprar, ruim (antes de tudo: "nao presta" tem um "nao").
     if (/\bruim\b/.test(b)) acao = "remover";
-    else if (/\b(nao tenho|nao tem mais|acabou|faltou|falta)\b/.test(b)) acao = "lista";
+    else if (zerou || /\b(nao tenho|nao tem mais|acabou|faltou|falta)\b/.test(b)) acao = "lista";
+    else if (/\b(preciso|precisa|comprar|compra)\b/.test(b) && !NEGA.test(b)) acao = "lista";
     else if (NEGA.test(b)) acao = "remover";
     else if (excesso && (acao === "remover" || /\bja tem\b/.test(b))) acao = "remover";
     else if (/\b(comprei|peguei|botei|coloquei|custou|paguei)\b/.test(b)) acao = "carrinho";
-    else if (/\b(tenho|temos|tem|sobrou|em casa|conferindo|conferi)\b/.test(b)) acao = "estoque";
+    else if (
+      /\b(tenho|temos|tem|sobrou|sobraram|em casa|conferindo|conferi|contei|tinha|tinham|havia|ficou|ficaram|restam|restaram|sao|caiu|baixou|subiu|virou|ta com|esta com|estao)\b/.test(b)
+    )
+      acao = "estoque";
     else if (AFIRMA.test(b) || /^mas\b/.test(b)) acao = "lista";
     const motivo: VozItem["motivo"] =
       acao !== "remover" ? undefined : motivoNaoComprar(b) === "ruim" ? "ruim" : excesso ? "excesso" : undefined;
-    return { ...lePedaco(b), acao, motivo };
+    return { ...lePedaco(b), acao, motivo, zerou };
   });
 
   // A conta toda roda sem acento; o nome volta com o acento que foi falado
@@ -370,6 +433,9 @@ export function interpretarLocal(texto: string): {
         // valendo como total do item, entao divide de novo.
         if (ultimo.preco != null) ultimo.preco = +(ultimo.preco * ultimo.qtd / p.qtd).toFixed(2);
         ultimo.qtd = p.qtd;
+        delete ultimo.semQtd;
+        // "tinha 13 creme de leite, agora tenho 6": o "agora tenho" diz que e estoque
+        if (p.acao === "estoque" && !ultimo.remover) ultimo.destino = "estoque";
       }
       if (p.preco != null) ultimo.preco = +(p.preco / ultimo.qtd).toFixed(2);
       if (p.unidade) ultimo.unidade = p.unidade;
@@ -380,6 +446,13 @@ export function interpretarLocal(texto: string): {
     const repetido = itens.find((i) => i.nome === p.nome && !!i.remover === (p.acao === "remover"));
     if (repetido) {
       if (p.motivo && !repetido.motivo) repetido.motivo = p.motivo;
+      // "tenho 13 creme de leite... na verdade tenho 6 creme de leite": vale o ultimo.
+      if (!repetido.remover && p.qtd != null && p.qtd > 0) {
+        repetido.qtd = p.qtd;
+        if (p.unidade) repetido.unidade = p.unidade;
+        repetido.destino = p.acao as VozIntencao;
+        delete repetido.semQtd;
+      }
       continue;
     }
     const qtd = p.qtd != null && p.qtd > 0 ? p.qtd : 1;
@@ -388,6 +461,8 @@ export function interpretarLocal(texto: string): {
       qtd,
       unidade: p.unidade ?? unitFor(p.nome),
       preco: p.preco != null && p.preco > 0 ? +(p.preco / qtd).toFixed(2) : null,
+      ...(p.zerou && p.acao !== "remover" ? { zerou: true } : {}),
+      ...(p.qtd == null && !p.zerou && p.acao === "estoque" ? { semQtd: true } : {}),
       ...(p.acao === "remover"
         ? { remover: true, ...(p.motivo ? { motivo: p.motivo } : {}) }
         : { destino: p.acao }),
