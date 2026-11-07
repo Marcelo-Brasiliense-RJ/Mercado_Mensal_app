@@ -15,7 +15,8 @@ import { AvatarInitial } from "@/components/ui/AvatarInitial";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useGestosTela } from "./useGestosTela";
-import { direcaoTroca, indiceAba } from "@/lib/gestos";
+import { abasCom, direcaoTroca, indiceAba } from "@/lib/gestos";
+import { useModoMercado } from "@/lib/modoMercado";
 import { ChevronLeftIcon } from "@/components/ui/icons";
 import { useStore } from "@/lib/store";
 import { VoiceModal } from "@/components/voz/VoiceModal";
@@ -27,6 +28,7 @@ const META: Record<string, { title: string; subtitle: string }> = {
   "/app/ofertas": { title: "Ofertas", subtitle: "da semana" },
   "/app/livelo": { title: "Livelo", subtitle: "pontos nas compras" },
   "/app/economia": { title: "Economia", subtitle: "do mês" },
+  "/app/mercado": { title: "Mercado", subtitle: "modo compra" },
   "/app/config": { title: "Ajustes", subtitle: "família e app" },
 };
 
@@ -38,9 +40,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const conteudoRef = useRef<HTMLDivElement>(null);
   useGestosTela(path, areaRef, conteudoRef);
   // Direcao da tela que entra (pelo gesto ou tocando na aba): desliza do lado certo.
+  const abas = abasCom(useModoMercado());
   const [vista, setVista] = useState({ path, dir: 0 as -1 | 0 | 1 });
-  if (vista.path !== path) setVista({ path, dir: direcaoTroca(vista.path, path) });
-  const foraDasAbas = indiceAba(path) < 0;
+  if (vista.path !== path) setVista({ path, dir: direcaoTroca(vista.path, path, abas) });
+  const foraDasAbas = indiceAba(path, abas) < 0;
   function voltar() {
     if (window.history.length > 1) router.back();
     else router.push("/app/estoque");
@@ -64,7 +67,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
   // Avisos (toast, "foto pronta") ficam centralizados LOGO ACIMA do botao +, sem
   // passar por cima dele. A altura do + muda na Lista (tem o total no rodape).
-  const naLista = path.startsWith("/app/lista");
+  // Mercado tambem tem a barra do total no rodape.
+  const noModoMercado = path.startsWith("/app/mercado");
+  const naLista = path.startsWith("/app/lista") || noModoMercado;
   useEffect(() => {
     document.documentElement.style.setProperty(
       "--acima-fab",
@@ -153,7 +158,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <ReceiptModal open={receiptOpen} onClose={closeReceipt} />
       <FilaFotos />
       <FilaPrateleira />
-      <VoiceModal open={falar} onClose={() => setFalar(false)} tela="auto" />
+      <VoiceModal open={falar} onClose={() => setFalar(false)} tela={noModoMercado ? "mercado" : "auto"} />
       {/* Botao "+" flutuante, em todas as telas: abre o adicionar (falar, foto, codigo,
           escrever). Na Lista sobe um pouco para nao cobrir o total do rodape. */}
       <button

@@ -16,6 +16,7 @@ import {
   Receipt,
   RefreshCw,
   ScanBarcode,
+  ShoppingCart,
   Search,
   Sun,
   Tag,
@@ -50,6 +51,7 @@ export const BarcodeIcon = de(ScanBarcode);
 export const MicIcon = de(Mic);
 export const HeartIcon = de(Heart);
 export const CameraIcon = de(Camera);
+export const CartIcon = de(ShoppingCart);
 
 // Adicionar item: pacote com "+" (botao flutuante).
 export const AddItemIcon = ({ size = 24, className }: P & { contraste?: string }) => (

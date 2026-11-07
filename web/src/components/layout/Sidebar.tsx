@@ -13,7 +13,9 @@ import {
   RefreshIcon,
   TagIcon,
   HeartIcon,
+  CartIcon,
 } from "@/components/ui/icons";
+import { useModoMercado } from "@/lib/modoMercado";
 import { BrandMark } from "@/components/ui/BrandMark";
 import { useHousehold } from "@/lib/household";
 import { useStore } from "@/lib/store";
@@ -33,6 +35,10 @@ export function Sidebar({ onRegistrar }: { onRegistrar: () => void }) {
   const { household } = useHousehold();
   const { reloadData, dataLoading } = useStore();
   const { isDark, toggle } = useTheme();
+  const modoMercado = useModoMercado();
+  const itens = modoMercado
+    ? [nav[0], nav[1], { href: "/app/mercado", label: "Modo mercado", Icon: CartIcon }, ...nav.slice(2)]
+    : nav;
 
   async function sair() {
     await createClient().auth.signOut();
@@ -59,7 +65,7 @@ export function Sidebar({ onRegistrar }: { onRegistrar: () => void }) {
       </div>
 
       <nav className="flex flex-col gap-1">
-        {nav.map(({ href, label, Icon }) => {
+        {itens.map(({ href, label, Icon }) => {
           const active = path.startsWith(href);
           return (
             <Link

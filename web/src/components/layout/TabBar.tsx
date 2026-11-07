@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BoxIcon, ListIcon, ChartIcon, HeartIcon, TagIcon } from "@/components/ui/icons";
+import { BoxIcon, ListIcon, ChartIcon, HeartIcon, TagIcon, CartIcon } from "@/components/ui/icons";
+import { useModoMercado } from "@/lib/modoMercado";
 
 const tabs = [
   { href: "/app/estoque", label: "Estoque", Icon: BoxIcon },
@@ -14,11 +15,16 @@ const tabs = [
 
 export function TabBar({ className = "" }: { className?: string }) {
   const path = usePathname();
+  // Modo mercado ligado (interruptor na Lista): a aba do carrinho aparece depois da Lista.
+  const modoMercado = useModoMercado();
+  const lista = modoMercado
+    ? [tabs[0], tabs[1], { href: "/app/mercado", label: "Mercado", Icon: CartIcon }, ...tabs.slice(2)]
+    : tabs;
   return (
     <nav
       className={`fixed inset-x-0 bottom-0 z-20 flex border-t border-border bg-card pb-[env(safe-area-inset-bottom)] ${className}`}
     >
-      {tabs.map(({ href, label, Icon }) => {
+      {lista.map(({ href, label, Icon }) => {
         const active = path.startsWith(href);
         return (
           <Link

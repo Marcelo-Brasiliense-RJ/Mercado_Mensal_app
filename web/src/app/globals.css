@@ -60,9 +60,12 @@ nav a, nav button { -webkit-touch-callout: none; user-select: none; }
 /* Troca de tela: a nova desliza do lado de onde veio o gesto/aba. */
 @keyframes telaDireita { from { opacity: 0; transform: translate3d(28%,0,0); } to { opacity: 1; transform: none; } }
 @keyframes telaEsquerda { from { opacity: 0; transform: translate3d(-28%,0,0); } to { opacity: 1; transform: none; } }
+/* backwards, nao both: animacao de transform que fica "preenchida" no fim faz a tela virar
+   o bloco de referencia dos position:fixed, e as barras do rodape (total da Lista,
+   Finalizar do Mercado) desciam junto com o conteudo em vez de ficar presas na tela. */
 @media (max-width: 1023px) {
-  .tela-da-direita { animation: telaDireita .26s cubic-bezier(.2,.8,.2,1) both; }
-  .tela-da-esquerda { animation: telaEsquerda .26s cubic-bezier(.2,.8,.2,1) both; }
+  .tela-da-direita { animation: telaDireita .26s cubic-bezier(.2,.8,.2,1) backwards; }
+  .tela-da-esquerda { animation: telaEsquerda .26s cubic-bezier(.2,.8,.2,1) backwards; }
 }
 @media (prefers-reduced-motion: reduce) {
   .tela-da-direita, .tela-da-esquerda { animation: none !important; }
