@@ -240,6 +240,8 @@ const LIXO = new Set([
   "subiu", "virou", "foi", "muda", "mude", "mudar", "corrige", "corrija", "corrigir", "atualize",
   "ajusta", "ajuste", "ajustar", "acerte", "troca", "trocar", "deixa", "zerado", "pro", "como",
   "verdade", "contei", "conto", "fazer", "faz", "fiz", "fizemos", "vez", "inventario",
+  // muleta de fala ("deixa eu ver", "ah", "hum", "uns 6")
+  "ver", "olhar", "ah", "ahn", "eh", "hum", "hmm", "oh", "uai", "bom", "beleza", "certo", "pronto",
   // lugar da casa, nao produto ("a despensa ta cheia de macarrao")
   "despensa", "dispensa", "armario", "geladeira", "freezer", "prateleira", "cozinha",
   "cheia", "cheio", "lotada", "lotado",
@@ -383,7 +385,8 @@ export function interpretarLocal(texto: string, atualizar = false): {
   // Jeito de falar ANTES dos numeros: "tem um monte" nao pode virar "tem 1 monte".
   const brutos = ajustarFala(numerosPorExtenso(cru))
     .replace(/\b(mas|porem)\b/g, ", mas")
-    .split(/,| e /)
+    // Ponto final tambem separa ("quer dizer, 5. Ah, e comprei..."); "1.5" nao (sem espaco).
+    .split(/,| e |[.;!?](?=\s|$)/)
     .map((p) => p.trim())
     .filter(Boolean);
 

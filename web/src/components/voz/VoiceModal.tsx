@@ -1440,6 +1440,14 @@ export function AtualizarEstoque({
                 </div>
                 <button
                   type="button"
+                  onClick={() => muda(i, 0)}
+                  disabled={l.para === 0}
+                  className="-mt-1 h-9 shrink-0 rounded-full border border-border px-3 text-[13px] font-bold text-text-2 disabled:border-transparent disabled:text-text-3"
+                >
+                  {l.para === 0 ? "Zerado" : "Acabou"}
+                </button>
+                <button
+                  type="button"
                   aria-label={`Tirar ${l.nome}`}
                   onClick={() => setLinhas((x) => x.filter((_, k) => k !== i))}
                   className="-mr-1 -mt-1 h-9 w-9 shrink-0 rounded-full text-text-3"
@@ -1472,14 +1480,6 @@ export function AtualizarEstoque({
                   +
                 </button>
                 <span className="text-[13px] font-semibold text-text-2">{l.unidade}</span>
-                <button
-                  type="button"
-                  onClick={() => muda(i, 0)}
-                  disabled={l.para === 0}
-                  className="ml-auto h-11 shrink-0 rounded-full px-2.5 text-[13px] font-bold text-text-2 disabled:text-text-3 disabled:opacity-60"
-                >
-                  Acabou
-                </button>
               </div>
             </li>
           );

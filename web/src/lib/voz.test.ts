@@ -281,6 +281,13 @@ describe("atualizar estoque: como as pessoas falam de verdade", () => {
     expect(ler("tá acabando o café")).toEqual([["café", 1, "lista"]]);
   });
 
+  it("muleta de fala e ponto final nao viram produto", () => {
+    expect(ler("deixa eu ver, creme de leite tem uns 6, quer dizer, 5. Ah e comprei 2 pacotes de biscoito", true)).toEqual([
+      ["creme de leite", 5, "estoque"],
+      ["biscoito", 2, "carrinho"],
+    ]);
+  });
+
   it("sem numero nao vira 1 calado", () => {
     expect(ler("ainda tem arroz")).toEqual([["arroz", 1, "estoque", "semQtd"]]);
   });
