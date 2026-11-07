@@ -27,14 +27,14 @@ Agrupe do jeito que se conta estoque em casa, UM quadrado por PRODUTO, com a qua
 - O "nome" do fardo é o produto de dentro ("leite italac"), nunca "caixa" ou "fardo".
 - Pacote vendido assim com várias coisinhas dentro (sachês, caixa de gelatina, caixa de chá) = 1 unidade.
 - O mesmo produto separado em dois lugares da foto: dois quadrados com EXATAMENTE o mesmo "nome".
-Para descobrir o que é, use tudo: texto em qualquer orientação, marca, cor e formato da embalagem, e o conteúdo que aparece (saco transparente com grão preto = "feijão preto", grão bege redondo = "grão de bico").
+Produto só com um pedaço aparecendo (atrás de outro, embaixo de um saco, cortado na borda): marque se dá para saber o que é pela cor, marca ou formato.\nPara descobrir o que é, use tudo: texto em qualquer orientação, marca, cor e formato da embalagem, e o conteúdo que aparece (saco transparente com grão preto = "feijão preto", grão bege redondo = "grão de bico").
 Para cada quadrado devolva:
 - "box_2d": [ymin, xmin, ymax, xmax] de 0 a 1000, retângulo JUSTO em volta do produto/grupo inteiro (da tampa à base), sem pegar produto diferente vizinho.
 - "rotulo": o que está escrito na frente (tipo, marca, variante, tamanho). Vazio se não dá para ler.
 - "nome": o produto como se fala em casa, minúsculo, produto + marca + variante quando importa, sem tamanho ("café pilão", "leite italac", "molho de tomate pramesa", "passata pramesa"). Vazio se não sabe o que é.
 - "unidades": inteiro, quantas unidades daquele produto o quadrado tem.
 - "legivel": true se você leu a marca/produto com segurança; false se é palpite pelo formato/conteúdo, sem ler.
-Não marque prateleira, parede, móvel, prendedor, sacola de mercado vazia nem reflexo. Máximo de 40 quadrados.
+Não marque prateleira, parede, móvel, prendedor, elástico, sacola de mercado vazia, reflexo, nem o que NÃO é compra de mercado: roupa, toalha, pano, louça (prato, copo, caneca), panela, talher, utensílio, eletrodoméstico, enfeite, brinquedo, papel solto. Se não há nenhum produto de mercado, devolva a lista vazia.\nIgnore texto, figurinha ou botão colados por cima da foto (print de rede social, "Enviar mensagem"): não são produtos. Máximo de 40 quadrados.
 Se a foto é de um CARRINHO ou cesta de mercado: marque só o que está DENTRO do carrinho/cesta; produtos da loja ao fundo (gôndola, prateleira do mercado, outro carrinho) não contam.
 Devolva também "carrinho": true se a foto é de um carrinho ou cesta de compras de mercado (grade de metal/plástico do carrinho, loja ao fundo), false se é em casa (armário, despensa, geladeira, mesa, bancada).`;
 

@@ -182,7 +182,20 @@ const pedaco = (c: HTMLCanvasElement, r: Box) => desenhar(c, r, LADO).toDataURL(
 // Busca nas tres faixas com zoom, AO MESMO TEMPO que a foto inteira (nao soma tempo).
 // Faixa que pegou limite por minuto tenta mais uma vez; falhou de novo, fica sem ela
 // (nunca derruba a foto). carrinho: alguma faixa viu carrinho de mercado.
-async function buscarNasFaixas(x: JobFoto): Promise<{ itens: Achado[]; carrinho: boolean }> {
+// Teto de espera pelas faixas DEPOIS que a foto inteira voltou. Medido em 235 fotos: na
+// mediana as faixas chegam junto (0,6 s a mais), mas 1 em 4 fotos esperava mais de 11 s
+// (faixa presa no limite por minuto) e 1 em 10 mais de 90 s. Passou do teto, a foto segue
+// com as faixas que ja chegaram; a que atrasou fica de fora (nunca derruba a foto).
+const ESPERA_FAIXAS_MS = 10_000;
+type Faixas = { itens: Achado[]; carrinho: boolean; daFaixa: Achado[] };
+
+// Devolve as faixas que chegarem; `parcial` tem o que ja chegou a qualquer momento.
+function buscarNasFaixas(x: JobFoto): { todas: Promise<void>; parcial: Faixas } {
+  const parcial: Faixas = { itens: [], carrinho: false, daFaixa: [] };
+  return { todas: buscar(x, parcial), parcial };
+}
+
+async function buscar(x: JobFoto, parcial: Faixas): Promise<void> {
   try {
     const prontas = (await faixasProntas.get(x.id)?.catch(() => [])) ?? [];
     const lista = prontas.length
@@ -196,19 +209,22 @@ async function buscarNasFaixas(x: JobFoto): Promise<{ itens: Achado[]; carrinho:
       }).catch(() => null);
       return (await res?.json().catch(() => null)) as { ok?: boolean; itens?: Achado[]; carrinho?: boolean; erro?: string; espera?: number } | null;
     };
-    const partes = await Promise.all(
+    await Promise.all(
       lista.map(async ({ r, foto }, k) => {
         let d = await pedir(foto);
         if (d?.erro === "limite" && (d.espera ?? 99) <= 20) {
           await dormir(((d.espera ?? 5) + k) * 1000);
           d = await pedir(foto);
         }
-        return d?.ok ? { itens: limpar(d.itens ?? []).map((a) => ({ ...a, box: paraFoto(a.box, r) })), carrinho: !!d.carrinho } : { itens: [], carrinho: false };
+        if (!d?.ok) return;
+        const itens = limpar(d.itens ?? []).map((a) => ({ ...a, box: paraFoto(a.box, r) }));
+        parcial.itens.push(...itens);
+        parcial.daFaixa.push(...itens);
+        parcial.carrinho ||= !!d.carrinho;
       }),
     );
-    return { itens: partes.flatMap((p) => p.itens), carrinho: partes.some((p) => p.carrinho) };
   } catch {
-    return { itens: [], carrinho: false };
+    /* sem faixas: fica so a foto inteira */
   }
 }
 
@@ -265,9 +281,10 @@ async function ler(x: JobFoto): Promise<void> {
   // Produto unico de perto: as faixas so cortariam ele em pedacos.
   if (precisaFaltou(achados)) {
     trocar(x.id, { etapa: "faltou", achados: juntarIguais(achados) });
-    const f = await faixasP;
-    daFaixa = f.itens;
-    achados = somarNovos(achados, f.itens);
+    await Promise.race([faixasP.todas, dormir(ESPERA_FAIXAS_MS)]);
+    const f = faixasP.parcial; // o que chegou ate o teto
+    daFaixa = [...f.daFaixa];
+    achados = somarNovos(achados, daFaixa);
     carrinho ||= f.carrinho;
   }
   if (carrinho) trocar(x.id, { fotoDeCarrinho: true });
