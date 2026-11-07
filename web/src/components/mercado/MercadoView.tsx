@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { brl } from "@/lib/format";
 import { useStore } from "@/lib/store";
 import type { ShopItem, TripItem } from "@/lib/types";
-import { BarcodeIcon, CameraIcon, MicIcon, PlusIcon, SearchIcon } from "@/components/ui/icons";
+import { BarcodeIcon, CameraIcon, CartIcon, MicIcon, PlusIcon, SearchIcon } from "@/components/ui/icons";
 import { Interruptor } from "@/components/ui/Interruptor";
 import { FotoModal } from "@/components/lista/FotoModal";
 import { BarcodeModal } from "@/components/lista/BarcodeModal";
@@ -65,6 +65,7 @@ export function MercadoView() {
   const [cat, setCat] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [buscando, setBuscando] = useState(false);
+  const [add, setAdd] = useState(false); // opcoes de adicionar abertas
   // Grade de fotos (4 por linha) ou lista de uma linha por item. Lembrado no aparelho.
   const [visual, setVisualState] = useState<"grade" | "lista">(() => {
     try {
@@ -122,7 +123,8 @@ export function MercadoView() {
   const conta = contaDoMes(budget.total, budget.spent, total, r.faltaValor);
   const sugestoes = r.sugestoes.filter((s) => !dispensadas.has(s.lista.id));
   const faltamN = r.totalLista - r.pegosLista + r.parciais;
-  const aba: Aba = abaEscolhida ?? (faltamN === 0 && carrinho.length > 0 ? "carrinho" : "falta");
+  // Carrinho vem primeiro; abre nele quando ja tem item. Vazio, abre no que falta pegar.
+  const aba: Aba = abaEscolhida ?? (carrinho.length > 0 ? "carrinho" : "falta");
 
   if (!ligado) {
     return (
@@ -226,8 +228,6 @@ export function MercadoView() {
   const catAtiva = cat && chips.some((c) => c.categoria === cat) ? cat : null;
   const grupos = r.grupos.filter((g) => !catAtiva || g.categoria === catAtiva);
 
-  const acao =
-    "flex h-12 items-center justify-center gap-1.5 rounded-[14px] border border-border bg-card text-[13px] font-bold shadow-[0_1px_3px_var(--shadow)] transition-transform active:scale-95";
   const titulo = `🛒 ${noMercado && mercado ? `No ${nomeMercado(mercado)}` : "No carrinho"} · ${carrinho.length} ${carrinho.length === 1 ? "item" : "itens"}`;
 
   return (
@@ -250,24 +250,23 @@ export function MercadoView() {
         </button>
       )}
 
-      {/* As 4 formas de por no carrinho, numa linha so. */}
-      <div className="grid grid-cols-4 gap-2">
-        <button onClick={() => setFoto(true)} className={acao}>
-          <CameraIcon size={19} />
-          Foto
+      {/* Um botao so para por no carrinho; tocar mostra as formas (foto, codigo, falar,
+          digitar). Fechado ocupa uma linha: os itens ficam com a tela. */}
+      <div className="overflow-hidden rounded-[16px] border-2 border-brand bg-card">
+        <button
+          onClick={() => setAdd(!add)}
+          aria-expanded={add}
+          className="flex h-[50px] w-full items-center justify-center gap-2 text-[16px] font-extrabold text-brand"
+        >
+          <CartIcon size={20} />
+          Adicionar ao carrinho
+          <span className={`text-[13px] transition-transform ${add ? "rotate-180" : ""}`} aria-hidden>
+            ▼
+          </span>
         </button>
-        <button onClick={() => setCodigo(true)} className={acao}>
-          <BarcodeIcon size={19} />
-          Código
-        </button>
-        <button onClick={() => setFalar(true)} className={acao}>
-          <MicIcon size={19} />
-          Falar
-        </button>
-        <button onClick={() => setDigitar(true)} className={acao}>
-          <PlusIcon size={19} />
-          Digitar
-        </button>
+        {add && (
+          <div className="border-t border-border p-2">{gradeAdd()}</div>
+        )}
       </div>
 
       {/* "Pegou X de limpeza e na lista tem Y parecido": e o mesmo? */}
@@ -298,22 +297,6 @@ export function MercadoView() {
         <div className="grid grid-cols-2 gap-2" role="tablist">
           <button
             role="tab"
-            aria-selected={aba === "falta"}
-            onClick={() => trocarAba("falta")}
-            className={`flex h-[52px] items-center justify-center gap-2 rounded-[14px] text-[16px] font-extrabold transition-colors ${
-              aba === "falta" ? "bg-brand text-brand-ink shadow-[0_4px_12px_var(--shadow)]" : "border-2 border-border bg-card text-text-2"
-            }`}
-          >
-            ⏳ Falta
-            <span
-              key={faltamN}
-              className={`ic-pop min-w-[30px] rounded-full px-2 py-0.5 text-[15px] tabular-nums ${aba === "falta" ? "bg-black/15" : "bg-brand-soft text-brand"}`}
-            >
-              {faltamN}
-            </span>
-          </button>
-          <button
-            role="tab"
             aria-selected={aba === "carrinho"}
             onClick={() => trocarAba("carrinho")}
             className={`flex h-[52px] items-center justify-center gap-2 rounded-[14px] text-[16px] font-extrabold transition-colors ${
@@ -326,6 +309,22 @@ export function MercadoView() {
               className={`ic-pop min-w-[30px] rounded-full px-2 py-0.5 text-[15px] tabular-nums ${aba === "carrinho" ? "bg-black/15" : "bg-pos-soft text-pos"}`}
             >
               {carrinho.length}
+            </span>
+          </button>
+          <button
+            role="tab"
+            aria-selected={aba === "falta"}
+            onClick={() => trocarAba("falta")}
+            className={`flex h-[52px] items-center justify-center gap-2 rounded-[14px] text-[16px] font-extrabold transition-colors ${
+              aba === "falta" ? "bg-brand text-brand-ink shadow-[0_4px_12px_var(--shadow)]" : "border-2 border-border bg-card text-text-2"
+            }`}
+          >
+            ⏳ Falta
+            <span
+              key={faltamN}
+              className={`ic-pop min-w-[30px] rounded-full px-2 py-0.5 text-[15px] tabular-nums ${aba === "falta" ? "bg-black/15" : "bg-brand-soft text-brand"}`}
+            >
+              {faltamN}
             </span>
           </button>
         </div>
@@ -470,6 +469,36 @@ export function MercadoView() {
     </div>
   );
 
+  // As 4 formas de por no carrinho (no botao "Adicionar" e no carrinho vazio).
+  function gradeAdd() {
+    return (
+      <div className="grid grid-cols-4 gap-1.5">
+        {(
+          [
+            ["Foto", CameraIcon, () => setFoto(true)],
+            ["Código", BarcodeIcon, () => setCodigo(true)],
+            ["Falar", MicIcon, () => setFalar(true)],
+            ["Digitar", PlusIcon, () => setDigitar(true)],
+          ] as const
+        ).map(([rot, Icone, abrir]) => (
+          <button
+            key={rot}
+            onClick={() => {
+              setAdd(false);
+              abrir();
+            }}
+            className="flex flex-col items-center justify-center gap-1 rounded-[12px] bg-card-2 py-2.5 text-[13px] font-bold transition-transform active:scale-95"
+          >
+            <span className="grid h-10 w-10 place-items-center rounded-full bg-brand text-brand-ink">
+              <Icone size={20} />
+            </span>
+            {rot}
+          </button>
+        ))}
+      </div>
+    );
+  }
+
   // Titulo da categoria: toque recolhe/abre. Fechada, mostra so a contagem e o valor.
   function titulo_(c: string, direita: React.ReactNode, extra?: React.ReactNode) {
     const fechada = fechadas.has(c);
@@ -613,7 +642,8 @@ export function MercadoView() {
         <div className="rounded-[18px] border-2 border-dashed border-border p-6 text-center">
           <div className="text-[40px]" aria-hidden>🛒</div>
           <div className="mt-1 text-[17px] font-extrabold">{busca ? "Nada com esse nome no carrinho" : "Carrinho vazio"}</div>
-          <div className="mt-1 text-[13px] text-text-2">Na aba Falta, toque no produto quando pegar.</div>
+          <div className="mt-1 text-[13px] text-text-2">Ponha o primeiro item, ou toque no produto na aba Falta.</div>
+          {!busca && <div className="mt-3">{gradeAdd()}</div>}
           {faltamN > 0 && (
             <button onClick={() => trocarAba("falta")} className="mt-3 h-11 rounded-[12px] bg-brand px-5 text-[14px] font-bold text-brand-ink">
               Ver o que falta ({faltamN})
