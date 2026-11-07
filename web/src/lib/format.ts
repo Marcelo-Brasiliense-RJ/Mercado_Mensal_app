@@ -49,3 +49,12 @@ export function budgetStatus(spent: number, total: number): BudgetStatus {
 export function pct(n: number): string {
   return `${Math.round(n)}%`;
 }
+
+// Segundos de espera em texto curto: "45 s", "12 min", "16 h". Mostrar "59047s" no
+// aviso da IA (visto no print do dono) nao diz nada a ninguem.
+export function tempoCurto(seg: number): string {
+  const s = Math.max(0, Math.round(seg));
+  if (s < 60) return `${s} s`;
+  if (s < 3600) return `${Math.round(s / 60)} min`;
+  return `${Math.round(s / 3600)} h`;
+}

@@ -20,7 +20,10 @@ import {
   marcarTroca,
   mesmoNome,
   montarMercado,
+  chaveNao,
+  naoEoMesmo,
   setModoMercado,
+  useNaoEoMesmo,
   useModoMercado,
   useTrocas,
 } from "@/lib/modoMercado";
@@ -57,6 +60,7 @@ export function MercadoView() {
   const { noMercado, mercado } = useLugar();
   const cats = useCategorias();
   const trocas = useTrocas(trip?.trip_id ?? null);
+  const naoSao = useNaoEoMesmo(trip?.trip_id ?? null);
 
   const [abaEscolhida, setAba] = useState<Aba | null>(null); // null = automatica
   const [cat, setCat] = useState<string | null>(null);
@@ -94,7 +98,6 @@ export function MercadoView() {
   const [digitar, setDigitar] = useState(false);
   const [revisar, setRevisar] = useState(false);
   const [editar, setEditar] = useState<TripItem | null>(null);
-  const [dispensadas, setDispensadas] = useState<Set<string>>(new Set());
 
   const carrinho = trip?.items ?? [];
   // Carrinho mais recente, para o "Desfazer" do aviso achar o item que acabou de entrar.
@@ -118,7 +121,7 @@ export function MercadoView() {
   const r = montarMercado(shopping, carrinho, catDe, trocas, ordem);
   const total = trip?.total ?? 0;
   const conta = contaDoMes(budget.total, budget.spent, total, r.faltaValor);
-  const sugestoes = r.sugestoes.filter((s) => !dispensadas.has(s.lista.id));
+  const sugestoes = r.sugestoes.filter((s) => !naoSao.includes(chaveNao(s.lista.id, s.carrinho.name)));
   const faltamN = r.totalLista - r.pegosLista + r.parciais;
   // Carrinho vem primeiro; abre nele quando ja tem item. Vazio, abre no que falta pegar.
   const aba: Aba = abaEscolhida ?? (carrinho.length > 0 ? "carrinho" : "falta");
@@ -183,7 +186,9 @@ export function MercadoView() {
 
   async function finalizar() {
     if (!trip) return;
-    const trocados = Object.keys(trocas);
+    // Cobertos por produto de outro nome (troca ou nome do rotulo): o banco so baixa da
+    // lista o de nome igual, entao estes saem da lista aqui.
+    const trocados = r.paraLimpar;
     setBusy("fim");
     const x = await finalizeTrip();
     // Os da lista trocados por outra marca saem dela: o que foi pego ja repos o estoque.
@@ -271,7 +276,7 @@ export function MercadoView() {
         sugestoes.map((s) => (
           <div key={s.lista.id} className="flex items-center gap-2.5 rounded-[16px] border-2 border-brand/40 bg-card p-2.5">
             <span className="text-[22px]" aria-hidden>🔄</span>
-            <div className="min-w-0 flex-1 text-[13px] leading-snug">
+            <div className="line-clamp-3 min-w-0 flex-1 text-[13px] leading-snug">
               Pegou <b>{s.carrinho.name}</b>. É o <b>{s.lista.name}</b> da lista?
             </div>
             <button
@@ -281,7 +286,7 @@ export function MercadoView() {
               Sim
             </button>
             <button
-              onClick={() => setDispensadas((d) => new Set(d).add(s.lista.id))}
+              onClick={() => naoEoMesmo(trip.trip_id, s.lista.id, s.carrinho.name)}
               className="h-10 shrink-0 rounded-[11px] border border-border px-3 text-[13px] font-bold"
             >
               Não

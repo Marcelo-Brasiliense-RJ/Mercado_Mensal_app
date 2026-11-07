@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { contaDoMes, corredorAtual, montarMercado, parecido } from "./modoMercado";
+import { contaDoMes, contem, corredorAtual, montarMercado, parecido } from "./modoMercado";
+import { categoriaDe } from "./categorias";
 import type { ShopItem, TripItem } from "./types";
 
 const li = (id: string, name: string, preco: number | null = null, status: ShopItem["status"] = "pending"): ShopItem => ({
@@ -99,5 +100,27 @@ describe("contaDoMes", () => {
     expect(contaDoMes(1000, 800, 300, 0).tom).toBe("estourou");
     expect(contaDoMes(0, 0, 50, 0).tom).toBe("sem");
     expect(contaDoMes(1000, 200, 300, 100).sobraNoFim).toBe(400);
+  });
+});
+
+describe("casos do uso real (print do dono)", () => {
+  const catReal = (n: string) => categoriaDe(n);
+  it("produto pego com nome do rotulo cobre o item generico da lista", () => {
+    const r = montarMercado(
+      [li("1", "Absorvente", 9), li("2", "Lava roupas"), li("3", "Leite")],
+      [ti("a", "absorvente diana", 9.45, 3), ti("b", "lava roupas líquido urca 3l", 23), ti("c", "leite condensado moça", 6)],
+      catReal,
+    );
+    expect(r.pegosLista).toBe(2);
+    expect(r.qtdFora).toBe(1); // leite condensado nao e o leite da lista (outra categoria)
+    expect(r.paraLimpar.sort()).toEqual(["1", "2"]);
+  });
+  it("nao pergunta se gel dental e o gel adesivo sanitario", () => {
+    expect(parecido("gel adesivo sanitário odd citrus 38g", "gel dental flúor liquifresh red hot closeup 100g")).toBe(false);
+    expect(parecido("desinfetante veja", "desinfetante pinho sol")).toBe(true);
+  });
+  it("contem: todas as palavras da lista no nome pego", () => {
+    expect(contem("lava roupas", "lava roupas liquido urca")).toBe(true);
+    expect(contem("sabao em po", "sabao liquido")).toBe(false);
   });
 });

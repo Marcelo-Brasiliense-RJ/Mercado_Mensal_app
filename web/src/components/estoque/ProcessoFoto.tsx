@@ -1,5 +1,6 @@
 "use client";
 
+import { tempoCurto } from "@/lib/format";
 import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { FotoItem } from "@/components/ui/FotoItem";
@@ -30,7 +31,7 @@ export function ProcessoFoto({ job, onClose }: { job: JobFoto; onClose: () => vo
   const titulo = falhou
     ? "Não deu certo"
     : descanso > 0
-      ? `IA no limite · volta em ${descanso}s`
+      ? `IA no limite · volta em ${tempoCurto(descanso)}`
       : faltou
         ? `Achei ${achados.length} · procurando mais`
         : conferindo

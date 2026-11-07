@@ -7,7 +7,7 @@ import { QtyStepper } from "@/components/ui/QtyStepper";
 import { DestinoSwitch } from "@/components/ui/Destino";
 import { quantoPedir, TambemNaLista } from "@/components/ui/TambemNaLista";
 import { useStore } from "@/lib/store";
-import { brl } from "@/lib/format";
+import { brl, tempoCurto } from "@/lib/format";
 import { findByName, unitFor } from "@/lib/defaults";
 import { NaoComprarBotoes } from "@/components/ui/NaoComprarBotoes";
 import { Sugestoes } from "./Sugestoes";
@@ -44,7 +44,7 @@ export function FilaFotos() {
             {trabalhando > 0 && <span className="h-3 w-3 animate-spin rounded-full border-2 border-bg/40 border-t-bg" />}
             {trabalhando > 0
               ? descanso > 0
-                ? `⏸ IA no limite · ${trabalhando} na fila · volta em ${descanso}s`
+                ? `⏸ IA no limite · ${trabalhando} na fila · volta em ${tempoCurto(descanso)}`
                 : `📷 Reconhecendo ${trabalhando} ${trabalhando > 1 ? "fotos" : "foto"}`
               : ""}
             {trabalhando > 0 && prontos.length > 0 ? " · " : ""}
