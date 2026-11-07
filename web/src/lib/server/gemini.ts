@@ -52,12 +52,20 @@ export async function gemini(corpo: unknown, forte = false, timeoutMs = 20000, p
   // levou 429 descansa o tempo que o Google pediu, por modelo.
   const inicio = vez++ % ks.length;
   let espera = Infinity;
+  // Houve opcao que falhou por motivo PASSAGEIRO (sobrecarga 503, demora, rede, prazo da
+  // rota)? Entao nao e "limite": um modelo com a cota do DIA esgotada (o 3.5-flash tem 20
+  // por dia) dizia "volta em 16 h" e a fila de fotos parava o dia inteiro, com os modelos
+  // lite cheios de cota (visto no uso real em 2026-11-07, conferido nas 3 chaves).
+  let passageiro = false;
   for (const modelo of modelos ?? (forte ? [...MODELOS].reverse() : MODELOS)) {
     for (let n = 0; n < ks.length; n++) {
       const i = (inicio + n) % ks.length;
       const id = `${modelo}|${i}`;
       const sobra = fim - Date.now();
-      if (sobra < 4000) break;
+      if (sobra < 4000) {
+        passageiro = true;
+        break;
+      }
       if (semModelo.has(id)) continue;
       const livre = descanso.get(id) ?? 0;
       if (livre > Date.now()) {
@@ -87,16 +95,24 @@ export async function gemini(corpo: unknown, forte = false, timeoutMs = 20000, p
           semModelo.add(id);
           continue;
         }
-        if (r.status >= 500) break; // modelo fora do ar: tenta o proximo
-        if (!r.ok) continue;
+        if (r.status >= 500) {
+          passageiro = true;
+          break; // modelo fora do ar ou sobrecarregado: tenta o proximo
+        }
+        if (!r.ok) {
+          passageiro = true;
+          continue;
+        }
         const j = (await r.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
         const txt = j.candidates?.[0]?.content?.parts?.[0]?.text;
         if (txt) return { ok: true, texto: txt };
+        passageiro = true; // respondeu vazio
       } catch {
-        // rede ou resposta quebrada: tenta a proxima chave
+        passageiro = true; // rede, demora ou resposta quebrada: tenta a proxima chave
       }
     }
   }
-  if (espera < Infinity) return { ok: false, erro: "limite", espera: Math.max(5, Math.ceil(espera / 1000)) };
+  // "limite" so quando TODAS as opcoes estao descansando; ai vale a menor espera.
+  if (espera < Infinity && !passageiro) return { ok: false, erro: "limite", espera: Math.max(5, Math.ceil(espera / 1000)) };
   return { ok: false, erro: "ia_falhou" };
 }
