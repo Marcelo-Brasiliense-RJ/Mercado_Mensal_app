@@ -13,30 +13,62 @@ import { FotoItem } from "@/components/ui/FotoItem";
 
 const qtdTxt = (n: number) => String(+n.toFixed(3)).replace(".", ",");
 
-// Falta pegar: o botao grande e o "Peguei".
-export function LinhaFalta({ i, busy, onPeguei }: { i: ShopItem; busy: boolean; onPeguei: () => void }) {
+// Card de foto da aba "Falta": tocar no produto = peguei. Grade de 3 por linha no
+// celular para bater o olho em muitos itens de uma vez (lista de 70 itens). Com
+// `resto`, e o item que foi pego em quantidade menor do que a lista pedia.
+export function CardFalta({
+  nome,
+  qtd,
+  unidade,
+  preco,
+  emCasa,
+  resto,
+  pegando,
+  onPegar,
+}: {
+  nome: string;
+  qtd: number;
+  unidade: string;
+  preco: number | null;
+  emCasa?: boolean;
+  resto?: boolean;
+  pegando: boolean;
+  onPegar: () => void;
+}) {
   return (
-    <li className="flex items-center gap-3 rounded-[16px] border-l-[5px] border-y border-r border-brand border-y-border border-r-border bg-card p-2.5 shadow-[0_1px_3px_var(--shadow)]">
-      <FotoItem nome={i.name} className="h-12 w-12 rounded-lg" />
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-[15px] font-bold">{i.name}</div>
-        <div className="text-[13px] text-text-3">
-          {qtdTxt(i.desired_quantity)} {i.unit}
-          {i.estimated_price ? ` · ~${brl(i.desired_quantity * i.estimated_price)}` : ""}
-        </div>
-        {i.em_estoque && (
-          <span className="mt-0.5 inline-block rounded-full bg-pos-soft px-2 py-[1px] text-[11px] font-bold text-pos">
-            já tem em casa
+    <li className={`transition-all duration-300 ${pegando ? "scale-90 opacity-0" : "scale-100 opacity-100"}`}>
+      <button
+        onClick={onPegar}
+        disabled={pegando}
+        aria-label={resto ? `Pegar o resto de ${nome}` : `Peguei ${nome}`}
+        className={`relative flex h-full w-full flex-col items-center rounded-[16px] border-2 bg-card px-1.5 pb-2 pt-2.5 text-center shadow-[0_1px_4px_var(--shadow)] transition-transform active:scale-95 ${
+          resto ? "border-warn bg-warn-soft" : "border-transparent"
+        }`}
+      >
+        <FotoItem nome={nome} className="h-[60px] w-[60px] rounded-xl" />
+        <span className="mt-1.5 line-clamp-2 min-h-[2.5em] w-full text-[13px] font-bold leading-[1.25]">{nome}</span>
+        <span className={`mt-0.5 text-[12px] font-bold ${resto ? "text-warn" : "text-text-3"}`}>
+          {resto ? `faltam ${qtdTxt(qtd)} ${unidade}` : `${qtdTxt(qtd)} ${unidade}`}
+          {!resto && preco ? ` · ${brl(qtd * preco)}` : ""}
+        </span>
+        {emCasa && (
+          <span className="absolute left-1.5 top-1.5 rounded-full bg-pos-soft px-1.5 text-[10px] font-extrabold text-pos">
+            tem em casa
           </span>
         )}
-      </div>
-      <button
-        onClick={onPeguei}
-        disabled={busy}
-        className="flex h-12 shrink-0 items-center gap-1.5 rounded-[13px] bg-brand px-3.5 text-[14px] font-extrabold text-brand-ink active:scale-95 transition-transform disabled:opacity-50"
-      >
-        <CartIcon size={18} />
-        Peguei
+        <span
+          className={`absolute right-1.5 top-1.5 grid h-7 w-7 place-items-center rounded-full ${
+            resto ? "bg-warn text-warn-ink" : "bg-brand text-brand-ink"
+          }`}
+          aria-hidden
+        >
+          <CartIcon size={15} />
+        </span>
+        {pegando && (
+          <span className="absolute inset-0 grid place-items-center rounded-[14px] bg-pos/85 text-white">
+            <CheckIcon size={34} />
+          </span>
+        )}
       </button>
     </li>
   );

@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { brl } from "@/lib/format";
 import { useStore } from "@/lib/store";
 import type { ShopItem, TripItem } from "@/lib/types";
 import { BarcodeIcon, CameraIcon, MicIcon, PlusIcon, SearchIcon } from "@/components/ui/icons";
+import { Interruptor } from "@/components/ui/Interruptor";
 import { FotoModal } from "@/components/lista/FotoModal";
 import { BarcodeModal } from "@/components/lista/BarcodeModal";
 import { CartItemModal } from "@/components/lista/CartItemModal";
@@ -24,20 +25,21 @@ import {
   setModoMercado,
   useModoMercado,
   useTrocas,
-  type GrupoMercado,
 } from "@/lib/modoMercado";
 import { DigitarCarrinho } from "./DigitarCarrinho";
 import { PainelGasto } from "./PainelGasto";
-import { LinhaCarrinho, LinhaFalta, LinhaTroca } from "./LinhasMercado";
+import { CardFalta, LinhaCarrinho, LinhaTroca } from "./LinhasMercado";
 import { RevisarFim } from "./RevisarFim";
 
-type Vista = "categorias" | "lista";
-type Filtro = "tudo" | "falta" | "peguei" | "fora";
+type Aba = "falta" | "carrinho";
 
-// Modo mercado: a aba do carrinho. Feita para o corredor, com o celular numa mao:
-// a conta do mes no topo, tres numeros (peguei / falta / fora da lista) que filtram,
-// categorias em cards e cada item com cor e icone do seu estado. Logica pura em
-// lib/modoMercado.ts.
+// Modo mercado: a aba do carrinho. Os PRODUTOS sao o centro da tela (antes o painel e os
+// cards de numero ocupavam tudo e, com 70 itens, nenhum aparecia sem rolar):
+// - resumo compacto no topo (total, barra da lista, orcamento);
+// - duas abas fixas ao rolar: "Falta" (grade de fotos, tocar = peguei) e "No carrinho"
+//   (cada item com − / +, preco e o comparativo com a lista);
+// - chips de categoria que filtram e, no carrinho, mostram quanto deu em cada uma.
+// Logica pura em lib/modoMercado.ts.
 export function MercadoView() {
   const router = useRouter();
   const ligado = useModoMercado();
@@ -59,11 +61,12 @@ export function MercadoView() {
   const cats = useCategorias();
   const trocas = useTrocas(trip?.trip_id ?? null);
 
-  const [vista, setVista] = useState<Vista>("categorias");
-  const [filtro, setFiltro] = useState<Filtro>("tudo");
-  const [aberta, setAberta] = useState<string | null>(null); // categoria filtrada
+  const [abaEscolhida, setAba] = useState<Aba | null>(null); // null = automatica
+  const [cat, setCat] = useState<string | null>(null);
   const [q, setQ] = useState("");
+  const [buscando, setBuscando] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
+  const [pegando, setPegando] = useState<Set<string>>(new Set());
   const [foto, setFoto] = useState(false);
   const [codigo, setCodigo] = useState(false);
   const [falar, setFalar] = useState(false);
@@ -72,41 +75,43 @@ export function MercadoView() {
   const [editar, setEditar] = useState<TripItem | null>(null);
   const [dispensadas, setDispensadas] = useState<Set<string>>(new Set());
 
+  const carrinho = trip?.items ?? [];
+  // Carrinho mais recente, para o "Desfazer" do aviso achar o item que acabou de entrar.
+  const carrinhoRef = useRef<TripItem[]>(carrinho);
+  const inicioRef = useRef<HTMLDivElement>(null); // comeco dos itens (buscar volta pra ca)
+  useEffect(() => {
+    carrinhoRef.current = trip?.items ?? [];
+  }, [trip]);
+
   // Categoria escolhida no estoque (se o item ja existe em casa), senao o palpite pelo nome.
   const catDe = (nome: string) =>
     categoriaDoItem({ name: nome, category: stock.find((x) => mesmoNome(x.name, nome))?.category }, cats);
+  const aqui = corredorAtual(carrinho, catDe);
+  // O corredor onde a pessoa esta (ultimo item pego) sobe para o topo da aba Falta.
   const ordem = (c: string) => {
+    if (c === aqui) return -1;
     const i = cats.findIndex((x) => x.nome === c);
     return i < 0 ? 999 : i;
   };
 
-  const carrinho = trip?.items ?? [];
   const r = montarMercado(shopping, carrinho, catDe, trocas, ordem);
   const total = trip?.total ?? 0;
-  // budget.spent = compras ja finalizadas no mes; o carrinho aberto ainda nao entrou nele.
   const conta = contaDoMes(budget.total, budget.spent, total, r.faltaValor);
   const sugestoes = r.sugestoes.filter((s) => !dispensadas.has(s.lista.id));
-  const aqui = corredorAtual(carrinho, catDe);
-  const grupoAqui = aqui ? r.grupos.find((g) => g.categoria === aqui) : null;
   const faltamN = r.totalLista - r.pegosLista + r.parciais;
-  const tudoPego = r.totalLista > 0 && faltamN === 0;
+  const aba: Aba = abaEscolhida ?? (faltamN === 0 && carrinho.length > 0 ? "carrinho" : "falta");
 
   if (!ligado) {
     return (
       <div className="mx-auto max-w-[420px] pt-10 text-center">
         <div className="text-[54px]" aria-hidden>🛒</div>
         <h1 className="mt-2 text-[22px] font-extrabold">Modo mercado desligado</h1>
-        <p className="mt-1 text-[14px] text-text-2">Ligue para ver o carrinho por categoria, o que falta e quanto está dando.</p>
+        <p className="mt-1 text-[14px] text-text-2">Ligue para ver o que falta, o que está no carrinho e quanto está dando.</p>
         <button onClick={() => setModoMercado(true)} className="mt-5 h-12 rounded-[14px] bg-brand px-6 text-[15px] font-bold text-brand-ink">
           Ligar modo mercado
         </button>
       </div>
     );
-  }
-
-  function desligar() {
-    setModoMercado(false);
-    router.push("/app/lista");
   }
 
   async function comecar() {
@@ -117,11 +122,23 @@ export function MercadoView() {
     showToast(x.ok ? "Compra aberta. Bora!" : x.erro);
   }
 
+  // Toque no card: o card some com um check verde, o item entra no carrinho e o aviso
+  // tem Desfazer (toque sem querer na grade e o erro mais facil de cometer aqui).
   async function peguei(i: ShopItem) {
-    setBusy(i.id);
+    setPegando((s) => new Set(s).add(i.id));
     const x = await addTripItem({ name: i.name, price: i.estimated_price ?? null, qty: i.desired_quantity, unit: i.unit });
-    setBusy(null);
-    showToast(x.ok ? `✅ ${i.name} no carrinho` : x.erro);
+    setPegando((s) => {
+      const n = new Set(s);
+      n.delete(i.id);
+      return n;
+    });
+    if (!x.ok) return showToast(x.erro);
+    showToast(`✅ ${i.name} no carrinho`, {
+      desfazer: async () => {
+        const t = carrinhoRef.current.find((c) => mesmoNome(c.name, i.name));
+        if (t) await removeTripItem(t.id);
+      },
+    });
   }
 
   // − e + na linha. Chegar a zero tira do carrinho, com Desfazer no aviso.
@@ -166,301 +183,205 @@ export function MercadoView() {
     showToast(x.ok ? "Compra cancelada" : x.erro);
   }
 
-  function verLista(f: Filtro, cat: string | null = null) {
-    setVista("lista");
-    setFiltro(f);
-    setAberta(cat);
+  function trocarAba(a: Aba) {
+    setAba(a);
+    setCat(null);
   }
 
   const busca = q.trim().toLowerCase();
   const casa = (nome: string) => !busca || nome.toLowerCase().includes(busca);
-  const grupos = r.grupos.filter((g) => !aberta || g.categoria === aberta);
+
+  // Chips de categoria da aba atual: na Falta, quantos faltam; no carrinho, quanto deu.
+  const chips = r.grupos
+    .map((g) => ({
+      categoria: g.categoria,
+      falta: g.faltam.length + g.pegos.filter((p) => p.faltaQtd > 0).length,
+      itens: g.noCarrinho.length,
+      total: g.total,
+    }))
+    .filter((c) => (aba === "falta" ? c.falta > 0 : c.itens > 0));
+  const catAtiva = cat && chips.some((c) => c.categoria === cat) ? cat : null;
+  const grupos = r.grupos.filter((g) => !catAtiva || g.categoria === catAtiva);
+
   const acao =
-    "flex flex-col items-center justify-center gap-1.5 rounded-[18px] border border-border bg-card py-3 text-[13px] font-bold shadow-[0_1px_3px_var(--shadow)] active:scale-95 transition-transform";
-  const titulo = `🛒 ${noMercado && mercado ? `No ${nomeMercado(mercado)}` : trip ? "Comprando" : "Modo mercado"}`;
+    "flex h-12 items-center justify-center gap-1.5 rounded-[14px] border border-border bg-card text-[13px] font-bold shadow-[0_1px_3px_var(--shadow)] transition-transform active:scale-95";
+  const titulo = `🛒 ${noMercado && mercado ? `No ${nomeMercado(mercado)}` : "No carrinho"} · ${carrinho.length} ${carrinho.length === 1 ? "item" : "itens"}`;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <QualMercado />
 
-      <PainelGasto r={r} conta={conta} titulo={titulo} itens={carrinho.length} onDesligar={desligar} />
-
-      {/* Tres numeros que respondem tudo; tocar filtra a listagem. */}
-      <div className="grid grid-cols-3 gap-2">
-        <Contador
-          cor="pos"
-          icone="✅"
-          rotulo="Peguei"
-          n={r.pegosLista}
-          sub={r.totalLista ? `de ${r.totalLista} da lista` : "da lista"}
-          ativo={vista === "lista" && filtro === "peguei"}
-          onClick={() => verLista("peguei")}
-        />
-        <Contador
-          cor="brand"
-          icone="⏳"
-          rotulo="Falta"
-          n={faltamN}
-          sub={r.faltaValor > 0 ? `~${brl(r.faltaValor)}` : faltamN ? "itens" : "nada!"}
-          ativo={vista === "lista" && filtro === "falta"}
-          onClick={() => verLista("falta")}
-        />
-        <Contador
-          cor="text-3"
-          icone="➕"
-          rotulo="Extras"
-          n={r.qtdFora}
-          sub={r.qtdFora ? `${brl(r.valorFora)} fora` : "fora da lista"}
-          ativo={vista === "lista" && filtro === "fora"}
-          onClick={() => verLista("fora")}
-        />
-      </div>
+      <PainelGasto r={r} conta={conta} titulo={titulo} />
 
       {!trip && (
         <button
           onClick={comecar}
           disabled={busy === "abrir"}
-          className="flex w-full items-center gap-3 rounded-[18px] border-2 border-brand bg-brand-soft px-4 py-3.5 text-left disabled:opacity-60"
+          className="flex w-full items-center gap-3 rounded-[16px] border-2 border-brand bg-brand-soft px-4 py-2.5 text-left disabled:opacity-60"
         >
-          <span className="text-[28px]" aria-hidden>🚀</span>
+          <span className="text-[24px]" aria-hidden>🚀</span>
           <span className="min-w-0 flex-1">
-            <span className="block text-[17px] font-extrabold text-brand">Começar a compra</span>
-            <span className="block text-[13px] text-text-2">Ou só vá pegando: o carrinho abre sozinho</span>
+            <span className="block text-[16px] font-extrabold text-brand">Começar a compra</span>
+            <span className="block text-[12px] text-text-2">Ou só toque no que pegar: o carrinho abre sozinho</span>
           </span>
         </button>
       )}
 
-      {/* As 4 formas de por no carrinho, a um toque. */}
+      {/* As 4 formas de por no carrinho, numa linha so. */}
       <div className="grid grid-cols-4 gap-2">
         <button onClick={() => setFoto(true)} className={acao}>
-          <CameraIcon size={24} />
+          <CameraIcon size={19} />
           Foto
         </button>
         <button onClick={() => setCodigo(true)} className={acao}>
-          <BarcodeIcon size={24} />
+          <BarcodeIcon size={19} />
           Código
         </button>
         <button onClick={() => setFalar(true)} className={acao}>
-          <MicIcon size={24} />
+          <MicIcon size={19} />
           Falar
         </button>
         <button onClick={() => setDigitar(true)} className={acao}>
-          <PlusIcon size={24} />
+          <PlusIcon size={19} />
           Digitar
         </button>
       </div>
 
-      {tudoPego && (
-        <div className="rounded-[18px] bg-pos-soft p-3.5 text-center text-[16px] font-extrabold text-pos">
-          🎉 Pegou tudo da lista! Só falta o caixa.
-        </div>
-      )}
-
-      {/* Lembrete do corredor: pegou algo daqui e ainda falta coisa da lista aqui. */}
-      {grupoAqui && grupoAqui.faltam.length > 0 && (
-        <div className="rounded-[18px] border-2 border-warn bg-warn-soft p-3.5">
-          <div className="text-[15px] font-extrabold">
-            {iconeDe(cats, grupoAqui.categoria)} Você está em {grupoAqui.categoria}
-          </div>
-          <div className="mt-0.5 text-[13px] text-text-2">Aproveite: aqui ainda falta pegar</div>
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {grupoAqui.faltam.map((f) => (
-              <button
-                key={f.id}
-                onClick={() => peguei(f)}
-                disabled={busy === f.id}
-                className="inline-flex h-10 items-center gap-1.5 rounded-full border border-border bg-card px-3 text-[13px] font-bold disabled:opacity-50"
-              >
-                {f.name} <span className="text-brand">+ pegar</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* "Pegou X de limpeza e na lista tem Y parecido": e o mesmo? */}
       {trip &&
         sugestoes.map((s) => (
-          <div key={s.lista.id} className="rounded-[18px] border-2 border-brand/40 bg-card p-3.5">
-            <div className="flex items-center gap-3">
-              <span className="text-[26px]" aria-hidden>🔄</span>
-              <div className="min-w-0 flex-1 text-[14px] leading-snug">
-                Você pegou <b>{s.carrinho.name}</b>. Na lista tem <b>{s.lista.name}</b>. É o mesmo?
-              </div>
+          <div key={s.lista.id} className="flex items-center gap-2.5 rounded-[16px] border-2 border-brand/40 bg-card p-2.5">
+            <span className="text-[22px]" aria-hidden>🔄</span>
+            <div className="min-w-0 flex-1 text-[13px] leading-snug">
+              Pegou <b>{s.carrinho.name}</b>. É o <b>{s.lista.name}</b> da lista?
             </div>
-            <div className="mt-2.5 flex gap-2">
-              <button
-                onClick={() => marcarTroca(trip.trip_id, s.lista.id, s.carrinho.name)}
-                className="h-11 flex-1 rounded-[12px] bg-brand text-[14px] font-bold text-brand-ink"
-              >
-                Sim, já peguei
-              </button>
-              <button
-                onClick={() => setDispensadas((d) => new Set(d).add(s.lista.id))}
-                className="h-11 flex-1 rounded-[12px] border border-border bg-card text-[14px] font-bold"
-              >
-                Não, falta pegar
-              </button>
-            </div>
+            <button
+              onClick={() => marcarTroca(trip.trip_id, s.lista.id, s.carrinho.name)}
+              className="h-10 shrink-0 rounded-[11px] bg-brand px-3 text-[13px] font-bold text-brand-ink"
+            >
+              Sim
+            </button>
+            <button
+              onClick={() => setDispensadas((d) => new Set(d).add(s.lista.id))}
+              className="h-10 shrink-0 rounded-[11px] border border-border px-3 text-[13px] font-bold"
+            >
+              Não
+            </button>
           </div>
         ))}
 
-      {/* Visual (categorias) ou listagem. */}
-      <div className="flex rounded-[14px] bg-card-2 p-1" role="tablist">
-        {(
-          [
-            ["categorias", "🧩 Categorias"],
-            ["lista", "📋 Listagem"],
-          ] as const
-        ).map(([v, rot]) => (
+      {/* Abas + categorias: ficam presas no topo enquanto rola a lista. */}
+      <div className="sticky top-0 z-10 -mx-4 space-y-2 bg-bg/95 px-4 pb-2 pt-2 backdrop-blur lg:-mx-9 lg:px-9">
+        <div className="grid grid-cols-2 gap-2" role="tablist">
           <button
-            key={v}
             role="tab"
-            aria-selected={vista === v}
-            onClick={() => {
-              if (v === "categorias") {
-                setVista(v);
-                setAberta(null);
-              } else verLista(filtro, aberta);
-            }}
-            className={`h-11 flex-1 rounded-[11px] text-[15px] font-bold ${vista === v ? "bg-card shadow-[0_1px_4px_var(--shadow)]" : "text-text-2"}`}
+            aria-selected={aba === "falta"}
+            onClick={() => trocarAba("falta")}
+            className={`flex h-[52px] items-center justify-center gap-2 rounded-[14px] text-[16px] font-extrabold transition-colors ${
+              aba === "falta" ? "bg-brand text-brand-ink shadow-[0_4px_12px_var(--shadow)]" : "border-2 border-border bg-card text-text-2"
+            }`}
           >
-            {rot}
+            ⏳ Falta
+            <span
+              key={faltamN}
+              className={`ic-pop min-w-[30px] rounded-full px-2 py-0.5 text-[15px] tabular-nums ${aba === "falta" ? "bg-black/15" : "bg-brand-soft text-brand"}`}
+            >
+              {faltamN}
+            </span>
           </button>
-        ))}
-      </div>
-
-      {r.grupos.length === 0 && (
-        <p className="pt-6 text-center text-[15px] leading-relaxed text-text-3">
-          Nada na lista nem no carrinho ainda. Use <b>Foto</b>, <b>Código</b>, <b>Falar</b> ou <b>Digitar</b> para pôr o
-          primeiro item.
-        </p>
-      )}
-
-      {vista === "categorias" ? (
-        <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-3">
-          {r.grupos.map((g) => (
-            <CardCategoria key={g.categoria} g={g} icone={iconeDe(cats, g.categoria)} onClick={() => verLista("tudo", g.categoria)} />
-          ))}
+          <button
+            role="tab"
+            aria-selected={aba === "carrinho"}
+            onClick={() => trocarAba("carrinho")}
+            className={`flex h-[52px] items-center justify-center gap-2 rounded-[14px] text-[16px] font-extrabold transition-colors ${
+              aba === "carrinho" ? "bg-pos text-white shadow-[0_4px_12px_var(--shadow)]" : "border-2 border-border bg-card text-text-2"
+            }`}
+          >
+            🛒 Carrinho
+            <span
+              key={carrinho.length}
+              className={`ic-pop min-w-[30px] rounded-full px-2 py-0.5 text-[15px] tabular-nums ${aba === "carrinho" ? "bg-black/15" : "bg-pos-soft text-pos"}`}
+            >
+              {carrinho.length}
+            </span>
+          </button>
         </div>
-      ) : (
-        <>
-          {r.totalLista + carrinho.length > 6 && (
-            <div className="relative">
-              <SearchIcon size={18} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-text-3" />
-              <input
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder="Procurar no carrinho ou na lista..."
-                className="h-[46px] w-full rounded-[13px] border border-border bg-card pl-[42px] pr-4 text-[15px]"
-              />
-            </div>
-          )}
-          <div className="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-0.5" data-sem-gesto>
-            {(
-              [
-                ["tudo", "Tudo"],
-                ["falta", `⏳ Falta ${faltamN}`],
-                ["peguei", `✅ Peguei ${r.pegosLista}`],
-                ["fora", `➕ Fora ${r.qtdFora}`],
-              ] as const
-            ).map(([f, rot]) => (
+
+        {buscando && (
+          <div className="relative">
+            <SearchIcon size={18} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-text-3" />
+            <input
+              autoFocus
+              value={q}
+              onChange={(e) => {
+                setQ(e.target.value);
+                inicioRef.current?.scrollIntoView({ block: "start" });
+              }}
+              placeholder={aba === "falta" ? "Procurar o que falta..." : "Procurar no carrinho..."}
+              className="h-[44px] w-full rounded-[13px] border border-border bg-card pl-[42px] pr-4 text-[15px]"
+            />
+          </div>
+        )}
+
+        {(chips.length > 1 || r.totalLista + carrinho.length > 8) && (
+          <div className="-mx-4 flex gap-1.5 overflow-x-auto px-4 [scrollbar-width:none] lg:-mx-9 lg:px-9" data-sem-gesto>
+            <button
+              onClick={() => {
+                if (buscando) setQ("");
+                setBuscando(!buscando);
+              }}
+              aria-label={buscando ? "Fechar busca" : "Procurar"}
+              aria-pressed={buscando}
+              className={`grid h-9 w-9 shrink-0 place-items-center rounded-full ${
+                buscando || busca ? "bg-text text-bg" : "border border-border bg-card text-text-2"
+              }`}
+            >
+              {buscando ? "✕" : <SearchIcon size={16} />}
+            </button>
+            <button
+              onClick={() => setCat(null)}
+              aria-pressed={!catAtiva}
+              className={`h-9 shrink-0 rounded-full px-3 text-[13px] font-bold ${
+                !catAtiva ? "bg-text text-bg" : "border border-border bg-card text-text-2"
+              }`}
+            >
+              Todas
+            </button>
+            {chips.map((c) => (
               <button
-                key={f}
-                onClick={() => setFiltro(f)}
-                aria-pressed={filtro === f}
-                className={`h-10 shrink-0 rounded-full px-3.5 text-[13px] font-bold ${
-                  filtro === f ? "bg-brand text-brand-ink" : "border border-border bg-card text-text-2"
+                key={c.categoria}
+                onClick={() => setCat(catAtiva === c.categoria ? null : c.categoria)}
+                aria-pressed={catAtiva === c.categoria}
+                className={`flex h-9 shrink-0 items-center gap-1 rounded-full px-3 text-[13px] font-bold ${
+                  catAtiva === c.categoria ? "bg-text text-bg" : "border border-border bg-card text-text-2"
                 }`}
               >
-                {rot}
+                <span aria-hidden>{iconeDe(cats, c.categoria)}</span>
+                {c.categoria === aqui && aba === "falta" && <span aria-label="você está aqui">📍</span>}
+                <span className="max-w-[110px] truncate">{c.categoria}</span>
+                <span className="tabular-nums opacity-80">{aba === "falta" ? c.falta : brl(c.total)}</span>
               </button>
             ))}
-            {aberta && (
-              <button
-                onClick={() => setAberta(null)}
-                className="h-10 shrink-0 rounded-full border-2 border-brand bg-brand-soft px-3.5 text-[13px] font-bold text-brand"
-              >
-                {iconeDe(cats, aberta)} {aberta} ✕
-              </button>
-            )}
           </div>
+        )}
+      </div>
 
-          {(() => {
-            const secoes = grupos.map((g) => {
-              const pegoDe = new Map(g.pegos.filter((p) => p.carrinho).map((p) => [p.carrinho!.id, p]));
-              const faltam = filtro === "tudo" || filtro === "falta" ? g.faltam.filter((i) => casa(i.name)) : [];
-              const noCarrinho = g.noCarrinho.filter((t) => {
-                if (!casa(t.name)) return false;
-                const fora = g.foraDaLista.includes(t);
-                const parcial = (pegoDe.get(t.id)?.faltaQtd ?? 0) > 0;
-                if (filtro === "fora") return fora;
-                if (filtro === "peguei") return !fora;
-                if (filtro === "falta") return parcial; // pegou menos do que a lista pedia
-                return true;
-              });
-              const trocados =
-                filtro === "tudo" || filtro === "peguei" ? g.pegos.filter((p) => p.trocadoPor && casa(p.item.name)) : [];
-              if (!faltam.length && !noCarrinho.length && !trocados.length) return null;
-              const daLista = g.pegos.length + g.faltam.length;
-              return (
-                <section key={g.categoria} className="space-y-2">
-                  <div className="flex items-center justify-between gap-2 px-1 pt-1">
-                    <h2 className="flex items-center gap-2 text-[17px] font-extrabold">
-                      <span className="text-[22px]" aria-hidden>{iconeDe(cats, g.categoria)}</span>
-                      {g.categoria}
-                    </h2>
-                    <span className="flex items-center gap-1.5 text-[13px] font-bold tabular-nums text-text-2">
-                      {daLista > 0 && (
-                        <span className={`rounded-full px-2 py-[1px] ${g.faltam.length ? "bg-brand-soft text-brand" : "bg-pos-soft text-pos"}`}>
-                          {g.pegos.length}/{daLista}
-                        </span>
-                      )}
-                      {brl(g.total)}
-                    </span>
-                  </div>
-                  <ul className="space-y-2">
-                    {faltam.map((i) => (
-                      <LinhaFalta key={i.id} i={i} busy={busy === i.id} onPeguei={() => peguei(i)} />
-                    ))}
-                    {noCarrinho.map((t) => {
-                      const p = pegoDe.get(t.id);
-                      return (
-                        <LinhaCarrinho
-                          key={t.id}
-                          t={t}
-                          pego={p}
-                          fora={g.foraDaLista.includes(t)}
-                          busy={busy === t.id}
-                          onQtd={(n) => mudarQtd(t, n)}
-                          onEditar={() => setEditar(t)}
-                          onResto={p && p.faltaQtd > 0 ? () => mudarQtd(t, p.item.desired_quantity) : undefined}
-                        />
-                      );
-                    })}
-                    {trocados.map(({ item, trocadoPor }) => (
-                      <LinhaTroca
-                        key={item.id}
-                        item={item}
-                        por={trocadoPor!}
-                        onDesfazer={() => trip && marcarTroca(trip.trip_id, item.id, null)}
-                      />
-                    ))}
-                  </ul>
-                </section>
-              );
-            });
-            return secoes.some(Boolean) ? (
-              secoes
-            ) : (
-              <p className="pt-4 text-center text-[15px] text-text-3">
-                {filtro === "falta" ? "🎉 Nada faltando aqui." : busca ? "Nenhum item encontrado." : "Nada por aqui ainda."}
-              </p>
-            );
-          })()}
-        </>
-      )}
+      {/* scroll-mt: para o comeco dos itens nao ficar atras das abas presas no topo */}
+      <div ref={inicioRef} className="scroll-mt-[160px]" aria-hidden />
+      {aba === "falta" ? abaFalta() : abaCarrinho()}
 
+      {/* Sair do modo e cancelar ficam no fim: longe do polegar, sem toque sem querer. */}
+      <div className="flex items-center justify-between gap-3 rounded-[16px] border border-border bg-card px-4 py-3">
+        <span className="text-[14px] font-bold text-text-2">Modo mercado</span>
+        <Interruptor
+          ligado
+          rotulo="Desligar modo mercado"
+          onChange={() => {
+            setModoMercado(false);
+            router.push("/app/lista");
+          }}
+        />
+      </div>
       {trip && (
         <button onClick={cancelar} disabled={busy === "fim"} className="mx-auto block h-11 px-4 text-[14px] font-bold text-neg disabled:opacity-50">
           Cancelar compra
@@ -516,87 +437,151 @@ export function MercadoView() {
       <CartItemModal item={editar} onClose={() => setEditar(null)} />
     </div>
   );
-}
 
-// Numero grande que filtra a listagem.
-const CORES = {
-  pos: { n: "text-pos", borda: "border-pos" },
-  brand: { n: "text-brand", borda: "border-brand" },
-  "text-3": { n: "text-text-2", borda: "border-text-3" },
-} as const;
+  // Aba "Falta": grade de fotos por categoria. Tocar = peguei. Parcial (pegou menos do
+  // que a lista pedia) aparece em amarelo, e tocar completa a quantidade.
+  function abaFalta() {
+    const secoes = grupos
+      .map((g) => ({
+        g,
+        faltam: g.faltam.filter((i) => casa(i.name)),
+        restos: g.pegos.filter((p) => p.faltaQtd > 0 && p.carrinho && casa(p.item.name)),
+      }))
+      .filter((x) => x.faltam.length + x.restos.length > 0);
 
-function Contador({
-  cor,
-  icone,
-  rotulo,
-  n,
-  sub,
-  ativo,
-  onClick,
-}: {
-  cor: keyof typeof CORES;
-  icone: string;
-  rotulo: string;
-  n: number;
-  sub: string;
-  ativo: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      aria-pressed={ativo}
-      className={`flex min-w-0 flex-col items-start rounded-[18px] border-2 bg-card px-3 py-2.5 text-left shadow-[0_1px_3px_var(--shadow)] active:scale-95 transition-transform ${
-        ativo ? CORES[cor].borda : "border-transparent"
-      }`}
-    >
-      <span className="w-full truncate text-[12px] font-bold text-text-2">
-        {icone} {rotulo}
-      </span>
-      <span className={`text-[30px] font-extrabold leading-none tabular-nums ${CORES[cor].n}`}>{n}</span>
-      <span className="mt-0.5 w-full truncate text-[12px] font-bold text-text-3">{sub}</span>
-    </button>
-  );
-}
+    if (!secoes.length)
+      return (
+        <div className="rounded-[18px] bg-pos-soft p-6 text-center">
+          <div className="text-[40px]" aria-hidden>{r.totalLista ? "🎉" : "📝"}</div>
+          <div className="mt-1 text-[17px] font-extrabold text-pos">
+            {busca ? "Nada com esse nome faltando" : r.totalLista ? "Pegou tudo da lista!" : "Sua lista está vazia"}
+          </div>
+          <div className="mt-1 text-[13px] text-text-2">
+            {r.totalLista ? "Confira o carrinho e finalize no caixa." : "Use Foto, Código, Falar ou Digitar para pôr itens no carrinho."}
+          </div>
+          {carrinho.length > 0 && (
+            <button onClick={() => trocarAba("carrinho")} className="mt-3 h-11 rounded-[12px] bg-pos px-5 text-[14px] font-bold text-white">
+              Ver carrinho ({carrinho.length})
+            </button>
+          )}
+        </div>
+      );
 
-// Card da categoria: icone grande, quanto da lista ja foi pego e quanto esta dando.
-function CardCategoria({ g, icone, onClick }: { g: GrupoMercado; icone: string; onClick: () => void }) {
-  const daLista = g.pegos.length + g.faltam.length;
-  const incompletos = g.pegos.filter((p) => p.faltaQtd > 0).length;
-  const completo = daLista > 0 && g.faltam.length === 0 && incompletos === 0;
-  const pct = daLista ? g.pegos.length / daLista : 1;
-  return (
-    <button
-      onClick={onClick}
-      className={`relative flex flex-col rounded-[18px] border-2 p-3 text-left shadow-[0_1px_3px_var(--shadow)] active:scale-[.98] transition-transform ${
-        completo ? "border-pos bg-pos-soft/50" : "border-border bg-card"
-      }`}
-    >
-      {completo && <span className="absolute right-2.5 top-2.5 text-[18px]" aria-label="Completo">✅</span>}
-      {!completo && g.faltam.length + incompletos > 0 && (
-        <span className="absolute right-2.5 top-2.5 rounded-full bg-brand px-2 py-[1px] text-[12px] font-extrabold text-brand-ink">
-          falta {g.faltam.length + incompletos}
-        </span>
-      )}
-      <span className="text-[34px] leading-none" aria-hidden>{icone}</span>
-      <span className="mt-1.5 line-clamp-1 text-[14px] font-extrabold">{g.categoria}</span>
-      <span className="mt-0.5 text-[21px] font-extrabold leading-tight tabular-nums">{brl(g.total)}</span>
-      {daLista > 0 ? (
-        <>
-          <span className="mt-1.5 h-2 overflow-hidden rounded-full bg-card-2">
-            <span
-              className={`block h-full rounded-full transition-[width] ${completo ? "bg-pos" : "bg-brand"}`}
-              style={{ width: `${Math.max(pct * 100, 4)}%` }}
-            />
-          </span>
-          <span className="mt-1 text-[12px] font-bold text-text-2">
-            {g.pegos.length} de {daLista} da lista
-            {g.falta > 0 && <span className="text-text-3"> · ~{brl(g.falta)}</span>}
-          </span>
-        </>
-      ) : (
-        <span className="mt-1.5 text-[12px] font-bold text-text-3">➕ {g.noCarrinho.length} fora da lista</span>
-      )}
-    </button>
-  );
+    return (
+      <>
+        {carrinho.length === 0 && (
+          <p className="px-1 text-[13px] font-bold text-text-3">👆 Toque no produto quando colocar no carrinho</p>
+        )}
+        {secoes.map(({ g, faltam, restos }) => (
+          <section key={g.categoria}>
+            <h2 className="mb-2 flex items-center gap-2 px-1 text-[16px] font-extrabold">
+              <span className="text-[20px]" aria-hidden>{iconeDe(cats, g.categoria)}</span>
+              {g.categoria}
+              {g.categoria === aqui && (
+                <span className="rounded-full bg-warn-soft px-2 py-[1px] text-[11px] font-extrabold text-warn">📍 você está aqui</span>
+              )}
+              <span className="ml-auto text-[13px] font-bold tabular-nums text-text-3">
+                {faltam.length + restos.length}
+                {g.falta > 0 && ` · ~${brl(g.falta)}`}
+              </span>
+            </h2>
+            <ul className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6">
+              {restos.map((p) => (
+                <CardFalta
+                  key={p.item.id}
+                  nome={p.item.name}
+                  qtd={p.faltaQtd}
+                  unidade={p.item.unit}
+                  preco={null}
+                  resto
+                  pegando={busy === p.carrinho!.id}
+                  onPegar={() => mudarQtd(p.carrinho!, p.item.desired_quantity)}
+                />
+              ))}
+              {faltam.map((i) => (
+                <CardFalta
+                  key={i.id}
+                  nome={i.name}
+                  qtd={i.desired_quantity}
+                  unidade={i.unit}
+                  preco={i.estimated_price}
+                  emCasa={i.em_estoque}
+                  pegando={pegando.has(i.id)}
+                  onPegar={() => peguei(i)}
+                />
+              ))}
+            </ul>
+          </section>
+        ))}
+      </>
+    );
+  }
+
+  // Aba "No carrinho": o que ja pegou, por categoria, com quanto deu em cada uma.
+  function abaCarrinho() {
+    const secoes = grupos
+      .map((g) => {
+        const pegoDe = new Map(g.pegos.filter((p) => p.carrinho && !p.trocadoPor).map((p) => [p.carrinho!.id, p]));
+        return {
+          g,
+          pegoDe,
+          itens: g.noCarrinho.filter((t) => casa(t.name)),
+          trocados: g.pegos.filter((p) => p.trocadoPor && casa(p.item.name)),
+        };
+      })
+      .filter((x) => x.itens.length + x.trocados.length > 0);
+
+    if (!secoes.length)
+      return (
+        <div className="rounded-[18px] border-2 border-dashed border-border p-6 text-center">
+          <div className="text-[40px]" aria-hidden>🛒</div>
+          <div className="mt-1 text-[17px] font-extrabold">{busca ? "Nada com esse nome no carrinho" : "Carrinho vazio"}</div>
+          <div className="mt-1 text-[13px] text-text-2">Na aba Falta, toque no produto quando pegar.</div>
+          {faltamN > 0 && (
+            <button onClick={() => trocarAba("falta")} className="mt-3 h-11 rounded-[12px] bg-brand px-5 text-[14px] font-bold text-brand-ink">
+              Ver o que falta ({faltamN})
+            </button>
+          )}
+        </div>
+      );
+
+    return (
+      <>
+        {secoes.map(({ g, pegoDe, itens, trocados }) => (
+          <section key={g.categoria} className="space-y-2">
+            <h2 className="flex items-center gap-2 px-1 text-[16px] font-extrabold">
+              <span className="text-[20px]" aria-hidden>{iconeDe(cats, g.categoria)}</span>
+              {g.categoria}
+              <span className="ml-auto text-[15px] font-extrabold tabular-nums">{brl(g.total)}</span>
+            </h2>
+            <ul className="space-y-2">
+              {itens.map((t) => {
+                const p = pegoDe.get(t.id);
+                return (
+                  <LinhaCarrinho
+                    key={t.id}
+                    t={t}
+                    pego={p}
+                    fora={g.foraDaLista.includes(t)}
+                    busy={busy === t.id}
+                    onQtd={(n) => mudarQtd(t, n)}
+                    onEditar={() => setEditar(t)}
+                    onResto={p && p.faltaQtd > 0 ? () => mudarQtd(t, p.item.desired_quantity) : undefined}
+                  />
+                );
+              })}
+              {trocados.map(({ item, trocadoPor }) => (
+                <LinhaTroca
+                  key={item.id}
+                  item={item}
+                  por={trocadoPor!}
+                  onDesfazer={() => trip && marcarTroca(trip.trip_id, item.id, null)}
+                />
+              ))}
+            </ul>
+          </section>
+        ))}
+      </>
+    );
+  }
 }
