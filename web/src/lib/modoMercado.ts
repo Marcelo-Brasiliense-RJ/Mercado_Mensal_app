@@ -125,13 +125,20 @@ export function parecido(a: string, b: string): boolean {
   return !!pa && pa === palavras(b)[0];
 }
 
-export type LinhaFalta = { item: ShopItem; trocadoPor?: string };
+// Item da lista ja resolvido: pego com o mesmo nome (carrinho) ou trocado por outro.
+export type LinhaPego = {
+  item: ShopItem;
+  carrinho?: TripItem;
+  trocadoPor?: string;
+  faltaQtd: number; // pegou menos do que a lista pedia (mesma unidade); 0 = completo
+  diffPreco: number | null; // pago - pesquisado, por unidade; null = sem preco na lista
+};
 export type Sugestao = { lista: ShopItem; carrinho: TripItem };
 
 export type GrupoMercado = {
   categoria: string;
   noCarrinho: TripItem[]; // tudo que foi pego nesta categoria
-  pegos: LinhaFalta[]; // itens da lista ja resolvidos (no carrinho ou trocados)
+  pegos: LinhaPego[]; // itens da lista ja resolvidos (no carrinho ou trocados)
   faltam: ShopItem[]; // itens da lista que ainda nao foram pegos
   foraDaLista: TripItem[]; // pego sem estar na lista
   total: number; // R$ no carrinho nesta categoria
@@ -143,8 +150,15 @@ export type ResumoMercado = {
   sugestoes: Sugestao[];
   totalLista: number; // itens da lista nesta compra
   pegosLista: number;
-  faltaValor: number;
+  parciais: number; // pegos com menos do que a lista pedia
+  faltaValor: number; // R$ estimado do que falta (inclui o resto dos parciais)
+  valorDaLista: number; // R$ no carrinho de itens da lista
+  valorFora: number; // R$ no carrinho fora da lista
+  qtdFora: number;
+  vsPesquisado: number; // soma de (pesquisado - pago) x qtd: >0 economizou, <0 pagou mais
 };
+
+const mesmaUnidade = (a: string, b: string) => norm(a) === norm(b);
 
 export function montarMercado(
   lista: ShopItem[],
@@ -165,26 +179,39 @@ export function montarMercado(
   };
 
   const usados = new Set<string>(); // ids do carrinho que casaram com a lista
+  let vsPesquisado = 0;
   for (const i of pendentes) {
     const g = grupo(categoria(i.name));
     const c = carrinho.find((t) => mesmoNome(t.name, i.name));
+    const est = i.estimated_price && i.estimated_price > 0 ? i.estimated_price : null;
     if (c) {
       usados.add(c.id);
-      g.pegos.push({ item: i });
+      const faltaQtd = mesmaUnidade(c.unit, i.unit) ? Math.max(0, +(i.desired_quantity - c.quantity).toFixed(3)) : 0;
+      const diffPreco = est != null ? +(c.unit_price - est).toFixed(2) : null;
+      if (diffPreco != null) vsPesquisado += -diffPreco * c.quantity;
+      if (faltaQtd > 0) g.falta += faltaQtd * (est ?? c.unit_price);
+      g.pegos.push({ item: i, carrinho: c, faltaQtd, diffPreco });
     } else if (trocas[i.id]) {
       const t = carrinho.find((x) => mesmoNome(x.name, trocas[i.id]));
       if (t) usados.add(t.id);
-      g.pegos.push({ item: i, trocadoPor: trocas[i.id] });
+      g.pegos.push({ item: i, carrinho: t, trocadoPor: trocas[i.id], faltaQtd: 0, diffPreco: null });
     } else {
       g.faltam.push(i);
-      g.falta += i.desired_quantity * (i.estimated_price ?? 0);
+      g.falta += i.desired_quantity * (est ?? 0);
     }
   }
+  let valorFora = 0;
+  let qtdFora = 0;
   for (const t of carrinho) {
     const g = grupo(categoria(t.name));
+    const v = t.quantity * t.unit_price;
     g.noCarrinho.push(t);
-    g.total += t.quantity * t.unit_price;
-    if (!usados.has(t.id)) g.foraDaLista.push(t);
+    g.total += v;
+    if (!usados.has(t.id)) {
+      g.foraDaLista.push(t);
+      valorFora += v;
+      qtdFora++;
+    }
   }
 
   // "Pegou X de limpeza e na lista tem Y de limpeza parecido": pergunta se e o mesmo.
@@ -195,17 +222,49 @@ export function montarMercado(
       if (c) sugestoes.push({ lista: f, carrinho: c });
     }
 
+  // Categoria que ainda tem o que pegar vem primeiro (na ordem dos corredores); a
+  // completa desce: a tela mostra primeiro o que ainda pede atencao.
+  const completa = (g: GrupoMercado) => (g.faltam.length === 0 && !g.pegos.some((p) => p.faltaQtd > 0) ? 1 : 0);
   const lista_ = [...grupos.values()].sort(
-    (a, b) => ordem(a.categoria) - ordem(b.categoria) || a.categoria.localeCompare(b.categoria),
+    (a, b) =>
+      completa(a) - completa(b) || ordem(a.categoria) - ordem(b.categoria) || a.categoria.localeCompare(b.categoria),
   );
-  const pegosLista = lista_.reduce((a, g) => a + g.pegos.length, 0);
+  const total = carrinho.reduce((a, t) => a + t.quantity * t.unit_price, 0);
   return {
     grupos: lista_,
     sugestoes,
     totalLista: pendentes.length,
-    pegosLista,
+    pegosLista: lista_.reduce((a, g) => a + g.pegos.length, 0),
+    parciais: lista_.reduce((a, g) => a + g.pegos.filter((p) => p.faltaQtd > 0).length, 0),
     faltaValor: lista_.reduce((a, g) => a + g.falta, 0),
+    valorDaLista: total - valorFora,
+    valorFora,
+    qtdFora,
+    vsPesquisado: +vsPesquisado.toFixed(2),
   };
+}
+
+// Conta do mes: ja gasto antes desta compra + carrinho + o que falta (estimado),
+// contra o orcamento. E a resposta para "vai caber?" antes de chegar no caixa.
+export type Conta = {
+  orcamento: number; // 0 = sem orcamento
+  antes: number; // gasto no mes antes desta compra
+  carrinho: number;
+  falta: number;
+  previsto: number; // antes + carrinho + falta
+  sobraAgora: number | null; // orcamento - antes - carrinho
+  sobraNoFim: number | null; // orcamento - previsto
+  tom: "ok" | "atencao" | "estourou" | "sem";
+};
+
+export function contaDoMes(orcamento: number, antes: number, carrinho: number, falta: number): Conta {
+  const previsto = antes + carrinho + falta;
+  if (!(orcamento > 0))
+    return { orcamento: 0, antes, carrinho, falta, previsto, sobraAgora: null, sobraNoFim: null, tom: "sem" };
+  const sobraAgora = orcamento - antes - carrinho;
+  const sobraNoFim = orcamento - previsto;
+  const tom = sobraAgora < 0 ? "estourou" : sobraNoFim < 0 || sobraAgora < orcamento * 0.1 ? "atencao" : "ok";
+  return { orcamento, antes, carrinho, falta, previsto, sobraAgora, sobraNoFim, tom };
 }
 
 // Categoria do ultimo item que entrou no carrinho: e onde a pessoa esta agora, e o
