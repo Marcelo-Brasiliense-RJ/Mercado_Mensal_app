@@ -44,3 +44,28 @@ describe("realce da foto", () => {
     expect(Array.from(px)).toEqual([245, 235, 225, 255, 55, 55, 55, 255]);
   });
 });
+
+describe("foto borrada", () => {
+  // xadrez nitido x o mesmo xadrez borrado (media 3x3)
+  const xadrez = (w: number, h: number) => {
+    const px = new Uint8ClampedArray(w * h * 4);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const v = ((x >> 2) + (y >> 2)) % 2 ? 230 : 20; px.set([v, v, v, 255], (y * w + x) * 4); }
+    return px;
+  };
+  it("nitida mede bem mais que borrada, e afiar devolve nitidez", async () => {
+    const { nitidezDe, afiar } = await import("./realce");
+    const w = 120, h = 80, nitida = xadrez(w, h);
+    const borrada = new Uint8ClampedArray(nitida);
+    for (let k = 0; k < 3; k++) {
+      const o = new Uint8ClampedArray(borrada);
+      for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) for (let c = 0; c < 3; c++) {
+        let s = 0; for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) s += o[((y + dy) * w + x + dx) * 4 + c];
+        borrada[(y * w + x) * 4 + c] = s / 9;
+      }
+    }
+    const a = nitidezDe(nitida, w, h), b = nitidezDe(borrada, w, h);
+    expect(b).toBeLessThan(a / 3);
+    afiar(borrada, w, h);
+    expect(nitidezDe(borrada, w, h)).toBeGreaterThan(b);
+  });
+});

@@ -56,3 +56,37 @@ export function aplicarCurva(px: Uint8ClampedArray, lut: Uint8Array): void {
     px[i + 2] = lut[px[i + 2]];
   }
 }
+
+// ---- foto borrada (tremida/desfocada) ----
+// Nitidez do cinza: variancia do laplaciano numa amostra reduzida. Borrada = numero baixo.
+export function nitidezDe(px: Uint8ClampedArray, w: number, h: number): number {
+  const passo = Math.max(1, Math.floor(Math.max(w, h) / 400)); // ~400 px no lado maior
+  const W = Math.floor(w / passo), H = Math.floor(h / passo);
+  const g = new Float32Array(W * H);
+  for (let y = 0; y < H; y++)
+    for (let x = 0; x < W; x++) {
+      const i = (y * passo * w + x * passo) * 4;
+      g[y * W + x] = px[i] * 0.299 + px[i + 1] * 0.587 + px[i + 2] * 0.114;
+    }
+  let s = 0, s2 = 0, n = 0;
+  for (let y = 1; y < H - 1; y++)
+    for (let x = 1; x < W - 1; x++) {
+      const k = y * W + x;
+      const l = g[k - 1] + g[k + 1] + g[k - W] + g[k + W] - 4 * g[k];
+      s += l; s2 += l * l; n++;
+    }
+  return n ? s2 / n - (s / n) ** 2 : 0;
+}
+
+// Mascara de nitidez (unsharp 3x3): realca a borda da letra do rotulo.
+export function afiar(px: Uint8ClampedArray, w: number, h: number, forca = 0.8): void {
+  const o = new Uint8ClampedArray(px);
+  for (let y = 1; y < h - 1; y++)
+    for (let x = 1; x < w - 1; x++) {
+      const i = (y * w + x) * 4;
+      for (let c = 0; c < 3; c++) {
+        const m = (o[i - 4 + c] + o[i + 4 + c] + o[i - w * 4 + c] + o[i + w * 4 + c] + o[i + c]) / 5;
+        px[i + c] = o[i + c] + forca * (o[i + c] - m);
+      }
+    }
+}
