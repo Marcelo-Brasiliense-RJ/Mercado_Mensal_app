@@ -16,7 +16,7 @@ import { reduzir } from "@/lib/reconhecer";
 import { Gravador } from "./Gravador";
 import { FotoItem } from "@/components/ui/FotoItem";
 import { PrateleiraModal } from "@/components/estoque/PrateleiraModal";
-import { acertarEstoque as acertarNoEstoque } from "@/lib/acertarEstoque";
+import { acertarEstoque as acertarNoEstoque, linhasDePara, type LinhaDePara } from "@/lib/acertarEstoque";
 import type { ShopItem } from "@/lib/types";
 import {
   achaNaLista,
@@ -26,6 +26,7 @@ import {
   extensaoDe,
   interpretarLocal,
   motivoNaoComprar,
+  querAtualizarEstoque,
   reconhecimentoDoNavegador,
   type VozIntencao,
   type VozItem,
@@ -77,7 +78,7 @@ function destinoDaTela(tela: Tela, ouvido: VozIntencao): VozIntencao {
 }
 
 type Tela = "estoque" | "mercado" | "lista" | "auto";
-type Fase = "gravar" | "gravando" | "enviando" | "conferir" | "salvando" | "motivo" | "marca";
+type Fase = "gravar" | "gravando" | "enviando" | "conferir" | "salvando" | "motivo" | "marca" | "atualizar";
 
 // "Nao comprar X": antes de guardar, pergunta o motivo, um item por vez. O resto da
 // frase (o que era para comprar) espera e segue depois das respostas.
@@ -122,6 +123,14 @@ export function VoiceModal({
   const [jaForam, setJaForam] = useState(0); // entraram direto na lista (modo Montar lista)
   const [itens, setItens] = useState<GridItem[]>([]);
   const [erro, setErro] = useState("");
+  // Modo "Atualizar estoque": tudo o que for falado vira DE -> PARA (fica X). Liga
+  // pelo botao ou pela propria fala ("vou atualizar o meu estoque").
+  const [atualizando, setAtualizando] = useState(false);
+  const [linhas, setLinhas] = useState<LinhaDePara[]>([]);
+  const [gravandoAt, setGravandoAt] = useState(false);
+  // O que a fala trouxe e nao e contagem ("preciso de cafe", "nao compra leite"):
+  // segue o caminho de sempre depois da atualizacao.
+  const restoAtRef = useRef<{ frase: string; intencao: VozIntencao; itens: VozItem[] } | null>(null);
 
   // Plano B ligado: o servidor de transcricao nao esta configurado, entao quem
   // ouve e o proprio navegador e quem entende a frase e o interpretador local.
@@ -202,6 +211,10 @@ export function VoiceModal({
     setOutraMarca("");
     setEscrito("");
     setEscrevendo(false);
+    setLinhas([]);
+    setGravandoAt(false);
+    setAtualizando(false);
+    restoAtRef.current = null;
   }
 
   function fechar() {
@@ -432,6 +445,21 @@ export function VoiceModal({
 
   async function mostrarResultado(frase: string, intencao: VozIntencao, lidosTodos: VozItem[]) {
     setTexto(frase);
+
+    // Atualizar estoque: o que tem quantidade vira DE -> PARA e espera o "Atualizar".
+    // "Preciso de"/"nao compra" continuam indo para a lista, depois.
+    if (atualizando || querAtualizarEstoque(frase)) {
+      const contagem = lidosTodos.filter((i) => !i.remover && i.destino !== "lista");
+      const novas = linhasDePara(contagem, stock);
+      if (novas.length) {
+        setAtualizando(true);
+        const resto = lidosTodos.filter((i) => !contagem.includes(i));
+        restoAtRef.current = resto.length ? { frase, intencao, itens: resto } : null;
+        setLinhas(novas);
+        setFase("atualizar");
+        return;
+      }
+    }
     setDestino(destinoDaTela(telaAgora, intencao));
 
     const tirarItens = lidosTodos.filter((i) => i.remover && i.nome.trim());
@@ -789,6 +817,53 @@ export function VoiceModal({
     fechar();
   }
 
+  // Grava o PARA de cada linha (a RPC soma, entao vai a diferenca) e oferece
+  // Desfazer, que devolve cada um para o DE.
+  async function confirmarAtualizacao() {
+    const mudou = linhas.filter((l) => l.de === null || Math.abs(l.para - l.de) > 1e-9);
+    if (!mudou.length) {
+      showToast("Nada mudou no estoque.");
+      return seguirDepoisDeAtualizar();
+    }
+    setGravandoAt(true);
+    const falhou: string[] = [];
+    const feitos: LinhaDePara[] = [];
+    for (const l of mudou) {
+      const r = await addStock({ name: l.nome, qty: +(l.para - (l.de ?? 0)).toFixed(3), unit: l.unidade });
+      if (r.ok) feitos.push(l);
+      else falhou.push(l.nome);
+    }
+    setGravandoAt(false);
+    const resumo = feitos.map((l) => `${l.nome} ${fmtQtd(l.de ?? 0)}→${fmtQtd(l.para)} ${l.unidade}`);
+    const msg = [
+      feitos.length ? `🏠 Estoque atualizado: ${resumo.slice(0, 3).join(", ")}${resumo.length > 3 ? ` e mais ${resumo.length - 3}` : ""}` : "",
+      falhou.length ? `não gravei ${falhou.join(", ")}` : "",
+    ]
+      .filter(Boolean)
+      .join(" · ");
+    if (!feitos.length) return showToast(msg || "Não deu para atualizar.");
+    showToast(msg, {
+      desfazer: async () => {
+        for (const l of feitos) {
+          await addStock({ name: l.nome, qty: +((l.de ?? 0) - l.para).toFixed(3), unit: l.unidade });
+        }
+        showToast("Desfeito: estoque voltou ao que era");
+      },
+    });
+    await seguirDepoisDeAtualizar();
+  }
+
+  async function seguirDepoisDeAtualizar() {
+    const resto = restoAtRef.current;
+    restoAtRef.current = null;
+    setLinhas([]);
+    setAtualizando(false);
+    if (!resto) return fechar();
+    // O resto da fala segue como sempre (lista, nao comprar...). So tem item de
+    // lista/remover, entao mostrarResultado nao cai de novo no modo atualizar.
+    await mostrarResultado(resto.frase, resto.intencao, resto.itens);
+  }
+
   const gravando = fase === "gravando";
   const ocupado = fase === "enviando" || fase === "salvando";
 
@@ -824,7 +899,9 @@ export function VoiceModal({
           Adicionar
         </div>
         <div className="text-[19px] font-extrabold">
-          {pergunta
+          {fase === "atualizar"
+            ? "Atualizar estoque"
+            : pergunta
             ? fase === "marca"
               ? `Qual marca de ${pergunta.fila[pergunta.i]} é ruim?`
               : pergunta.adicionados.length
@@ -838,7 +915,19 @@ export function VoiceModal({
         </div>
       </div>
 
-      {pergunta ? (
+      {fase === "atualizar" ? (
+        <AtualizarEstoque
+          texto={texto}
+          linhas={linhas}
+          setLinhas={setLinhas}
+          ocupado={gravandoAt}
+          onFalarDeNovo={() => {
+            limpar();
+            setAtualizando(true);
+          }}
+          onConfirmar={confirmarAtualizacao}
+        />
+      ) : pergunta ? (
         <PerguntaNaoComprar
           p={pergunta}
           fase={fase}
@@ -854,13 +943,30 @@ export function VoiceModal({
       ) : fase !== "conferir" && fase !== "salvando" ? (
         <>
           <p className="mb-4 text-[13px] leading-relaxed text-text-2">
+            {atualizando
+              ? "Fale como está agora: “arroz 5 quilos, leite 2, café de 3 para 1”. Eu mostro o de → para de cada item e você confirma antes de atualizar."
+              : <>
             {noMercado && tela === "estoque" && "📍 Você está num mercado: vai para o carrinho. "}
             {tela === "lista" || tela === "auto"
               ? "Fale o que quer e o que não quer: “quero arroz, feijão e 5 detergentes, mas não quero mais café”. Entra e sai da lista direto; no que eu ficar em dúvida, eu pergunto."
               : telaAgora === "estoque"
               ? "Fale o que tem em casa: “três leites, dois arroz e um café”. Vai para o estoque; você confere antes de salvar."
               : "Fale normal, como você contaria pra alguém: “comprei arroz vinte reais, dois pacotes, e café doze e noventa”. Você confere antes de salvar."}
+              </>}
           </p>
+          {tela !== "lista" && !gravando && fase !== "enviando" && (
+            <button
+              type="button"
+              aria-pressed={atualizando}
+              onClick={() => setAtualizando((v) => !v)}
+              className={`mb-4 flex h-11 w-full items-center justify-center gap-2 rounded-[14px] border-2 text-[14px] font-bold ${
+                atualizando ? "border-brand bg-brand text-brand-ink" : "border-border bg-card"
+              }`}
+            >
+              <span aria-hidden>🔄</span>
+              {atualizando ? "Atualizando estoque (de → para) ✓" : "Atualizar estoque (de → para)"}
+            </button>
+          )}
           {modoLocal && (
             <p className="mb-4 rounded-[13px] border border-border bg-card-2 p-3 text-[12px] leading-snug text-text-2">
               Ouvindo pelo próprio aparelho, sem servidor. Funciona bem com frases
@@ -1251,5 +1357,146 @@ function PerguntaNaoComprar({
       {/* o que foi ouvido, pequeno no rodape: referencia, nao o centro da tela */}
       <p className="text-center text-[12px] italic leading-snug text-text-3">Ouvi: “{p.frase}”</p>
     </div>
+  );
+}
+
+function fmtQtd(n: number): string {
+  return String(+n.toFixed(2)).replace(".", ",");
+}
+
+// Tela do "Atualizar estoque": uma linha por produto com o que o app tem (DE) e o
+// que a pessoa falou (PARA). Ajuste por toque (- / + / Acabou); digitar e opcao.
+function AtualizarEstoque({
+  texto,
+  linhas,
+  setLinhas,
+  ocupado,
+  onFalarDeNovo,
+  onConfirmar,
+}: {
+  texto: string;
+  linhas: LinhaDePara[];
+  setLinhas: (f: (l: LinhaDePara[]) => LinhaDePara[]) => void;
+  ocupado: boolean;
+  onFalarDeNovo: () => void;
+  onConfirmar: () => void;
+}) {
+  const muda = (i: number, para: number) =>
+    setLinhas((l) => l.map((x, k) => (k === i ? { ...x, para: Math.max(0, +para.toFixed(3)) } : x)));
+  const passo = (u: string) => (/^(kg|l)$/i.test(u) ? 0.5 : 1);
+  const mudaram = linhas.filter((l) => l.de === null || Math.abs(l.para - l.de) > 1e-9).length;
+
+  return (
+    <>
+      <p className="mb-4 rounded-[13px] border border-border bg-card-2 p-3 text-[13px] leading-relaxed text-text-2">
+        “{texto}”
+      </p>
+      <ul className="mb-4 flex flex-col gap-2">
+        {linhas.map((l, i) => {
+          const igual = l.de !== null && Math.abs(l.para - l.de) < 1e-9;
+          return (
+            <li key={l.nome} className="rounded-[14px] border border-border bg-card p-3">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <span className="truncate text-[15px] font-bold">{l.nome}</span>
+                <button
+                  type="button"
+                  aria-label={`Tirar ${l.nome}`}
+                  onClick={() => setLinhas((x) => x.filter((_, k) => k !== i))}
+                  className="h-8 w-8 shrink-0 rounded-full text-text-3"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="min-w-[64px] text-[14px] text-text-2">
+                  {l.de === null ? "novo" : `${fmtQtd(l.de)} ${l.unidade}`}
+                </span>
+                <span aria-hidden className="text-text-3">→</span>
+                <button
+                  type="button"
+                  aria-label="Menos"
+                  onClick={() => muda(i, l.para - passo(l.unidade))}
+                  className="h-11 w-11 rounded-full border border-border bg-card-2 text-[18px] font-bold"
+                >
+                  −
+                </button>
+                <CampoQtd
+                  rotulo={`Quantidade nova de ${l.nome}`}
+                  valor={l.para}
+                  onValor={(n) => muda(i, n)}
+                  destaque={!igual}
+                />
+                <button
+                  type="button"
+                  aria-label="Mais"
+                  onClick={() => muda(i, l.para + passo(l.unidade))}
+                  className="h-11 w-11 rounded-full border border-border bg-card-2 text-[18px] font-bold"
+                >
+                  +
+                </button>
+                <span className="text-[13px] text-text-2">{l.unidade}</span>
+                <button
+                  type="button"
+                  onClick={() => muda(i, 0)}
+                  className="ml-auto h-11 rounded-full px-3 text-[13px] font-bold text-text-2"
+                >
+                  Acabou
+                </button>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+      <div data-rodape className="flex gap-3">
+        <button
+          type="button"
+          onClick={onFalarDeNovo}
+          disabled={ocupado}
+          className="h-[50px] flex-1 rounded-[14px] border border-border bg-card text-[15px] font-bold disabled:opacity-50"
+        >
+          Falar de novo
+        </button>
+        <button
+          type="button"
+          onClick={onConfirmar}
+          disabled={ocupado || linhas.length === 0}
+          className="h-[50px] flex-[1.6] rounded-[14px] bg-brand text-[15px] font-bold text-brand-ink disabled:opacity-50"
+        >
+          {ocupado ? "Atualizando…" : mudaram ? `Atualizar ${mudaram} ${mudaram === 1 ? "item" : "itens"}` : "Nada mudou"}
+        </button>
+      </div>
+    </>
+  );
+}
+
+// Digitar e opcao: o texto fica como a pessoa escreve ("0,") ate sair do campo.
+function CampoQtd({
+  rotulo,
+  valor,
+  onValor,
+  destaque,
+}: {
+  rotulo: string;
+  valor: number;
+  onValor: (n: number) => void;
+  destaque: boolean;
+}) {
+  const [rascunho, setRascunho] = useState<string | null>(null);
+  return (
+    <input
+      aria-label={rotulo}
+      inputMode="decimal"
+      value={rascunho ?? fmtQtd(valor)}
+      onFocus={(e) => e.target.select()}
+      onChange={(e) => {
+        setRascunho(e.target.value);
+        const n = Number(e.target.value.replace(",", "."));
+        if (e.target.value.trim() && Number.isFinite(n)) onValor(n);
+      }}
+      onBlur={() => setRascunho(null)}
+      className={`h-11 w-16 rounded-[10px] border text-center text-[16px] font-extrabold ${
+        destaque ? "border-brand text-brand" : "border-border text-text-2"
+      }`}
+    />
   );
 }

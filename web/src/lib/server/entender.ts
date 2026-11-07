@@ -57,7 +57,8 @@ const JEITOS = `
 Cada pessoa fala de um jeito (gíria, regionalismo, frase pela metade, erro de transcrição). Estes jeitos querem dizer a mesma coisa:
 ${vocabularioParaIA()}
 Quantidade dita com NÚMERO ("tenho 5 kg de arroz", "tem 3 pacotes") = "estoque". Dizer que tem MUITO sem número ("tenho bastante sabonete", "a despensa tá cheia de macarrão", "tem um monte") = "remover" com motivo "excesso".
-Entenda pelo SENTIDO, não pela palavra exata: qualquer outro jeito de dizer isso vale igual. Lugar da casa ("despensa", "armário", "geladeira") não é produto.`;
+Entenda pelo SENTIDO, não pela palavra exata: qualquer outro jeito de dizer isso vale igual. Lugar da casa ("despensa", "armário", "geladeira") não é produto.
+Atualizar estoque: "vou atualizar meu estoque/despensa", "conferir a despensa" é o pedido, NÃO é item; os itens que vêm depois com quantidade são "estoque". "De 3 para 5", "era 3 agora 5", "mudou pra 5" = qtd é o número NOVO (5).`;
 
 // A tela de onde a pessoa mandou ajuda a desempatar ("arroz" sozinho na despensa e estoque).
 function contexto(tela: Tela | undefined): string {

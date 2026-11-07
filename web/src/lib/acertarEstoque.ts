@@ -45,3 +45,33 @@ export async function acertarEstoque(
   }
   return { ok, falhou };
 }
+
+// Modo "Atualizar estoque": cada item falado vira uma linha DE (o que o app tem
+// hoje) -> PARA (o que a pessoa disse). Nome e unidade vem do estoque quando o
+// produto ja existe, para a atualizacao cair no item certo. Falou o mesmo produto
+// duas vezes: vale a ultima ("arroz 3... nao, arroz 4").
+export type LinhaDePara = { nome: string; de: number | null; para: number; unidade: string };
+
+const NAO_E_PRODUTO = /^(estoque|despensa|dispensa|armario|armário|geladeira|freezer)$/i;
+
+export function linhasDePara(
+  itens: { nome: string; qtd: number; unidade: string }[],
+  stock: StockItem[],
+): LinhaDePara[] {
+  const porNome = new Map<string, LinhaDePara>();
+  for (const it of itens) {
+    const nome = it.nome.trim();
+    if (!nome || NAO_E_PRODUTO.test(nome)) continue;
+    const achado = produtoDoEstoque(nome, stock);
+    const linha: LinhaDePara = {
+      nome: achado?.name ?? nome,
+      de: achado ? achado.current : null,
+      para: Math.max(0, Number(it.qtd) || 0),
+      unidade: achado?.unit ?? it.unidade,
+    };
+    const chave = linha.nome.toLowerCase();
+    porNome.delete(chave);
+    porNome.set(chave, linha);
+  }
+  return [...porNome.values()];
+}

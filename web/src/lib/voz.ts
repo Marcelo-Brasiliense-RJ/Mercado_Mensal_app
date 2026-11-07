@@ -222,6 +222,9 @@ const LIXO = new Set([
   "semana", "hoje", "amanha", "proximo", "proxima", "dia", "dias",
   "eu", "nos", "gente", "ruim", "aqui", "ai", "la", "muito", "muita", "muitos", "muitas", "demais", "bastante",
   "sobrando", "sobra", "olha", "entao", "ne", "tipo", "assim",
+  // "vou atualizar o meu estoque": o pedido do modo, nao produto
+  "atualizar", "atualizando", "atualiza", "atualizei", "acertar", "acertando", "estoque",
+  "meu", "minha", "meus", "minhas", "vamos", "bora", "contagem", "era", "tinha",
   // lugar da casa, nao produto ("a despensa ta cheia de macarrao")
   "despensa", "dispensa", "armario", "geladeira", "freezer", "prateleira", "cozinha",
   "cheia", "cheio", "lotada", "lotado",
@@ -286,6 +289,27 @@ function lePedaco(txt: string): Pedaco {
   return { nome: nome.join(" ").trim(), qtd, preco, unidade };
 }
 
+// "Arroz de 3 para 5 quilos", "leite era 2 agora 4": o que vale e o PARA. O DE e
+// o que o app ja sabe (estoque atual), a pessoa so confirma. Roda depois dos
+// numeros por extenso, entao so ve algarismos.
+export function dePara(texto: string): string {
+  return texto.replace(
+    /\b(?:de|era|tinha)\s+\d+(?:[.,]\d+)?\s+(?:([a-z]+)\s+)?(?:para|pra|agora(?:\s+(?:tem|tenho|e))?)\s+(\d+(?:[.,]\d+)?)/g,
+    (todo, un: string | undefined, para: string) =>
+      un && !UNIDADE_PALAVRA[un] ? todo : un ? `${para} ${un}` : para,
+  );
+}
+
+// "Vou atualizar o meu estoque", "conferir a despensa", "contagem da geladeira": a
+// pessoa quer ACERTAR quantidades (fica X), nao somar nem anotar na lista.
+export function querAtualizarEstoque(frase: string): boolean {
+  const t = semAcento((frase ?? "").toLowerCase());
+  return (
+    /\b(atualiz\w*|acert\w*|confer\w*|recont\w*|contagem)\b[^.!?]{0,30}\b(estoque|despensa|dispensa|armario|geladeira|freezer)\b/.test(t) ||
+    /\bcontagem\b/.test(t)
+  );
+}
+
 export function interpretarLocal(texto: string): {
   intencao: VozIntencao;
   itens: VozItem[];
@@ -299,7 +323,7 @@ export function interpretarLocal(texto: string): {
     : (VERBOS.find(([re]) => re.test(cru))?.[1] ?? "lista");
 
   // Jeito de falar ANTES dos numeros: "tem um monte" nao pode virar "tem 1 monte".
-  const brutos = numerosPorExtenso(normalizarFala(semAcento((texto ?? "").toLowerCase())))
+  const brutos = dePara(numerosPorExtenso(normalizarFala(semAcento((texto ?? "").toLowerCase()))))
     .replace(/\b(mas|porem)\b/g, ", mas")
     .split(/,| e /)
     .map((p) => p.trim())

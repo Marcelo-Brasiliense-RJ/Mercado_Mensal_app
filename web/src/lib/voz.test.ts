@@ -209,3 +209,21 @@ describe("audio longo, tudo junto", () => {
     expect(b).toMatchObject({ remover: true, motivo: "excesso" });
   });
 });
+
+describe("atualizar estoque falando", () => {
+  it("reconhece o pedido", async () => {
+    const { querAtualizarEstoque } = await import("./voz");
+    expect(querAtualizarEstoque("vou atualizar o meu estoque")).toBe(true);
+    expect(querAtualizarEstoque("Vou atualizar a dispensa: arroz 3")).toBe(true);
+    expect(querAtualizarEstoque("conferindo a geladeira")).toBe(true);
+    expect(querAtualizarEstoque("tenho 5 kg de arroz")).toBe(false);
+  });
+
+  it("'de 3 para 5' vale o 5", () => {
+    const r = interpretarLocal("vou atualizar meu estoque, arroz de 3 para 5 quilos, leite era 2 agora 4");
+    expect(r.itens.map((i) => [i.nome, i.qtd])).toEqual([
+      ["arroz", 5],
+      ["leite", 4],
+    ]);
+  });
+});
