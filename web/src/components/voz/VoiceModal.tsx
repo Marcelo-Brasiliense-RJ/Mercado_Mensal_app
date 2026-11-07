@@ -123,8 +123,8 @@ export function VoiceModal({
   const [jaForam, setJaForam] = useState(0); // entraram direto na lista (modo Montar lista)
   const [itens, setItens] = useState<GridItem[]>([]);
   const [erro, setErro] = useState("");
-  // Modo "Atualizar estoque": tudo o que for falado vira DE -> PARA (fica X). Liga
-  // pelo botao ou pela propria fala ("vou atualizar o meu estoque").
+  // Modo "Atualizar estoque": o que for falado vira DE -> PARA (fica X). Liga sozinho
+  // quando a fala diz quanto tem, ou pede ("vou atualizar o meu estoque").
   const [atualizando, setAtualizando] = useState(false);
   const [linhas, setLinhas] = useState<LinhaDePara[]>([]);
   const [gravandoAt, setGravandoAt] = useState(false);
@@ -452,10 +452,11 @@ export function VoiceModal({
 
     // Atualizar estoque: o que tem quantidade vira DE -> PARA e espera o "Atualizar".
     // "Preciso de"/"nao compra" continuam indo para a lista, depois.
-    // Na tela Estoque, "tenho 6 creme de leite" tambem passa pelo de-para: antes caia
-    // na grade e SOMAVA 6 ao que ja tinha. Foto fica fora (tem a conferencia propria).
+    // Sem botao de modo (pedido do dono): toda fala que diz quanto TEM ("tenho 6 creme
+    // de leite") passa pelo de-para, em qualquer tela. Antes, na tela Estoque, caia na
+    // grade e SOMAVA 6 ao que ja tinha. Foto fica fora (tem a conferencia propria).
     const pediu = atualizando || querAtualizarEstoque(frase);
-    if (!depoisDeAtualizar && (pediu || (tela === "estoque" && !frase.startsWith("📷")))) {
+    if (!depoisDeAtualizar && (pediu || !frase.startsWith("📷"))) {
       // Contagem: o que a pessoa disse que TEM. "Acabou o X" so zera quando ela pediu
       // para atualizar; ai vira linha com 0 e segue tambem para a lista.
       const contagem = lidosTodos.filter((i) => !i.remover && (i.destino === "estoque" || (pediu && i.zerou)));
@@ -958,25 +959,14 @@ export function VoiceModal({
               : <>
             {noMercado && tela === "estoque" && "📍 Você está num mercado: vai para o carrinho. "}
             {tela === "lista" || tela === "auto"
-              ? "Fale o que quer e o que não quer: “quero arroz, feijão e 5 detergentes, mas não quero mais café”. Entra e sai da lista direto; no que eu ficar em dúvida, eu pergunto."
+              ? tela === "auto"
+                ? "Fale do jeito que vier: “preciso de arroz, não compra leite, agora só tenho 6 creme de leite”. O que for lista entra direto; o que for estoque eu comparo e você confirma."
+                : "Fale o que quer e o que não quer: “quero arroz, feijão e 5 detergentes, mas não quero mais café”. Entra e sai da lista direto; no que eu ficar em dúvida, eu pergunto."
               : telaAgora === "estoque"
               ? "Fale o que tem em casa: “três leites, dois arroz e um café”. Vai para o estoque; você confere antes de salvar."
               : "Fale normal, como você contaria pra alguém: “comprei arroz vinte reais, dois pacotes, e café doze e noventa”. Você confere antes de salvar."}
               </>}
           </p>
-          {tela !== "lista" && !gravando && fase !== "enviando" && (
-            <button
-              type="button"
-              aria-pressed={atualizando}
-              onClick={() => setAtualizando((v) => !v)}
-              className={`mb-4 flex h-11 w-full items-center justify-center gap-2 rounded-[14px] border-2 text-[14px] font-bold ${
-                atualizando ? "border-brand bg-brand text-brand-ink" : "border-border bg-card"
-              }`}
-            >
-              <span aria-hidden>🔄</span>
-              {atualizando ? "Atualizando estoque (de → para) ✓" : "Atualizar estoque (de → para)"}
-            </button>
-          )}
           {modoLocal && (
             <p className="mb-4 rounded-[13px] border border-border bg-card-2 p-3 text-[12px] leading-snug text-text-2">
               Ouvindo pelo próprio aparelho, sem servidor. Funciona bem com frases
