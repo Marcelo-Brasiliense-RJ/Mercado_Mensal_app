@@ -21,7 +21,8 @@ As embalagens também: pacotes abertos, dobrados, amassados ou fechados com pren
 Agrupe do jeito que se conta estoque em casa, UM quadrado por PRODUTO, com a quantidade:
 - Unidades iguais juntas (lado a lado, empilhadas, uma atrás da outra, em fileira): UM quadrado em volta do GRUPO todo e "unidades" = quantas são, contando as de trás que aparecem só um pedaço (tampa, borda). Ex.: 4 garrafas de óleo Coamo juntas = 1 quadrado, unidades 4.
 - Agrupe SÓ embalagens IDÊNTICAS (mesma marca, mesmo produto, mesmo tamanho). Produtos diferentes (outra marca, outro sabor, outro tipo) = quadrados separados, mesmo encostados. Ex.: passata Pramesa, molho Predilecta e molho tradicional Pramesa = 3 quadrados. Garrafas de bebidas diferentes juntas = um quadrado para CADA garrafa, nunca "bebidas ×4".
-- Nunca use nome genérico de categoria ("bebida", "produto", "garrafa", "pacote", "alimento", "cereal" sozinho): ou o produto de verdade ("aperitivo aperol", "flocos de cereais neston"), ou vazio se não dá para saber.
+- Nunca use nome genérico de categoria ("bebida", "produto", "garrafa", "pacote", "lata", "pote", "pote de vidro", "molho", "tempero", "conserva", "mantimento", "snack", "alimento", "cereal" sozinho): ou o produto de verdade com o que tem dentro ("molho de tomate pramesa", "sardinha coqueiro", "orégano", "palmito", "aperitivo aperol"), ou vazio se não dá para saber.
+- Leia PRIMEIRO o "rotulo" (o que está escrito) e só então decida o "nome" e se é "legivel".
 - Caixa de fardo de papelão (ex.: "contém 12 unidades de 1L") ou pack plastificado (6 óleos, 12 latas): UM quadrado na caixa/pack, "unidades" = quantas tem dentro. Fechada: o número impresso ou o tamanho padrão. Aberta/faltando: conte o que dá para ver.
 - O "nome" do fardo é o produto de dentro ("leite italac"), nunca "caixa" ou "fardo".
 - Pacote vendido assim com várias coisinhas dentro (sachês, caixa de gelatina, caixa de chá) = 1 unidade.
@@ -47,6 +48,9 @@ const ITEM = {
     unidades: { type: "INTEGER" },
   },
   required: ["box_2d", "rotulo", "nome", "legivel", "unidades"],
+  // Sem isto o Gemini preenche em ordem ALFABETICA: decidia "legivel" e "nome" antes de
+  // escrever o que leu no "rotulo". Assim ele le primeiro e nomeia depois.
+  propertyOrdering: ["box_2d", "rotulo", "nome", "unidades", "legivel"],
 };
 
 export const ESQUEMA_DETECTAR = {

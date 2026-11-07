@@ -181,3 +181,11 @@ describe("segundaOpiniao", () => {
     expect(segundaOpiniao(finais, foto, [...faixa, novo])).toEqual(["arroz tio joão", "café", undefined]);
   });
 });
+
+describe("nome generico (medido na base de fotos)", () => {
+  it("categoria sozinha ou so palavras de categoria nao e nome", async () => {
+    const { generico } = await import("./prateleira");
+    for (const n of ["tempero", "lata", "molho", "pote", "pote de vidro", "conserva", "mantimento", "snack", "potes", ""]) expect(generico(n)).toBe(true);
+    for (const n of ["molho de tomate", "sardinha coqueiro", "leite", "pão", "lata de atum", "orégano"]) expect(generico(n)).toBe(false);
+  });
+});

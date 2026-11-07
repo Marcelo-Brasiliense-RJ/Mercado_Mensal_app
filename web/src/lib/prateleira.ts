@@ -189,10 +189,12 @@ export function juntarIguais(achados: Achado[]): Achado[] {
 }
 
 // Nome que nao diz o produto ("bebida", "cereal"): uma palavra so de categoria.
-const GENERICOS = new Set(["bebida", "produto", "garrafa", "pacote", "alimento", "cereal", "tempero", "salgadinho", "biscoito", "doce", "lata", "caixa", "frasco", "vidro", "embalagem", "item"]);
+// Medido na base de 235 fotos: "tempero", "lata", "molho", "pote", "conserva", "mantimento",
+// "snack" e "pote de vidro" eram os nomes mais comuns e nao dizem o que comprar.
+const GENERICOS = new Set(["bebida", "produto", "garrafa", "pacote", "alimento", "cereal", "tempero", "salgadinho", "biscoito", "doce", "lata", "caixa", "frasco", "vidro", "embalagem", "item", "pote", "conserva", "mantimento", "snack", "molho", "comida", "enlatado", "saco", "sacola", "mercadoria", "lanche", "condimento", "plastico", "pacotinho", "potinho", "garrafinha"]);
 export const generico = (nome: string) => {
   const p = palavras(nome);
-  return p.length === 0 || (p.length === 1 && GENERICOS.has(p[0]));
+  return p.length === 0 || p.every((w) => GENERICOS.has(w)); // "pote de vidro" tambem
 };
 
 // Opcoes para a pessoa escolher: sem generico quando ha um nome de verdade, sem repetido.
