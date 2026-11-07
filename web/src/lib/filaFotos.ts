@@ -71,6 +71,9 @@ async function produto(codigo: string): Promise<Base | null> {
 // minimo entre chamadas a IA, e quando o servidor diz que todas as chaves estao no
 // limite, a fila inteira pausa o tempo pedido (a foto volta para a espera, nao falha).
 const INTERVALO_IA_MS = 2500;
+// Teto da pausa: mesmo que o servidor diga "volta em 16 h", tenta de novo em 5 min. A
+// estimativa e de uma instancia do servidor e ja errou feio (16 h com chaves livres).
+export const ESPERA_MAX_S = 300;
 let pausaAte = 0; // ms: fila parada por limite das chaves
 let ultimaIA = 0;
 const dormir = (ms: number) => new Promise((ok) => setTimeout(ok, ms));
@@ -96,10 +99,11 @@ async function processar() {
         },
       });
       if (!r.ok && r.motivo === "limite") {
-        pausaAte = Date.now() + r.espera * 1000;
+        const s = Math.min(r.espera, ESPERA_MAX_S);
+        pausaAte = Date.now() + s * 1000;
         trocar(x.id, { estado: "esperando" });
         avisar();
-        await dormir(r.espera * 1000);
+        await dormir(s * 1000);
         avisar();
         continue;
       }

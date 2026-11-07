@@ -54,6 +54,9 @@ function carregar() {
   carregada = true;
   try {
     fila = JSON.parse(localStorage.getItem(CHAVE) ?? "[]") as JobFoto[];
+    // Espera longa gravada por versao antiga do app: tenta de novo ja.
+    const teto = Date.now() + 300_000;
+    fila = fila.map((x) => (x.espera && x.espera > teto ? { ...x, espera: undefined } : x));
   } catch {
     fila = [];
   }
@@ -238,7 +241,9 @@ async function ler(x: JobFoto): Promise<void> {
     | { ok: false; erro: string; espera?: number }
     | null;
   if (!d?.ok) {
-    if (d?.erro === "limite") return trocar(x.id, { espera: Date.now() + (d.espera ?? 30) * 1000 });
+    // Teto de 5 min: a espera fica gravada no aparelho, e uma estimativa errada do servidor
+    // ("volta em 16 h") deixava a foto parada o dia inteiro, mesmo reabrindo o app.
+    if (d?.erro === "limite") return trocar(x.id, { espera: Date.now() + Math.min(d.espera ?? 30, 300) * 1000 });
     // Falha passageira (rede, IA demorou): tenta sozinho mais 2 vezes antes de avisar.
     const t = (x.tentativas ?? 0) + 1;
     if (t < 3 && d?.erro !== "ia_indisponivel" && d?.erro !== "nao_autenticado")
