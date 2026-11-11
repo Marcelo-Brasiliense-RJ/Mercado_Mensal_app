@@ -103,7 +103,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           title={meta.title}
           subtitle={meta.subtitle}
           left={
-            foraDasAbas ? (
+            noModoMercado ? (
+              // Mercado nao tem barra de abas: sem isto a pessoa ficava presa no carrinho.
+              <Link
+                href="/app/lista"
+                aria-label="Sair do mercado e voltar para a Lista"
+                className="flex h-10 items-center gap-0.5 rounded-full bg-card-2 pl-1.5 pr-3.5 text-[14px] font-bold"
+              >
+                <ChevronLeftIcon size={20} />
+                Lista
+              </Link>
+            ) : foraDasAbas ? (
               <button
                 onClick={voltar}
                 aria-label="Voltar"

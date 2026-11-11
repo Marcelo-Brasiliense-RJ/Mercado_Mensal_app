@@ -106,6 +106,12 @@ export function RevisarFim({
         </div>
       )}
 
+      {total > 0 && (
+        <p className="mb-3 text-center text-[13px] text-text-2">
+          Não deu para anotar tudo? Finalize e leia a nota: ela completa a despensa e confere os preços.
+        </p>
+      )}
+
       {/* Presos no fim do popup: sempre a vista, por maior que seja a lista. */}
       <div className="sticky -bottom-5 z-10 -mx-5 -mb-5 flex gap-2 border-t border-border bg-card px-5 pb-[max(20px,env(safe-area-inset-bottom))] pt-3 sm:-bottom-[26px] sm:-mx-[26px] sm:-mb-[26px] sm:px-[26px] sm:pb-[26px]">
         <button onClick={onClose} className="h-[52px] shrink-0 rounded-[14px] border border-border bg-card px-4 text-[15px] font-bold">

@@ -10,12 +10,12 @@ import { QrScanner } from "./QrScanner";
 import { chaveDoQr, invokeNfce, ufDaChave } from "@/lib/nfce";
 import { ItemGrid, type GridItem } from "./ItemGrid";
 import { Conferencia } from "./Conferencia";
-import { conferir, esquecerUltimaCompra, lerUltimaCompra, type Conferencia as Conf, type ItemNota } from "@/lib/conferencia";
+import { conferir, esquecerUltimaCompra, guardarUltimaCompra, lerUltimaCompra, type Conferencia as Conf, type ItemNota } from "@/lib/conferencia";
 import { createClient } from "@/lib/supabase/client";
 import type { CompraMes } from "@/lib/economia";
 
 type Item = GridItem;
-type Phase = "capture" | "scanning" | "fotos" | "processing" | "review" | "conferencia" | "error";
+type Phase = "capture" | "scanning" | "fotos" | "processing" | "review" | "conferencia" | "outra" | "error";
 
 // Cupom de compra do mes e comprido: ate 6 fotos, de cima para baixo.
 const MAX_FOTOS = 6;
@@ -73,8 +73,11 @@ export function ReceiptModal({
   const [totalNota, setTotalNota] = useState(0);
   const [confere, setConfere] = useState(true);
   const [fotos, setFotos] = useState<string[]>([]);
+  // Notas ja conferidas nesta compra (compra em dois mercados = duas notas).
+  const [notasLidas, setNotasLidas] = useState(0);
 
-  function close() {
+  // Limpa a leitura atual, sem fechar: serve para fechar e para ler a proxima nota.
+  function limpar() {
     onClose();
     setPhase("capture");
     setItems([]);
@@ -89,6 +92,33 @@ export function ReceiptModal({
     setColando(false);
     setLink("");
     setConf(null);
+  }
+
+  function close() {
+    onClose();
+    limpar();
+    setNotasLidas(0);
+  }
+
+  // Depois de conferir uma nota: "tem outra nota desta compra?" (fui em dois mercados).
+  function depoisDaNota() {
+    setNotasLidas((n) => n + 1);
+    setSaving(false);
+    setPhase("outra");
+  }
+
+  // Proxima nota: confere so contra o que a nota anterior nao cobriu. Sem sobra de
+  // carrinho, a proxima nota vai inteira para a despensa (revisao simples).
+  function lerOutraNota() {
+    const sobra = conf?.soNoCarrinho ?? [];
+    if (sobra.length) guardarUltimaCompra(sobra);
+    else esquecerUltimaCompra();
+    limpar();
+  }
+
+  function pronto() {
+    esquecerUltimaCompra();
+    close();
   }
 
   // QR ou link da nota: tenta a SEFAZ (itens prontos, sem foto). A do RJ barra acesso de
@@ -201,10 +231,8 @@ export function ReceiptModal({
       }
       await reloadData();
     }
-    esquecerUltimaCompra();
-    setSaving(false);
     showToast(feitos ? `✓ ${feitos} ${feitos > 1 ? "ajustes" : "ajuste"} pela nota` : "Nada para ajustar");
-    close();
+    depoisDaNota();
   }
 
   // Foto da nota (qualquer estado): junta as fotos do cupom e manda tudo de uma vez
@@ -416,7 +444,33 @@ export function ReceiptModal({
   if (open && phase === "conferencia" && conf) {
     return (
       <div className="fixed inset-0 z-40 overflow-y-auto overscroll-contain bg-bg text-text">
-        <Conferencia conf={conf} busy={saving} mercado={emitente} onAplicar={(e, c) => void aplicarConferencia(e, c)} onFechar={close} />
+        <Conferencia conf={conf} busy={saving} mercado={emitente} onAplicar={(e, c) => void aplicarConferencia(e, c)} onFechar={depoisDaNota} />
+      </div>
+    );
+  }
+
+  // Compra em mais de um mercado: depois de cada nota, ler a proxima ou terminar.
+  if (open && phase === "outra") {
+    const sobra = conf?.soNoCarrinho.length ?? 0;
+    return (
+      <div className="fixed inset-0 z-40 flex flex-col bg-bg px-5 pb-[max(16px,env(safe-area-inset-bottom))] pt-[max(18px,env(safe-area-inset-top))] text-text">
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
+          <span className="grid h-16 w-16 place-items-center rounded-full bg-pos-soft text-[30px] font-extrabold text-pos">✓</span>
+          <h1 className="m-0 text-[24px] font-extrabold">
+            {notasLidas > 1 ? `${notasLidas} notas conferidas` : "Nota conferida"}
+          </h1>
+          <p className="m-0 max-w-[300px] text-[15px] text-text-2">
+            Comprou em outro mercado também? Leia a outra nota{sobra ? ` e eu confiro os ${sobra} itens que ainda não apareceram.` : " e eu ponho na despensa."}
+          </p>
+        </div>
+        <div className="flex flex-col gap-2">
+          <button onClick={lerOutraNota} className="h-[58px] rounded-full bg-[var(--barra)] text-[16px] font-extrabold text-white">
+            🧾 Ler outra nota
+          </button>
+          <button onClick={pronto} className="h-12 rounded-full text-[15px] font-bold text-text-2">
+            Pronto, só tinha essa
+          </button>
+        </div>
       </div>
     );
   }
