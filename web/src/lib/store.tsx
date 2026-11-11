@@ -63,7 +63,7 @@ export type BarcodeInfo = {
 
 
 // Slugs devolvidos pelas RPCs (grep "'erro'," em supabase/migrations).
-const ERROS: Record<string, string> = {
+export const ERROS: Record<string, string> = {
   sem_familia: "Sua sessão expirou. Entre de novo.",
   nao_encontrado: "Item não encontrado. Atualize a tela.",
   produto_nao_encontrado: "Item não encontrado. Atualize a tela.",

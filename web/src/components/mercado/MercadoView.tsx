@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { brl } from "@/lib/format";
-import { useStore } from "@/lib/store";
+import { ERROS, useStore } from "@/lib/store";
 import type { ShopItem, TripItem } from "@/lib/types";
 import { BarcodeIcon, CameraIcon, MicIcon, PlusIcon, SearchIcon } from "@/components/ui/icons";
 import { FotoModal } from "@/components/lista/FotoModal";
@@ -97,6 +97,8 @@ export function MercadoView() {
   const [codigo, setCodigo] = useState(false);
   const [falar, setFalar] = useState(false);
   const [digitar, setDigitar] = useState(false);
+  // Item da lista sem preco (nunca comprado): o "Peguei" abre direto o campo de preco.
+  const [semPreco, setSemPreco] = useState<ShopItem | null>(null);
   const [revisar, setRevisar] = useState(false);
   const [editar, setEditar] = useState<TripItem | null>(null);
 
@@ -158,7 +160,7 @@ export function MercadoView() {
       n.delete(i.id);
       return n;
     });
-    if (!x.ok) return showToast(x.erro);
+    if (!x.ok) return x.erro === ERROS.sem_preco ? setSemPreco(i) : showToast(x.erro);
     showToast(`✅ ${i.name} no carrinho`, {
       desfazer: async () => {
         const t = carrinhoRef.current.find((c) => mesmoNome(c.name, i.name));
@@ -431,6 +433,12 @@ export function MercadoView() {
           onPeguei={peguei}
           onFinalizar={finalizar}
           onClose={() => setRevisar(false)}
+        />
+      )}
+      {semPreco && (
+        <DigitarCarrinho
+          inicial={{ nome: semPreco.name, qtd: semPreco.desired_quantity }}
+          onClose={() => setSemPreco(null)}
         />
       )}
       <CartItemModal item={editar} onClose={() => setEditar(null)} />

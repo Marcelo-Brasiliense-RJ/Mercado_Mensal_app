@@ -11,10 +11,18 @@ import { dinheiroCampo, mascaraDinheiro } from "@/lib/dinheiro";
 
 // Por no carrinho escrevendo. Campos nascem preenchidos (regra 2): unidade pelo nome,
 // preco da ultima compra ou do que estava na lista. Preco e opcional (0021).
-export function DigitarCarrinho({ onClose }: { onClose: () => void }) {
+// `inicial`: veio do "Peguei" de um item da lista sem preco conhecido. Abre com nome e
+// quantidade preenchidos e o cursor no preco, que e a unica coisa que falta.
+export function DigitarCarrinho({
+  onClose,
+  inicial,
+}: {
+  onClose: () => void;
+  inicial?: { nome: string; qtd: number };
+}) {
   const { addTripItem, showToast, stock, shopping } = useStore();
-  const [nome, setNome] = useState("");
-  const [qtd, setQtd] = useState("1");
+  const [nome, setNome] = useState(inicial?.nome ?? "");
+  const [qtd, setQtd] = useState(inicial ? String(inicial.qtd).replace(".", ",") : "1");
   const [preco, setPreco] = useState("");
   const [mexeuPreco, setMexeuPreco] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -43,10 +51,10 @@ export function DigitarCarrinho({ onClose }: { onClose: () => void }) {
   return (
     <Modal open onClose={onClose} maxWidth={420}>
       <form onSubmit={salvar}>
-        <div className="mb-4 text-[19px] font-extrabold">🛒 Pôr no carrinho</div>
+        <div className="mb-4 text-[19px] font-extrabold">{inicial ? `💰 Quanto custou ${inicial.nome}?` : "🛒 Pôr no carrinho"}</div>
         <label className="mb-1.5 block text-xs font-bold text-text-2">O que pegou</label>
         <input
-          autoFocus
+          autoFocus={!inicial}
           value={nome}
           onChange={(e) => setNome(e.target.value)}
           placeholder="Ex.: detergente"
@@ -56,8 +64,9 @@ export function DigitarCarrinho({ onClose }: { onClose: () => void }) {
         <div className="mb-3.5">
           <QtyStepper value={qtd} onChange={setQtd} unit={unidade} />
         </div>
-        <label className="mb-1.5 block text-xs font-bold text-text-2">Preço por {unidade} (opcional)</label>
+        <label className="mb-1.5 block text-xs font-bold text-text-2">Preço por {unidade}{inicial ? "" : " (opcional)"}</label>
         <input
+          autoFocus={!!inicial}
           value={precoTxt}
           onChange={(e) => {
             setMexeuPreco(true);
