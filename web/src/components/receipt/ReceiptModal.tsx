@@ -1,13 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
-import { ReceiptIcon, TelegramIcon, CheckIcon, ChevronRight } from "@/components/ui/icons";
+import { TelegramIcon, CheckIcon } from "@/components/ui/icons";
 import { useStore } from "@/lib/store";
-import { useHousehold } from "@/lib/household";
-import { BOT_HANDLE, BOT_URL, familyCanUseQr } from "@/lib/config";
+import { BOT_HANDLE, BOT_URL } from "@/lib/config";
 import { QrScanner } from "./QrScanner";
-import { invokeNfce } from "@/lib/nfce";
+import { chaveDoQr, invokeNfce, ufDaChave } from "@/lib/nfce";
 import { ItemGrid, type GridItem } from "./ItemGrid";
 
 type Item = GridItem;
@@ -48,10 +47,13 @@ export function ReceiptModal({
   onClose: () => void;
 }) {
   const { confirmReceipt, showToast } = useStore();
-  const { household } = useHousehold();
-  // Import por QR liberado por familia (rollout gradual). As demais so veem
-  // foto/OCR + Telegram.
-  const canQr = familyCanUseQr(household?.familia);
+  // QR da nota (qualquer estado): tenta a SEFAZ e, se ela barrar (a do RJ barra
+  // servidor), guarda a chave e pede a foto. qr = o que o QR/link trouxe.
+  const [qr, setQr] = useState<{ url: string; chave: string; uf: string } | null>(null);
+  const [colando, setColando] = useState(false);
+  const [link, setLink] = useState("");
+  const camRef = useRef<HTMLInputElement>(null);
+  const galRef = useRef<HTMLInputElement>(null);
   const [phase, setPhase] = useState<Phase>("capture");
   const [items, setItems] = useState<Item[]>([]);
   const [saving, setSaving] = useState(false);
@@ -74,15 +76,28 @@ export function ReceiptModal({
     setTotalNota(0);
     setConfere(true);
     setFotos([]);
+    setQr(null);
+    setColando(false);
+    setLink("");
   }
 
-  // Caminho principal: QR do cupom -> Edge Function nfce-consulta -> itens da SEFAZ.
-  async function onQr(qrUrl: string) {
+  // QR ou link da nota: tenta a SEFAZ (itens prontos, sem foto). A do RJ barra acesso de
+  // servidor (bloqueio por IP, confirmado em 2026-11-11), entao la a resposta e a foto,
+  // mas com a chave do QR guardada: nota repetida fica barrada com certeza.
+  const onQr = useCallback(async (texto: string) => {
+    const ch = chaveDoQr(texto);
+    if (!ch) return;
+    navigator.vibrate?.(40);
+    setQr({ url: texto, chave: ch, uf: ufDaChave(ch) });
+    setChave(ch);
     setSource("qr");
     setPhase("processing");
-    const resp = await invokeNfce(qrUrl);
-    if (!resp.ok) {
-      setPhase("error");
+    const resp = await Promise.race([
+      invokeNfce(texto).catch(() => ({ ok: false as const, erro: "falhou" })),
+      new Promise<{ ok: false; erro: string }>((ok) => setTimeout(() => ok({ ok: false, erro: "demorou" }), 8000)),
+    ]);
+    if (!resp.ok || !resp.itens?.length) {
+      setPhase("capture"); // volta para a tela da nota, agora pedindo a foto
       return;
     }
     setItems(
@@ -94,12 +109,13 @@ export function ReceiptModal({
         unidade: it.unidade || "un",
       })),
     );
-    setChave(resp.chave);
+    setChave(resp.chave || ch);
     setEmitente(resp.emitente);
     setTotalNota(resp.total_nota);
     setConfere(resp.total_confere);
     setPhase("review");
-  }
+  }, []);
+  const semCamera = useCallback(() => {}, []);
 
   // Foto da nota (qualquer estado): junta as fotos do cupom e manda tudo de uma vez
   // para /api/receipt-ocr (Gemini). Com a chave impressa no cupom, nota repetida e barrada.
@@ -115,7 +131,6 @@ export function ReceiptModal({
   async function lerFotos() {
     if (!fotos.length) return;
     setSource("ocr");
-    setChave("");
     setPhase("processing");
     try {
       const r = await fetch("/api/receipt-ocr", {
@@ -139,7 +154,7 @@ export function ReceiptModal({
           duvida: !!it.duvida,
         })),
       );
-      setChave(typeof data.chave === "string" ? data.chave : "");
+      setChave(qr?.chave || (typeof data.chave === "string" ? data.chave : ""));
       setEmitente(typeof data.emitente === "string" ? data.emitente : "");
       setTotalNota(typeof data.total === "number" ? data.total : 0);
       setConfere(data.confere !== false);
@@ -193,74 +208,84 @@ export function ReceiptModal({
     }
   }
 
+  // Tela cheia da nota, como os apps de mercado: camera lendo o QR e, embaixo, foto,
+  // galeria e colar link. Depois do QR de um estado que nao deixa ler, vira o aviso
+  // "pela foto" com a chave ja guardada.
+  if (open && phase === "capture") {
+    const inputs = (
+      <>
+        <input ref={camRef} type="file" accept="image/*" capture="environment" onChange={onFile} className="hidden" />
+        <input ref={galRef} type="file" accept="image/*" multiple onChange={onFile} className="hidden" />
+      </>
+    );
+    return (
+      <div className="fixed inset-0 z-40 flex flex-col bg-black text-white">
+        {!qr && <QrScanner cheia onResult={onQr} onError={semCamera} />}
+        <div className="relative z-10 flex items-center justify-between px-4 pt-[max(14px,env(safe-area-inset-top))]">
+          <button onClick={close} aria-label="Fechar" className="grid h-12 w-12 place-items-center rounded-full bg-white/15 text-[20px] backdrop-blur">
+            ✕
+          </button>
+          <span className="rounded-full bg-white/15 px-4 py-2 text-[15px] font-bold backdrop-blur">Nota fiscal</span>
+          <span className="w-12" />
+        </div>
+
+        <div className="relative z-10 flex flex-1 flex-col items-center justify-center px-8 text-center">
+          {qr ? (
+            <>
+              <span className="mb-4 rounded-full bg-brand px-3.5 py-1 text-[13px] font-extrabold uppercase tracking-[0.1em] text-brand-ink">
+                Pela foto
+              </span>
+              <p className="text-[21px] font-bold leading-snug">
+                Nota{qr.uf ? ` do ${qr.uf}` : ""} reconhecida ✓<br />O site do governo não deixa ler pelo QR. Tire uma foto que eu leio.
+              </p>
+              <p className="mt-3 text-[14px] text-white/60">De perto, com boa luz. Cupom comprido: em partes, até 6 fotos.</p>
+            </>
+          ) : (
+            <p className="mt-[78vw] text-[17px] font-bold drop-shadow sm:mt-80">
+              Aponte para o QR code da nota
+              <span className="block text-[14px] font-normal text-white/70">Ele fica no pé do cupom</span>
+            </p>
+          )}
+        </div>
+
+        <div className="relative z-10 mx-3 mb-[max(14px,env(safe-area-inset-bottom))] rounded-[28px] bg-[#1c1c1e] p-2.5">
+          {colando ? (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (chaveDoQr(link)) void onQr(link);
+                else showToast("Link sem a chave da nota.");
+              }}
+              className="flex gap-2"
+            >
+              <input
+                autoFocus
+                value={link}
+                onChange={(e) => setLink(e.target.value)}
+                placeholder="Cole o link da nota"
+                className="h-14 min-w-0 flex-1 rounded-full bg-white/10 px-5 text-[16px] text-white placeholder:text-white/40"
+              />
+              <button type="submit" className="h-14 shrink-0 rounded-full bg-brand px-5 font-extrabold text-brand-ink">Ler</button>
+            </form>
+          ) : (
+            <button onClick={() => camRef.current?.click()} className="flex h-14 w-full items-center justify-center gap-2 rounded-full bg-brand text-[17px] font-extrabold text-brand-ink">
+              📷 Tirar foto da nota
+            </button>
+          )}
+          <div className="mt-1 grid grid-cols-2">
+            <button onClick={() => galRef.current?.click()} className="h-12 text-[15px] font-bold text-white/85">🖼 Da galeria</button>
+            <button onClick={() => setColando((c) => !c)} className="h-12 text-[15px] font-bold text-white/85">
+              {colando ? "📷 Foto" : "🔗 Colar link"}
+            </button>
+          </div>
+        </div>
+        {inputs}
+      </div>
+    );
+  }
+
   return (
     <Modal open={open} onClose={close}>
-      {phase === "capture" && (
-        <>
-          <div className="mb-1 text-[20px] font-extrabold">Registrar compra</div>
-          <p className="mb-[18px] text-[14px] leading-relaxed text-text-2">
-            {canQr
-              ? "Escaneie o QR code do cupom fiscal que a gente puxa os itens da nota. Sem QR? Dá pra fotografar a nota ou registrar por áudio no Telegram."
-              : "Fotografe a nota fiscal que a gente lê os itens, ou registre por áudio no Telegram."}
-          </p>
-          <div className="flex flex-col gap-3">
-            {canQr && (
-              <button
-                onClick={() => setPhase("scanning")}
-                className="flex cursor-pointer items-center gap-3.5 rounded-[16px] border-[1.5px] border-brand bg-card p-4 text-left"
-              >
-                <span className="grid h-12 w-12 shrink-0 place-items-center rounded-[14px] bg-brand text-brand-ink">
-                  <ReceiptIcon size={24} />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block text-[15px] font-extrabold">Escanear QR da nota</span>
-                  <span className="block text-[13px] leading-snug text-text-2">
-                    Uma leitura só, itens e preços direto da SEFAZ.
-                  </span>
-                </span>
-                <ChevronRight size={20} className="shrink-0 text-text-3" />
-              </button>
-            )}
-            <label className="flex cursor-pointer items-center gap-3.5 rounded-[16px] border border-border bg-card p-4">
-              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-[14px] bg-card-2 text-text-2">
-                <ReceiptIcon size={24} />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-[15px] font-extrabold">Foto da nota fiscal</span>
-                <span className="block text-[13px] leading-snug text-text-2">
-                  Qualquer estado. Cupom comprido? Tire em partes, eu junto.
-                </span>
-              </span>
-              <ChevronRight size={20} className="shrink-0 text-text-3" />
-              <input
-                type="file"
-                accept="image/*"
-                multiple
-                onChange={onFile}
-                className="hidden"
-              />
-            </label>
-            <a
-              href={BOT_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-3.5 rounded-[16px] border border-border bg-card p-4"
-            >
-              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-[14px] bg-[#2AABEE] text-white">
-                <TelegramIcon size={24} />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-[15px] font-extrabold">Áudio no Telegram</span>
-                <span className="block text-[13px] leading-snug text-text-2">
-                  Fale o que comprou que o bot registra pra você.
-                </span>
-              </span>
-              <ChevronRight size={20} className="shrink-0 text-[#2AABEE]" />
-            </a>
-          </div>
-        </>
-      )}
-
       {phase === "fotos" && (
         <>
           <div className="mb-1 text-[20px] font-extrabold">
@@ -300,19 +325,6 @@ export function ReceiptModal({
               Ler nota
             </button>
           </div>
-        </>
-      )}
-
-      {phase === "scanning" && (
-        <>
-          <div className="mb-3 text-[18px] font-extrabold">Aponte para o QR code</div>
-          <QrScanner onResult={onQr} onError={() => setPhase("error")} />
-          <button
-            onClick={() => setPhase("capture")}
-            className="mt-3 h-10 w-full text-[13px] font-bold text-text-2"
-          >
-            Cancelar
-          </button>
         </>
       )}
 
