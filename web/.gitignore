@@ -40,3 +40,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# leitor de codigo (WebAssembly), copiado de node_modules no build
+/public/zxing_reader.wasm
