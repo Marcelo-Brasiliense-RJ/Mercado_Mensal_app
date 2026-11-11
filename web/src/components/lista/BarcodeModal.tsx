@@ -21,6 +21,7 @@ import { useRuins } from "@/components/ofertas/useEvitar";
 import { precoNoMercado } from "@/lib/precoMercado";
 import { usePrecosVistos } from "@/lib/precosVistos";
 import { enfileirarFoto, marcarLeitor, useFilaFotos } from "@/lib/filaFotos";
+import { reconhecerImagem } from "@/lib/reconhecer";
 import { NaoComprarBotoes } from "@/components/ui/NaoComprarBotoes";
 import { Sugestoes } from "./Sugestoes";
 import { SomarOuSubstituir, type Modo } from "@/components/ui/SomarOuSubstituir";
@@ -55,7 +56,7 @@ export function BarcodeModal({
   onClose: () => void;
   destinoPadrao?: "estoque" | "carrinho";
 }) {
-  const { findBarcode, addTripItemByBarcode, addStockByBarcode, addShopItem, baixaStock, showToast, trip, stock } = useStore();
+  const { findBarcode, addTripItemByBarcode, addTripItem, addStockByBarcode, addStock, addShopItem, baixaStock, showToast, trip, stock } = useStore();
   // Dentro de um mercado conhecido (GPS), o codigo vai para o carrinho de qualquer tela.
   const { noMercado, mercado } = useLugar();
   // No mercado identificado, o preco ja vem DAQUELE mercado: encarte ou ultimo visto la.
@@ -162,6 +163,43 @@ export function BarcodeModal({
     }
   }
 
+  // Foto do quadro da camera (botao na propria mira): UM produto, pelo modelo rapido da
+  // IA, e ja cai na tela de confirmar com nome e, se apareceu, o preco da etiqueta.
+  // Como no app de referencia: mira, toca, ~1-2 s, preco. Falhou (rede, cota): a foto
+  // vai para a fila de sempre e a pessoa segue.
+  const [procurando, setProcurando] = useState(false);
+  const [digitar, setDigitar] = useState(false); // campo do codigo so quando pedido
+  async function porFoto(img: string) {
+    setProcurando(true);
+    const r = await reconhecerImagem(img);
+    setProcurando(false);
+    if (r && typeof r === "object" && "nome" in r && (r.nome || r.codigo)) {
+      if (r.codigo) {
+        await resolver(r.codigo);
+        if (r.preco) setPreco(dinheiroCampo(r.preco));
+        return;
+      }
+      const n = [r.nome].filter(Boolean).join(" ").trim();
+      const jaTem = findByName(n, stock);
+      setCodigo("");
+      setConhecido(false);
+      setNome(jaTem?.name ?? n);
+      setMarca(r.marca);
+      setFoto(null);
+      setUnidade(jaTem?.unit ?? unitFor(n));
+      setQtd("1");
+      setOrigemPreco(null);
+      setPreco(dinheiroCampo(r.preco || jaTem?.priceLast));
+      setFase("confirmar");
+      return;
+    }
+    if (r === null) return showToast("Não reconheci. Chegue mais perto da frente da embalagem.");
+    if (r === "sem_ia") return showToast("A IA de fotos não está configurada. Leia o código ou digite.");
+    const blob = await (await fetch(img)).blob();
+    void enfileirarFoto(new File([blob], "foto.jpg", { type: "image/jpeg" }), emCasa ? "estoque" : "carrinho");
+    showToast("📷 IA ocupada agora: a foto foi para a fila. Pode ler o próximo.");
+  }
+
   // Nome digitado na primeira leitura: unidade pela palavra e preco da ultima
   // compra, se a casa ja tem esse item (regra 2, campo nasce preenchido).
   function onNome(v: string) {
@@ -205,12 +243,10 @@ export function BarcodeModal({
     const existe = findByName(nome, stock);
     // Substituir: a RPC soma, entao manda a diferenca para o que ja estava.
     const qEnviar = existe && modo === "substituir" ? +(q - existe.current).toFixed(3) : q;
-    const r = await addStockByBarcode({
-      code: codigo,
-      name: nome.trim(),
-      qty: qEnviar,
-      unit: unidade,
-    });
+    // Sem codigo (reconhecido pela foto): grava pelo nome.
+    const r = codigo
+      ? await addStockByBarcode({ code: codigo, name: nome.trim(), qty: qEnviar, unit: unidade })
+      : await addStock({ name: existe?.name ?? nome.trim(), qty: qEnviar, unit: unidade });
     if (r.ok && tambem) {
       const pedir = quantoPedir(nome, Number(qtd.replace(",", ".")) || 1, stock);
       await addShopItem({ name: nome.trim(), desired_quantity: pedir.qtd, unit: unidade, estimated_price: pedir.preco });
@@ -256,15 +292,13 @@ export function BarcodeModal({
       return voltarALer();
     }
     setBusy(true);
-    const r = await addTripItemByBarcode({
-      code: codigo,
-      name: nome.trim(),
-      // Sem preco digitado o banco cai no ultimo pago; se o item nunca foi
-      // comprado, ele responde sem_preco e o toast pede o valor.
-      price: preco.trim() === "" ? null : Number(preco.replace(",", ".")) || 0,
-      qty: Number(qtd.replace(",", ".")) || 1,
-      unit: unidade,
-    });
+    // Sem preco digitado o banco cai no ultimo pago; se o item nunca foi
+    // comprado, ele responde sem_preco e o toast pede o valor.
+    const price = preco.trim() === "" ? null : Number(preco.replace(",", ".")) || 0;
+    const qty = Number(qtd.replace(",", ".")) || 1;
+    const r = codigo
+      ? await addTripItemByBarcode({ code: codigo, name: nome.trim(), price, qty, unit: unidade })
+      : await addTripItem({ name: nome.trim(), price, qty, unit: unidade });
     setBusy(false);
     if (!r.ok) return showToast(r.erro);
     setLidos((l) => [nome.trim(), ...l]);
@@ -313,7 +347,7 @@ export function BarcodeModal({
         <>
           {!semCamera && (
             <div className="mb-3.5">
-              <BarcodeScanner onResult={resolver} onError={() => setSemCamera(true)} />
+              <BarcodeScanner onResult={resolver} onError={() => setSemCamera(true)} onFoto={(img) => void porFoto(img)} procurando={procurando} />
             </div>
           )}
           {semCamera && (
@@ -323,7 +357,16 @@ export function BarcodeModal({
             </p>
           )}
 
-          <label className={labelCls}>Ou digite o código</label>
+          {/* Dois atalhos pequenos: digitar os numeros e a camera do sistema (foto na fila). */}
+          <div className="mb-3 flex justify-center gap-5 text-[13px] font-bold text-text-2">
+            <button type="button" onClick={() => setDigitar((d) => !d)} className="h-10 underline underline-offset-4">
+              ⌨️ Digitar código
+            </button>
+            <button type="button" onClick={() => inputFoto.current?.click()} className="h-10 underline underline-offset-4">
+              📷 Câmera do celular
+            </button>
+          </div>
+          {(digitar || semCamera) && (
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -347,7 +390,7 @@ export function BarcodeModal({
               Buscar
             </button>
           </form>
-
+          )}
           <input
             ref={inputFoto}
             type="file"
@@ -363,18 +406,11 @@ export function BarcodeModal({
               showToast("📷 Foto na fila. Pode ler o próximo.");
             }}
           />
-          <button
-            type="button"
-            onClick={() => inputFoto.current?.click()}
-            className="mb-1.5 h-[50px] w-full rounded-[14px] border-2 border-dashed border-brand text-[15px] font-bold text-brand"
-          >
-            📷 Não leu? Tire uma foto do produto
-          </button>
-          <p className="mb-4 text-center text-[12px] text-text-3">
-            {naFila || prontas
-              ? `${naFila ? `${naFila} reconhecendo` : ""}${naFila && prontas ? " · " : ""}${prontas ? `${prontas} pronta${prontas > 1 ? "s" : ""}` : ""}. Você confere ao fechar o leitor.`
-              : "A IA reconhece em fila e você confere depois, sem esperar."}
-          </p>
+          {(naFila > 0 || prontas > 0) && (
+            <p className="mb-3 text-center text-[12px] text-text-3">
+              {`${naFila ? `${naFila} reconhecendo` : ""}${naFila && prontas ? " · " : ""}${prontas ? `${prontas} pronta${prontas > 1 ? "s" : ""}` : ""}. Você confere ao fechar o leitor.`}
+            </p>
+          )}
 
           {lidos.length > 0 && (
             <div className="mb-4 rounded-[13px] border border-border bg-card-2 p-3">

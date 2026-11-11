@@ -34,9 +34,15 @@ async function pedirFocoContinuo(s: MediaStream | null) {
 export function BarcodeScanner({
   onResult,
   onError,
+  onFoto,
+  procurando = false,
 }: {
   onResult: (code: string) => void;
   onError: (msg: string) => void;
+  // Botao de foto na propria camera: tira o quadro atual (sem abrir a camera do
+  // sistema) e a tela reconhece o produto pela embalagem ou pela etiqueta.
+  onFoto?: (dataUrl: string) => void;
+  procurando?: boolean;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const doneRef = useRef(false);
@@ -65,6 +71,19 @@ export function BarcodeScanner({
   // Zoom 1x/2x (como os apps de mercado): optico quando a camera deixa, senao digital
   // (a leitura usa so o meio do quadro e a imagem amplia na tela).
   const [zoom, setZoom] = useState<1 | 2>(1);
+
+  function tirarFoto() {
+    const v = videoRef.current;
+    if (!v || !v.videoWidth || !onFoto) return;
+    // 1024 px: sobe rapido no 4G e e o que a IA de um produto precisa.
+    const k = Math.min(1, 1024 / Math.max(v.videoWidth, v.videoHeight));
+    const c = document.createElement("canvas");
+    c.width = Math.round(v.videoWidth * k);
+    c.height = Math.round(v.videoHeight * k);
+    c.getContext("2d")!.drawImage(v, 0, 0, c.width, c.height);
+    navigator.vibrate?.(30);
+    onFoto(c.toDataURL("image/jpeg", 0.8));
+  }
   const zoomRef = useRef<1 | 2>(1);
   const [zoomOptico, setZoomOptico] = useState(false);
   const opticoRef = useRef(false);
@@ -218,6 +237,25 @@ export function BarcodeScanner({
         className="h-full w-full object-cover transition-transform duration-200"
         style={zoom === 2 && !zoomOptico ? { transform: "scale(2)" } : undefined}
       />
+      {onFoto && (
+        <button
+          type="button"
+          onClick={tirarFoto}
+          disabled={procurando}
+          aria-label="Tirar foto do produto"
+          className="absolute bottom-8 right-3 grid h-14 w-14 place-items-center rounded-full border-4 border-white/90 bg-white/25 backdrop-blur active:scale-90 disabled:opacity-40"
+        >
+          <span className="h-9 w-9 rounded-full bg-white" />
+        </button>
+      )}
+      {procurando && (
+        <div className="absolute inset-0 grid place-items-center bg-black/45 backdrop-blur-[2px]">
+          <div className="flex flex-col items-center gap-2 text-white">
+            <span className="h-8 w-8 animate-spin rounded-full border-[3px] border-white/40 border-t-white" />
+            <span className="text-[15px] font-extrabold">Procurando o produto…</span>
+          </div>
+        </div>
+      )}
       <button
         type="button"
         onClick={() => void trocarZoom()}
@@ -251,7 +289,9 @@ export function BarcodeScanner({
               ? temLanterna
                 ? "Está escuro: toque na lanterna 🔦"
                 : "Está escuro: chegue perto de uma luz"
-              : "Aponte para o código, em qualquer posição"}
+              : onFoto
+                ? "Mire no código · ou ⚪ foto da embalagem"
+                : "Aponte para o código, em qualquer posição"}
       </div>
     </div>
   );
