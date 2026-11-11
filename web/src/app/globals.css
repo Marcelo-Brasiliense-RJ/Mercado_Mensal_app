@@ -143,3 +143,12 @@ html[data-teclado] [data-abas] { display: none !important; }
     padding-bottom: 8px !important;
   }
 }
+
+/* Cartao escuro de destaque (redesenho): o mesmo card, com as cores locais trocadas.
+   Quem usa bg-card/text-text dentro dele fica claro sobre escuro sem mudar nada. */
+.cartao-escuro {
+  --card:#121212; --card-2:#26262A; --text:#FFFFFF; --text-2:#C6C3BF; --text-3:#9C9893; --border:#2C2C30;
+  --pos:#4ADE80; --pos-soft:#14261A; --neg:#FF8A80; --warn:#F5B544; --brand:#FF7A1A; --brand-ink:#1A0C02;
+  background: var(--card); color: var(--text);
+}
+[data-theme="dark"] .cartao-escuro { --card:#232326; --card-2:#2E2E32; }

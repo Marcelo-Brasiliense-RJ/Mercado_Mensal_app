@@ -22,11 +22,11 @@ import { VoiceModal } from "@/components/voz/VoiceModal";
 import { useHousehold } from "@/lib/household";
 
 const META: Record<string, { title: string; subtitle: string }> = {
-  "/app/estoque": { title: "Estoque", subtitle: "Despensa" },
+  "/app/estoque": { title: "Despensa", subtitle: "o que tem em casa" },
   "/app/lista": { title: "Lista", subtitle: "de compras" },
   "/app/ofertas": { title: "Ofertas", subtitle: "da semana" },
   "/app/livelo": { title: "Livelo", subtitle: "pontos nas compras" },
-  "/app/economia": { title: "Economia", subtitle: "do mês" },
+  "/app/economia": { title: "Gastos", subtitle: "do mês" },
   "/app/mercado": { title: "Mercado", subtitle: "modo compra" },
   "/app/config": { title: "Ajustes", subtitle: "família e app" },
 };

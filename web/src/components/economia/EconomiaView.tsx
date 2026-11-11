@@ -28,7 +28,7 @@ import { useStore } from "@/lib/store";
 // tela e um mes por vez (setas para voltar), e cada bloco responde uma pergunta so:
 // 1. quanto gastei e se passei do combinado, 2. dava para pagar menos em outro mercado?,
 // 3. paguei mais ou menos que de costume?, 4. onde foi o dinheiro, 5. e nos outros meses?
-const card = "rounded-[20px] border border-border bg-card p-4 shadow-[0_2px_12px_var(--shadow)] lg:p-5";
+const card = "rounded-[24px] bg-card p-4 lg:p-5";
 const rotulo = "text-[12px] font-bold uppercase tracking-[0.06em] text-text-3";
 
 type Estado = { fase: "carregando" } | { fase: "desligado" } | { fase: "erro" } | { fase: "ok"; d: MesEconomia };
@@ -212,7 +212,8 @@ function Resumo({
   const n = numerosDoMes(d);
 
   return (
-    <div className={card}>
+    // Destaque escuro do redesenho: o numero do mes primeiro.
+    <div className={`${card} cartao-escuro`}>
       <div className={rotulo}>{d.atual ? "Você já gastou" : "Você gastou"}</div>
       <div className="mt-1 flex flex-wrap items-baseline gap-x-2">
         <span className="text-[40px] font-extrabold leading-none tracking-[-0.02em] tabular-nums">{brl(d.gasto)}</span>
@@ -413,15 +414,15 @@ function OndeFoi({ categorias, gasto }: { categorias: ReturnType<typeof porCateg
   return (
     <div className={card}>
       <div className={rotulo}>Onde foi o dinheiro</div>
-      <div className="mt-3 flex flex-col gap-1">
+      <div className="mt-2 flex flex-col divide-y divide-border">
         {categorias.map((c) => (
           <div key={c.categoria}>
             <button
               onClick={() => setAberto(aberto === c.categoria ? null : c.categoria)}
               aria-expanded={aberto === c.categoria}
-              className="flex w-full items-center gap-2.5 rounded-xl py-1.5 text-left"
+              className="flex w-full items-center gap-3 py-2.5 text-left"
             >
-              <span className="w-7 text-center text-[20px]" aria-hidden>{ICONE[c.categoria] ?? "🛒"}</span>
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-card-2 text-[20px]" aria-hidden>{ICONE[c.categoria] ?? "🛒"}</span>
               <span className="min-w-0 flex-1">
                 <span className="flex items-baseline justify-between gap-2">
                   <span className="truncate text-[14px] font-bold">{c.categoria}</span>
@@ -429,7 +430,7 @@ function OndeFoi({ categorias, gasto }: { categorias: ReturnType<typeof porCateg
                 </span>
                 <span className="mt-1 flex items-center gap-2">
                   <span className="h-2 flex-1 overflow-hidden rounded-full bg-card-2">
-                    <span className="block h-full rounded-full bg-brand" style={{ width: `${(c.total / maior) * 100}%` }} />
+                    <span className="block h-full rounded-full bg-text" style={{ width: `${(c.total / maior) * 100}%` }} />
                   </span>
                   <span className="w-9 text-right text-[11px] font-bold text-text-2">
                     {gasto > 0 ? Math.round((c.total / gasto) * 100) : 0}%
@@ -438,7 +439,7 @@ function OndeFoi({ categorias, gasto }: { categorias: ReturnType<typeof porCateg
               </span>
             </button>
             {aberto === c.categoria && (
-              <div className="mb-2 ml-9 divide-y divide-border rounded-xl bg-card-2 px-3">
+              <div className="mb-2 ml-[52px] divide-y divide-border rounded-xl bg-card-2 px-3">
                 {c.itens.map((i) => (
                   <div key={i.nome} className="flex justify-between gap-3 py-1.5 text-[13px]">
                     <span className="truncate capitalize">

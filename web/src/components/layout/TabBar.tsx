@@ -6,11 +6,11 @@ import { BoxIcon, ListIcon, ChartIcon, HeartIcon, TagIcon, CartIcon } from "@/co
 import { useModoMercado } from "@/lib/modoMercado";
 
 const tabs = [
-  { href: "/app/estoque", label: "Estoque", Icon: BoxIcon },
+  { href: "/app/estoque", label: "Despensa", Icon: BoxIcon },
   { href: "/app/lista", label: "Lista", Icon: ListIcon },
   { href: "/app/ofertas", label: "Ofertas", Icon: TagIcon },
   { href: "/app/livelo", label: "Livelo", Icon: HeartIcon },
-  { href: "/app/economia", label: "Economia", Icon: ChartIcon },
+  { href: "/app/economia", label: "Gastos", Icon: ChartIcon },
 ];
 
 export function TabBar({ className = "" }: { className?: string }) {

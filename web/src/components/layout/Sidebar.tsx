@@ -23,11 +23,11 @@ import { useTheme } from "@/theme/useTheme";
 import { createClient } from "@/lib/supabase/client";
 
 const nav = [
-  { href: "/app/estoque", label: "Estoque", Icon: BoxIcon },
+  { href: "/app/estoque", label: "Despensa", Icon: BoxIcon },
   { href: "/app/lista", label: "Lista de compras", Icon: ListIcon },
   { href: "/app/ofertas", label: "Ofertas", Icon: TagIcon },
   { href: "/app/livelo", label: "Livelo", Icon: HeartIcon },
-  { href: "/app/economia", label: "Economia", Icon: ChartIcon },
+  { href: "/app/economia", label: "Gastos", Icon: ChartIcon },
 ];
 
 export function Sidebar({ onRegistrar }: { onRegistrar: () => void }) {
