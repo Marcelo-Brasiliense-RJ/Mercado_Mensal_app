@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Despensa">
+  <rect width="512" height="512" fill="#FF7A1A"/>
+  <rect x="176" y="128" width="40" height="120" rx="14" fill="#F5EFE6"/>
+  <rect x="184" y="110" width="24" height="22" rx="6" fill="#141414"/>
+  <rect x="228" y="168" width="78" height="80" rx="14" fill="#141414"/>
+  <rect x="236" y="156" width="62" height="16" rx="6" fill="#F5EFE6"/>
+  <ellipse cx="334" cy="214" rx="38" ry="34" fill="#E8C59A"/>
+  <path d="M150 196c0-50 42-82 106-82s106 32 106 82" fill="none" stroke="#141414" stroke-width="18" stroke-linecap="round"/>
+  <path d="M112 244h288l-30 152c-4 20-20 32-40 32H182c-20 0-36-12-40-32z" fill="#141414"/>
+  <rect x="186" y="284" width="16" height="104" rx="8" fill="#FF7A1A"/>
+  <rect x="248" y="284" width="16" height="104" rx="8" fill="#FF7A1A"/>
+  <rect x="310" y="284" width="16" height="104" rx="8" fill="#FF7A1A"/>
+</svg>
