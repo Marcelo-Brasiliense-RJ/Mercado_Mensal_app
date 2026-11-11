@@ -22,7 +22,8 @@ export function TabBar({ className = "" }: { className?: string }) {
     : tabs;
   return (
     <nav
-      className={`fixed inset-x-0 bottom-0 z-20 flex border-t border-border bg-card pb-[env(safe-area-inset-bottom)] ${className}`}
+      // Barra flutuante em pilula: a aba ativa vira uma pilula laranja.
+      className={`fixed inset-x-3 bottom-[calc(10px+env(safe-area-inset-bottom))] z-20 flex h-[66px] gap-1 rounded-full bg-[var(--barra)] p-1.5 shadow-[0_10px_30px_var(--shadow-lg)] ${className}`}
     >
       {lista.map(({ href, label, Icon }) => {
         const active = path.startsWith(href);
@@ -37,16 +38,15 @@ export function TabBar({ className = "" }: { className?: string }) {
               e.preventDefault();
               document.querySelector("main")?.scrollTo({ top: 0, behavior: "smooth" });
             }}
-            className={`ic-toque relative flex min-h-[56px] flex-1 flex-col items-center justify-center gap-1 ${
-              active ? "text-brand" : "text-text-3"
+            className={`ic-toque relative flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-full transition-colors ${
+              active ? "bg-[var(--barra-ativa)] text-[var(--barra-ativa-ink)]" : "text-white/60"
             }`}
           >
-            {active && <span className="absolute top-0 h-[3px] w-7 rounded-b-full bg-brand" aria-hidden />}
             {/* key: ao trocar de aba, o icone da aba nova "salta" uma vez */}
             <span key={String(active)} className={active ? "ic-pop" : ""}>
-              <Icon size={23} />
+              <Icon size={21} />
             </span>
-            <span className="text-[11px] font-semibold">{label}</span>
+            <span className="truncate text-[10.5px] font-bold">{label}</span>
           </Link>
         );
       })}

@@ -31,7 +31,7 @@ export function QuickBar() {
 
   return (
     <div
-      className="fixed inset-x-0 bottom-[calc(56px+env(safe-area-inset-bottom))] z-20 border-t border-border bg-card px-3 pb-2.5 pt-2 shadow-[0_-4px_16px_var(--shadow)] lg:hidden"
+      className="fixed inset-x-0 bottom-[calc(var(--tabbar-h)+env(safe-area-inset-bottom))] z-20 border-t border-border bg-card px-3 pb-2.5 pt-2 shadow-[0_-4px_16px_var(--shadow)] lg:hidden"
       // Barra de acao do mercado: fica colada acima das abas.
     >
       <div className="flex items-baseline justify-between gap-3">

@@ -403,7 +403,7 @@ export function StockView() {
 
       {/* Barra de acoes em lote */}
       {selMode && selected.size > 0 && (
-        <div className="fixed inset-x-0 bottom-[76px] z-40 mx-auto flex max-w-[640px] flex-wrap gap-2 px-4 lg:bottom-6 lg:max-w-[1120px] lg:px-9">
+        <div className="fixed inset-x-0 bottom-[calc(var(--tabbar-h)+env(safe-area-inset-bottom)+8px)] z-40 mx-auto flex max-w-[640px] flex-wrap gap-2 px-4 lg:bottom-6 lg:max-w-[1120px] lg:px-9">
           <button
             onClick={() => runBatch(zerarStock, (n) => `${n} item(ns) zerado(s)`)}
             disabled={busy}

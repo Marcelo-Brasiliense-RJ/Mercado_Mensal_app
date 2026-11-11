@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 // script em layout.tsx) + localStorage. Compartilhado por ThemeToggle (mobile)
 // e pela sidebar (desktop).
 export function useTheme() {
-  const [theme, setTheme] = useState<"light" | "dark">("dark");
+  const [theme, setTheme] = useState<"light" | "dark">("light");
 
   useEffect(() => {
     const t = document.documentElement.getAttribute("data-theme");

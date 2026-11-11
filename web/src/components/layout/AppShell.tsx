@@ -73,7 +73,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     document.documentElement.style.setProperty(
       "--acima-fab",
-      `calc(env(safe-area-inset-bottom) + ${naLista ? 196 : 144}px)`,
+      `calc(env(safe-area-inset-bottom) + ${naLista ? 224 : 172}px)`,
     );
   }, [naLista]);
   const { household } = useHousehold();
@@ -146,7 +146,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div
             key={path}
             ref={conteudoRef}
-            className={`${vista.dir === 1 ? "tela-da-direita" : vista.dir === -1 ? "tela-da-esquerda" : ""} mx-auto w-full max-w-[640px] px-4 pb-[140px] pt-4 lg:max-w-[1120px] lg:px-9 lg:pb-14 lg:pt-7`}
+            className={`${vista.dir === 1 ? "tela-da-direita" : vista.dir === -1 ? "tela-da-esquerda" : ""} mx-auto w-full max-w-[640px] px-4 pb-[170px] pt-4 lg:max-w-[1120px] lg:px-9 lg:pb-14 lg:pt-7`}
           >
             {children}
           </div>
@@ -165,7 +165,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         onClick={() => setFalar(true)}
         aria-label="Adicionar item"
         className={`fixed right-4 z-20 grid h-[60px] w-[60px] place-items-center rounded-full bg-brand text-brand-ink shadow-[0_8px_22px_rgba(193,95,60,.45)] ring-4 ring-bg transition-transform active:scale-95 lg:bottom-8 lg:right-8 ${
-          naLista ? "bottom-[calc(env(safe-area-inset-bottom)+124px)]" : "bottom-[calc(env(safe-area-inset-bottom)+72px)]"
+          naLista ? "bottom-[calc(env(safe-area-inset-bottom)+var(--tabbar-h)+60px)]" : "bottom-[calc(env(safe-area-inset-bottom)+var(--tabbar-h)+10px)]"
         }`}
       >
         <span className="ic-mexe">

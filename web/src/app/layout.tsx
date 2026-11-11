@@ -1,9 +1,13 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { Plus_Jakarta_Sans } from "next/font/google";
 import { AppStoreProvider } from "@/lib/store";
 import { Toast } from "@/components/ui/Toast";
 import { AutoAtualizar } from "@/components/AutoAtualizar";
 import { LimparCampo } from "@/components/ui/LimparCampo";
+
+// Fonte do visual novo: geometrica e encorpada nos titulos, servida pelo proprio app.
+const fonte = Plus_Jakarta_Sans({ subsets: ["latin"], weight: ["400", "500", "600", "700", "800"], variable: "--fonte-app", display: "swap" });
 
 export const metadata: Metadata = {
   title: "Despensa",
@@ -14,19 +18,19 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0E0E0F",
+  themeColor: "#EFEEE9",
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
 };
 
-const themeInit = `(function(){try{var t=localStorage.getItem('dispensa-theme')||'dark';document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','dark');}})();`;
+const themeInit = `(function(){try{var t=localStorage.getItem('dispensa-theme')||'light';document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','light');}})();`;
 
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="pt-BR" suppressHydrationWarning>
+    <html lang="pt-BR" className={fonte.variable} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInit }} />
       </head>

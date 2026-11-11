@@ -415,7 +415,7 @@ export function MercadoView() {
 
       {/* Rodape fixo: o total e o finalizar sempre no alcance do polegar. */}
       {trip && (
-        <div className="fixed inset-x-0 bottom-[calc(56px+env(safe-area-inset-bottom))] z-20 flex items-center gap-3 border-t border-border bg-card px-4 py-2.5 shadow-[0_-4px_16px_var(--shadow)] lg:static lg:rounded-[18px] lg:border lg:shadow-none">
+        <div className="fixed inset-x-0 bottom-[calc(var(--tabbar-h)+env(safe-area-inset-bottom))] z-20 flex items-center gap-3 border-t border-border bg-card px-4 py-2.5 shadow-[0_-4px_16px_var(--shadow)] lg:static lg:rounded-[18px] lg:border lg:shadow-none">
           <div className="min-w-0 flex-1">
             <div className="text-[11px] font-bold uppercase tracking-wide text-text-3">
               {faltamN ? `Faltam ${faltamN}` : r.totalLista ? "Lista completa ✓" : "No carrinho"}
