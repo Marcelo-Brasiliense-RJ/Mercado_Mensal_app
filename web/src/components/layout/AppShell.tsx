@@ -7,7 +7,6 @@ import { usePathname } from "next/navigation";
 import { Sidebar } from "./Sidebar";
 import { TabBar } from "./TabBar";
 import { TopBar } from "./TopBar";
-import { ThemeToggle } from "@/theme/ThemeToggle";
 import { ReceiptModal } from "@/components/receipt/ReceiptModal";
 import { AddItemIcon, PinIcon } from "@/components/ui/icons";
 import { atualizarLugar, useLugar } from "@/lib/lugar";
@@ -23,11 +22,11 @@ import { VoiceModal } from "@/components/voz/VoiceModal";
 import { useHousehold } from "@/lib/household";
 
 const META: Record<string, { title: string; subtitle: string }> = {
-  "/app/estoque": { title: "Estoque", subtitle: "Despensa" },
+  "/app/estoque": { title: "Despensa", subtitle: "o que tem em casa" },
   "/app/lista": { title: "Lista", subtitle: "de compras" },
   "/app/ofertas": { title: "Ofertas", subtitle: "da semana" },
   "/app/livelo": { title: "Livelo", subtitle: "pontos nas compras" },
-  "/app/economia": { title: "Economia", subtitle: "do mês" },
+  "/app/economia": { title: "Gastos", subtitle: "do mês" },
   "/app/mercado": { title: "Mercado", subtitle: "modo compra" },
   "/app/config": { title: "Ajustes", subtitle: "família e app" },
 };
@@ -70,10 +69,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // Mercado tambem tem a barra do total no rodape.
   const noModoMercado = path.startsWith("/app/mercado");
   const naLista = path.startsWith("/app/lista") || noModoMercado;
+  // O + so onde se poe item: o Estoque. Em Ofertas, Economia e Ajustes ele so
+  // cobria o conteudo; no Mercado o "Adicionar ao carrinho" ja faz isso.
+  // Na Lista os atalhos do topo (Falar, Receita, Montar) ja fazem esse papel.
+  const comMais = path.startsWith("/app/estoque");
   useEffect(() => {
     document.documentElement.style.setProperty(
       "--acima-fab",
-      `calc(env(safe-area-inset-bottom) + ${naLista ? 196 : 144}px)`,
+      `calc(env(safe-area-inset-bottom) + ${naLista ? 224 : 172}px)`,
     );
   }, [naLista]);
   const { household } = useHousehold();
@@ -87,7 +90,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="h-dvh overflow-hidden bg-bg lg:flex">
       <div className="hidden lg:flex">
-        <Sidebar onRegistrar={openReceipt} />
+        <Sidebar onRegistrar={() => openReceipt()} />
       </div>
 
       <div className="flex h-dvh min-w-0 flex-col lg:flex-1">
@@ -137,7 +140,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   <span className="absolute right-1.5 top-1.5 h-2 w-2 animate-pulse rounded-full bg-pos ring-2 ring-card" aria-hidden />
                 )}
               </button>
-              <ThemeToggle />
             </div>
           }
         />
@@ -146,7 +148,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div
             key={path}
             ref={conteudoRef}
-            className={`${vista.dir === 1 ? "tela-da-direita" : vista.dir === -1 ? "tela-da-esquerda" : ""} mx-auto w-full max-w-[640px] px-4 pb-[140px] pt-4 lg:max-w-[1120px] lg:px-9 lg:pb-14 lg:pt-7`}
+            className={`${vista.dir === 1 ? "tela-da-direita" : vista.dir === -1 ? "tela-da-esquerda" : ""} mx-auto w-full max-w-[640px] px-4 pb-[170px] pt-4 lg:max-w-[1120px] lg:px-9 lg:pb-14 lg:pt-7`}
           >
             {children}
           </div>
@@ -161,17 +163,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <VoiceModal open={falar} onClose={() => setFalar(false)} tela={noModoMercado ? "mercado" : "auto"} />
       {/* Botao "+" flutuante, em todas as telas: abre o adicionar (falar, foto, codigo,
           escrever). Na Lista sobe um pouco para nao cobrir o total do rodape. */}
+      {/* No Mercado o "Adicionar ao carrinho" ja faz isso: o + so cobria os itens. */}
+      {comMais && (
       <button
+        data-abas
         onClick={() => setFalar(true)}
         aria-label="Adicionar item"
-        className={`fixed right-4 z-20 grid h-[60px] w-[60px] place-items-center rounded-full bg-brand text-brand-ink shadow-[0_8px_22px_rgba(193,95,60,.45)] ring-4 ring-bg transition-transform active:scale-95 lg:bottom-8 lg:right-8 ${
-          naLista ? "bottom-[calc(env(safe-area-inset-bottom)+124px)]" : "bottom-[calc(env(safe-area-inset-bottom)+72px)]"
+        className={`fixed right-4 z-20 grid h-14 w-14 place-items-center rounded-full bg-[var(--barra)] text-white shadow-[0_6px_18px_var(--shadow-lg)] transition-transform active:scale-95 lg:bottom-8 lg:right-8 ${
+          naLista ? "bottom-[calc(env(safe-area-inset-bottom)+var(--tabbar-h)+60px)]" : "bottom-[calc(env(safe-area-inset-bottom)+var(--tabbar-h)+10px)]"
         }`}
       >
         <span className="ic-mexe">
-          <AddItemIcon size={28} />
+          <AddItemIcon size={24} />
         </span>
       </button>
+      )}
     </div>
   );
 }

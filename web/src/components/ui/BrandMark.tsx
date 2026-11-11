@@ -1,8 +1,5 @@
-import { BoxIcon } from "./icons";
-
-// Marca do app (quadrado da marca com o icone). Evita dependencia de PNG em
-// public. ponytail: trocar por <Image src="/icon-512.png"> quando os icones do
-// PWA forem adicionados.
+// Marca do app: o icone "Cesta do mes" (desenhado no Claude Design, opcao F), o mesmo
+// da tela inicial do celular (public/icone.svg).
 export function BrandMark({
   size = 42,
   radius = 12,
@@ -11,11 +8,7 @@ export function BrandMark({
   radius?: number;
 }) {
   return (
-    <div
-      className="grid shrink-0 place-items-center bg-brand text-brand-ink"
-      style={{ width: size, height: size, borderRadius: radius }}
-    >
-      <BoxIcon size={Math.round(size * 0.5)} />
-    </div>
+    // eslint-disable-next-line @next/next/no-img-element -- svg pequeno do proprio app
+    <img src="/icone.svg" alt="" aria-hidden width={size} height={size} className="shrink-0" style={{ width: size, height: size, borderRadius: radius }} />
   );
 }

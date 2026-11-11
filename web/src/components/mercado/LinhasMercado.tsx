@@ -4,7 +4,7 @@ import { brl } from "@/lib/format";
 import { stepFor } from "@/lib/defaults";
 import type { ShopItem, TripItem } from "@/lib/types";
 import type { LinhaPego } from "@/lib/modoMercado";
-import { CartIcon, CheckIcon } from "@/components/ui/icons";
+import { CheckIcon } from "@/components/ui/icons";
 import { FotoItem } from "@/components/ui/FotoItem";
 
 // Linhas do modo mercado, DENSAS de proposito: compra do mes tem 50, 70, 100 itens, e
@@ -33,18 +33,20 @@ export function CardFalta({ nome, qtd, unidade, preco, emCasa, resto, pegando, o
         onClick={onPegar}
         disabled={pegando}
         aria-label={resto ? `Pegar o resto de ${nome}` : `Peguei ${nome}`}
-        className={`relative flex h-full w-full flex-col items-center rounded-[14px] border-2 bg-card px-1 pb-1.5 pt-2 text-center shadow-[0_1px_3px_var(--shadow)] transition-transform active:scale-95 ${
-          resto ? "border-warn bg-warn-soft" : "border-transparent"
+        className={`relative flex h-full w-full flex-col items-center gap-1 rounded-[18px] bg-card px-1.5 pb-2 pt-2.5 text-center shadow-[0_2px_10px_var(--shadow)] transition-transform active:scale-95 ${
+          resto ? "ring-1 ring-warn/50" : ""
         }`}
       >
-        <FotoItem nome={nome} className="h-11 w-11 rounded-lg" />
-        <span className="mt-1 line-clamp-2 min-h-[2.4em] w-full text-[12px] font-bold leading-[1.2]">{nome}</span>
-        <span className={`text-[11px] font-bold leading-tight ${resto ? "text-warn" : "text-text-3"}`}>
-          {resto ? `falta ${qtdTxt(qtd)}` : `${qtdTxt(qtd)} ${unidade}`}
-        </span>
-        {!resto && preco ? (
-          <span className="text-[11px] font-bold leading-tight tabular-nums text-text-2">{brl(qtd * preco)}</span>
-        ) : null}
+        <FotoItem nome={nome} className="h-12 w-12 rounded-xl" />
+        <span className="line-clamp-2 min-h-[2.4em] w-full text-[12px] font-bold leading-[1.2]">{nome}</span>
+        {resto ? (
+          <span className="rounded-full bg-warn-soft px-2 py-[1px] text-[10.5px] font-extrabold text-warn">falta {qtdTxt(qtd)}</span>
+        ) : (
+          <span className="text-[11px] font-semibold leading-tight text-text-3">
+            {qtdTxt(qtd)} {unidade}
+            {preco ? <b className="text-text-2"> · {brl(qtd * preco)}</b> : null}
+          </span>
+        )}
         {emCasa && <span className="absolute left-1 top-1 h-2.5 w-2.5 rounded-full bg-pos ring-2 ring-card" title="tem em casa" />}
         {pegando && (
           <span className="absolute inset-0 grid place-items-center rounded-[12px] bg-pos/85 text-white">
@@ -58,30 +60,32 @@ export function CardFalta({ nome, qtd, unidade, preco, emCasa, resto, pegando, o
 
 // Lista: uma linha de ~48px por produto, nome inteiro legivel. Tocar na linha = peguei.
 export function LinhaFaltaCompacta({ nome, qtd, unidade, preco, emCasa, resto, pegando, onPegar }: Falta) {
+  // Redesenho "modo correria": linha alta (64 px), foto grande, nome legivel com o
+  // celular em movimento e um circulo grande na zona do polegar. Tocar na linha = peguei.
   return (
     <li className={`transition-all duration-300 ${pegando ? "opacity-0" : "opacity-100"}`}>
       <button
         onClick={onPegar}
         disabled={pegando}
         aria-label={resto ? `Pegar o resto de ${nome}` : `Peguei ${nome}`}
-        className={`relative flex min-h-[48px] w-full items-center gap-2.5 px-2.5 py-1 text-left active:bg-card-2 ${resto ? "bg-warn-soft" : ""}`}
+        className={`relative flex min-h-[64px] w-full items-center gap-3 px-3.5 py-2 text-left active:bg-card-2 ${resto ? "bg-warn-soft" : ""}`}
       >
-        <FotoItem nome={nome} className="h-9 w-9 rounded-md" />
+        <FotoItem nome={nome} className="h-[52px] w-[52px] shrink-0 rounded-[14px]" />
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-[15px] font-bold leading-tight">
-            {emCasa && <span className="mr-1 inline-block h-2 w-2 rounded-full bg-pos align-middle" title="tem em casa" />}
-            {nome}
-          </span>
-          <span className={`block text-[12px] font-bold leading-tight ${resto ? "text-warn" : "text-text-3"}`}>
+          <span className="block truncate text-[17px] font-extrabold leading-tight">{nome}</span>
+          <span className={`block truncate text-[13px] leading-tight ${resto ? "font-bold text-warn" : "text-text-3"}`}>
             {resto ? `pegou menos · falta ${qtdTxt(qtd)} ${unidade}` : `${qtdTxt(qtd)} ${unidade}`}
-            {!resto && preco ? ` · ${brl(qtd * preco)}` : ""}
+            {!resto && preco ? ` · ~${brl(preco)}${qtd > 1 ? " cada" : ""}` : ""}
+            {emCasa && !resto ? " · tem em casa" : ""}
           </span>
         </span>
         <span
-          className={`grid h-9 w-9 shrink-0 place-items-center rounded-full ${resto ? "bg-warn text-warn-ink" : "bg-brand text-brand-ink"}`}
+          className={`grid h-12 w-12 shrink-0 place-items-center rounded-full ${
+            pegando ? "bg-pos text-white" : resto ? "border-[2.5px] border-warn text-warn" : "border-[2.5px] border-border"
+          }`}
           aria-hidden
         >
-          {pegando ? <CheckIcon size={18} /> : <CartIcon size={17} />}
+          {pegando ? <CheckIcon size={22} /> : null}
         </span>
       </button>
     </li>
@@ -109,15 +113,19 @@ export function LinhaCarrinho({
   const parcial = !!pego && pego.faltaQtd > 0;
   const diff = pego?.diffPreco != null && Math.abs(pego.diffPreco) >= 0.01 ? pego.diffPreco : null;
   return (
-    <li className={`flex min-h-[52px] items-center gap-1.5 px-2 py-1 ${parcial ? "bg-warn-soft/60" : ""}`}>
-      <button onClick={onEditar} className="flex min-w-0 flex-1 items-center gap-2 text-left">
-        <span
-          className={`grid h-8 w-8 shrink-0 place-items-center rounded-full text-white ${
-            fora ? "bg-text-3" : parcial ? "bg-warn" : "bg-pos"
-          }`}
-          aria-label={fora ? "fora da lista" : parcial ? "pegou menos que a lista" : "da lista"}
-        >
-          {fora ? <span className="text-[17px] font-extrabold leading-none">+</span> : <CheckIcon size={16} />}
+    <li className={`flex min-h-[60px] items-center gap-2 py-2 pl-3.5 pr-2.5 ${parcial ? "bg-warn-soft/60" : ""}`}>
+      <button onClick={onEditar} className="flex min-w-0 flex-1 items-center gap-2.5 text-left">
+        {/* Redesenho: a foto do produto, com um selinho do estado no canto. */}
+        <span className="relative shrink-0">
+          <FotoItem nome={t.name} className="h-11 w-11 rounded-xl" />
+          <span
+            className={`absolute -bottom-1 -right-1 grid h-5 w-5 place-items-center rounded-full text-white ring-2 ring-card ${
+              fora ? "bg-text-3" : parcial ? "bg-warn" : "bg-pos"
+            }`}
+            aria-label={fora ? "fora da lista" : parcial ? "pegou menos que a lista" : "da lista"}
+          >
+            {fora ? <span className="text-[13px] font-extrabold leading-none">+</span> : <CheckIcon size={11} />}
+          </span>
         </span>
         <span className="min-w-0">
           <span className="block truncate text-[15px] font-bold leading-tight">{t.name}</span>
@@ -140,12 +148,12 @@ export function LinhaCarrinho({
           </span>
         </span>
       </button>
-      <div className="flex shrink-0 items-center rounded-[10px] border border-border bg-card">
+      <div className="flex h-9 shrink-0 items-center rounded-full bg-card-2">
         <button
           onClick={() => onQtd(+(t.quantity - passo).toFixed(3))}
           disabled={busy}
           aria-label={`Menos ${t.name}`}
-          className="grid h-9 w-7 place-items-center text-[18px] font-bold text-text-2 disabled:opacity-40"
+          className="grid h-9 w-8 place-items-center text-[18px] font-bold text-text disabled:opacity-40"
         >
           −
         </button>
@@ -154,7 +162,7 @@ export function LinhaCarrinho({
           onClick={() => onQtd(+(t.quantity + passo).toFixed(3))}
           disabled={busy}
           aria-label={`Mais ${t.name}`}
-          className="grid h-9 w-7 place-items-center text-[18px] font-bold text-brand disabled:opacity-40"
+          className="grid h-9 w-8 place-items-center text-[18px] font-bold text-text disabled:opacity-40"
         >
           +
         </button>

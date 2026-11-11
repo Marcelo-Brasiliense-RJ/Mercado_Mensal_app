@@ -31,6 +31,7 @@ import { canvasDe, enfileirarPrateleira, recorte, tirarJob, type JobFoto } from 
 import type { Destino } from "@/lib/filaFotos";
 import { FotoItem } from "@/components/ui/FotoItem";
 import { acentuar, nomeBonito } from "@/lib/nomeBonito";
+import { dinheiroCampo, mascaraDinheiro } from "@/lib/dinheiro";
 
 // Foto da prateleira (pedido do dono): cada produto ganha um quadrado colorido em
 // cima dele. Verde ja entra; amarelo confirma com um toque; vermelho a pessoa diz o
@@ -255,11 +256,11 @@ export function PrateleiraModal({
   // Preco do produto: o ultimo que a casa pagou; senao a oferta (do mercado onde esta, primeiro).
   function precoDe(nome: string): string {
     const ult = findByName(nome, stock)?.priceLast;
-    if (ult) return String(ult);
+    if (ult) return dinheiroCampo(ult);
     const m = mercadoAtual();
     const casam = ofertas.filter((o) => casaItem(o, nome)).sort(maisBarato);
     const o = casam.find((x) => x.mercado === m) ?? casam[0];
-    return o ? String(o.preco_por) : "";
+    return o ? dinheiroCampo(o.preco_por) : "";
   }
 
   // Por produto: quantos a foto mostra, quantos o carrinho ja tem, quantos sao novos.
@@ -471,9 +472,9 @@ export function PrateleiraModal({
                     <label className="flex h-10 min-w-[96px] flex-1 items-center rounded-[10px] border border-border bg-card-2 px-2">
                       <span className="text-[13px] text-text-2">R$</span>
                       <input
-                        inputMode="decimal"
+                        inputMode="numeric"
                         value={p.preco}
-                        onChange={(e) => mudar({ preco: e.target.value })}
+                        onChange={(e) => mudar({ preco: mascaraDinheiro(e.target.value) })}
                         placeholder="0,00"
                         aria-label={`Preço de ${nomeBonito(g.nome)}`}
                         className="h-full w-full min-w-0 bg-transparent px-1 text-[16px]"

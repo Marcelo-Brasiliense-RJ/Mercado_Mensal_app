@@ -10,6 +10,7 @@ import { casaItem, maisBarato, nomeCompleto, porUnidade, prazo, type Oferta } fr
 import { useListaOfertas } from "@/components/ofertas/useOfertas";
 import { Foto, Selo } from "@/components/ofertas/pecas";
 import { BotaoFixo } from "@/components/ofertas/BotaoFixo";
+import { dinheiroCampo, mascaraDinheiro } from "@/lib/dinheiro";
 
 const UNITS = ["un", "kg", "g", "L", "ml", "pct", "cx", "dz"];
 const field =
@@ -107,7 +108,7 @@ export function ListItemActions({
                 <button
                   key={o.id}
                   type="button"
-                  onClick={() => setPreco(String(o.preco_por))}
+                  onClick={() => setPreco(dinheiroCampo(o.preco_por))}
                   className={`flex items-center gap-2.5 rounded-[14px] border p-2 text-left ${
                     i === 0 ? "border-pos bg-pos-soft" : "border-border bg-card"
                   } ${usado ? "ring-2 ring-brand" : ""}`}
@@ -167,8 +168,8 @@ export function ListItemActions({
       <label className={labelCls}>Preço estimado (unidade)</label>
       <input
         value={preco}
-        onChange={(e) => setPreco(e.target.value)}
-        inputMode="decimal"
+        onChange={(e) => setPreco(mascaraDinheiro(e.target.value))}
+        inputMode="numeric"
         placeholder="R$ 0,00"
         className={`${field} mb-2`}
       />

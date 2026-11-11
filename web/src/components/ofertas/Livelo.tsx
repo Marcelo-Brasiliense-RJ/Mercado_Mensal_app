@@ -20,6 +20,7 @@ import {
 } from "@/lib/livelo";
 import { Foto, Selo } from "./pecas";
 import { marcarFixo, registrarCompraLivelo, salvarConfigLivelo, salvarPrecoLivelo, useLivelo } from "./useLivelo";
+import { mascaraDinheiro } from "@/lib/dinheiro";
 
 // Secao Livelo da aba Ofertas, a vista (nao escondida em configuracao): os parceiros com
 // os pontos de hoje (o coletor atualiza de 3 em 3 horas) e os fixos do mes, cada um
@@ -71,7 +72,7 @@ export function LiveloSecao({ ofertas, sempreAberto = false }: { ofertas: Oferta
         type="button"
         onClick={alternar}
         aria-expanded={aberto}
-        className="flex items-center gap-3 rounded-[18px] border border-border bg-card px-3.5 py-3 text-left"
+        className="flex items-center gap-3 rounded-[24px] bg-card px-3.5 py-3 text-left"
       >
         <span className="text-[24px]" aria-hidden>💗</span>
         <span className="min-w-0 flex-1">
@@ -147,7 +148,7 @@ function DaLista({ l, ofertas }: { l: LiveloT; ofertas: Oferta[] }) {
   const ganha = linhas.filter((x) => x.c.vence === "livelo").length;
 
   return (
-    <div className="rounded-[18px] border border-border bg-card p-3">
+    <div className="rounded-[24px] bg-card p-3">
       <div className="text-[15px] font-extrabold">🛒 Carrefour pela Livelo · da sua lista</div>
       {!linhas.length ? (
         <p className="mt-1 text-[13px] text-text-2">
@@ -435,8 +436,8 @@ function FixoCard({ item, l, ofertas }: { item: string; l: LiveloT; ofertas: Ofe
               <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 font-bold text-text-3">R$</span>
               <input
                 value={preco}
-                onChange={(e) => setPreco(e.target.value)}
-                inputMode="decimal"
+                onChange={(e) => setPreco(mascaraDinheiro(e.target.value))}
+                inputMode="numeric"
                 placeholder="preço lá"
                 aria-label={`Preço de ${item} no ${nomeParceiro(l, parceiro)}`}
                 className="h-11 w-full rounded-[12px] border border-border bg-card-2 pl-10 pr-3 text-[16px] font-bold"

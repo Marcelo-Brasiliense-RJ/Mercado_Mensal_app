@@ -24,6 +24,7 @@ export type FotoFila = {
   codigo?: string;
   unidade?: string;
   foto?: string | null; // foto da loja, quando o codigo acha o produto numa base
+  preco?: number; // lido na etiqueta da gondola, quando ela aparece na foto
   nao?: string; // nome recusado ("pedir pra rever")
   tentativas?: number;
   motivo?: "sem_ia" | "ia_falhou"; // por que falhou, quando nao foi so "nao reconheci"
@@ -108,7 +109,7 @@ async function processar() {
         continue;
       }
       if (r.ok) {
-        trocar(x.id, { estado: "pronto", nome: r.nome, marca: r.marca, codigo: r.codigo, unidade: r.unidade, foto: r.foto, fonte: r.fonte });
+        trocar(x.id, { estado: "pronto", nome: r.nome, marca: r.marca, codigo: r.codigo, unidade: r.unidade, foto: r.foto, fonte: r.fonte, preco: r.preco });
         continue;
       }
       if (r.motivo === "ia_falhou") {

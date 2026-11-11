@@ -14,6 +14,7 @@ import { Sugestoes } from "./Sugestoes";
 import { SomarOuSubstituir, type Modo } from "@/components/ui/SomarOuSubstituir";
 import { produtoDoEstoque } from "@/lib/acertarEstoque";
 import { reverFoto, tirarDaFila, useDescanso, useFilaFotos, type FotoFila } from "@/lib/filaFotos";
+import { dinheiroCampo, mascaraDinheiro } from "@/lib/dinheiro";
 
 // O que volta da fila de fotos: um aviso no topo enquanto a IA trabalha e, com o
 // leitor fechado, um popup por produto reconhecido: "e isso mesmo?" -> quantidade e
@@ -69,7 +70,10 @@ function Conferir({ x, resta, onDepois }: { x: FotoFila; resta: number; onDepois
   const jaTem = findByName(nome, stock);
   const [qtd, setQtd] = useState("1");
   const [unidade, setUnidade] = useState(x.unidade || jaTem?.unit || unitFor(x.nome ?? ""));
-  const [preco, setPreco] = useState(jaTem?.priceLast != null ? String(jaTem.priceLast) : "");
+  // Etiqueta da gondola na foto vale mais que o preco da ultima compra.
+  const [preco, setPreco] = useState(
+    dinheiroCampo(x.preco || jaTem?.priceLast),
+  );
   const [busy, setBusy] = useState(false);
   const emCasa = destino === "estoque";
   const paraLista = destino === "lista";
@@ -83,7 +87,7 @@ function Conferir({ x, resta, onDepois }: { x: FotoFila; resta: number; onDepois
     const t = findByName(n, stock);
     if (t) {
       setUnidade((u) => (x.unidade ? u : t.unit));
-      if (!preco && t.priceLast != null) setPreco(String(t.priceLast));
+      if (!preco && t.priceLast != null) setPreco(dinheiroCampo(t.priceLast));
     }
     setPasso("dados");
   }
@@ -286,14 +290,15 @@ function Conferir({ x, resta, onDepois }: { x: FotoFila; resta: number; onDepois
                 <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[18px] font-bold text-text-3">R$</span>
                 <input
                   value={preco}
-                  onChange={(e) => setPreco(e.target.value)}
-                  inputMode="decimal"
+                  onChange={(e) => setPreco(mascaraDinheiro(e.target.value))}
+                  inputMode="numeric"
                   placeholder="0,00"
                   aria-label="Preço"
                   autoFocus
                   className="h-[58px] w-full rounded-[14px] border border-border bg-card-2 pl-[52px] pr-4 text-[22px] font-bold"
                 />
               </div>
+              {x.preco ? <ComparaEtiqueta etiqueta={x.preco} ultimo={jaTem?.priceLast ?? null} /> : null}
             </>
           )}
           <div data-rodape className="flex gap-3">
@@ -317,5 +322,26 @@ function Conferir({ x, resta, onDepois }: { x: FotoFila; resta: number; onDepois
         </form>
       )}
     </Modal>
+  );
+}
+
+// "Verificar preco pela etiqueta": o preco lido na foto contra o da ultima compra.
+export function ComparaEtiqueta({ etiqueta, ultimo }: { etiqueta: number; ultimo: number | null }) {
+  const fmt = (v: number) => `R$ ${v.toFixed(2).replace(".", ",")}`;
+  if (!ultimo || ultimo <= 0)
+    return <p className="-mt-2 mb-4 text-[13px] font-bold text-text-2">🏷️ Li {fmt(etiqueta)} na etiqueta</p>;
+  const dif = (etiqueta - ultimo) / ultimo;
+  const igual = Math.abs(dif) < 0.02;
+  return (
+    <p
+      className={`-mt-2 mb-4 rounded-xl px-3 py-2 text-[13px] font-bold ${
+        igual ? "bg-card-2 text-text-2" : dif > 0 ? "bg-neg-soft text-neg" : "bg-pos-soft text-pos"
+      }`}
+    >
+      🏷️ Etiqueta {fmt(etiqueta)} ·{" "}
+      {igual
+        ? `mesmo preço da última vez`
+        : `${dif > 0 ? "subiu" : "caiu"} ${Math.abs(dif * 100).toFixed(0)}% (última vez ${fmt(ultimo)})`}
+    </p>
   );
 }

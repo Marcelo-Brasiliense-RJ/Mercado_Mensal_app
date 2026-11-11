@@ -4,12 +4,12 @@ import { useEffect, useRef, useState } from "react";
 import { isValidBarcode, onlyDigits } from "@/lib/barcode";
 import { abrirCamera, soltarCamera } from "@/lib/camera";
 import { criarLeitor, PASSOS } from "@/lib/leituraCodigo";
+import { obterDetector } from "@/lib/detector";
 
 // Leitura de codigo de barras pela camera. Mesmo desenho do QrScanner da nota:
 // BarcodeDetector nativo quando existe (Chrome/Android, que e o celular no mercado),
 // e ZXing carregado sob demanda no resto (iOS Safari). O import dinamico mantem a
 // biblioteca fora do bundle de quem nunca abre o leitor.
-type Detector = { detect: (src: CanvasImageSource) => Promise<{ rawValue: string }[]> };
 
 // 1D de produto. QR fica de fora de proposito: quem le nota fiscal e o outro fluxo.
 const FORMATOS = ["ean_13", "ean_8", "upc_a", "upc_e", "itf", "code_128"];
@@ -34,9 +34,15 @@ async function pedirFocoContinuo(s: MediaStream | null) {
 export function BarcodeScanner({
   onResult,
   onError,
+  onFoto,
+  procurando = false,
 }: {
   onResult: (code: string) => void;
   onError: (msg: string) => void;
+  // Botao de foto na propria camera: tira o quadro atual (sem abrir a camera do
+  // sistema) e a tela reconhece o produto pela embalagem ou pela etiqueta.
+  onFoto?: (dataUrl: string) => void;
+  procurando?: boolean;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const doneRef = useRef(false);
@@ -62,6 +68,46 @@ export function BarcodeScanner({
   const [temLanterna, setTemLanterna] = useState(false);
   const [lanterna, setLanterna] = useState(false);
   const [escuro, setEscuro] = useState(false);
+  // Zoom 1x/2x (como os apps de mercado): optico quando a camera deixa, senao digital
+  // (a leitura usa so o meio do quadro e a imagem amplia na tela).
+  const [zoom, setZoom] = useState<1 | 2>(1);
+
+  function tirarFoto() {
+    const v = videoRef.current;
+    if (!v || !v.videoWidth || !onFoto) return;
+    // 800 px: sobe rapido no 4G e basta para a IA ler o rotulo de um produto.
+    const k = Math.min(1, 800 / Math.max(v.videoWidth, v.videoHeight));
+    const c = document.createElement("canvas");
+    c.width = Math.round(v.videoWidth * k);
+    c.height = Math.round(v.videoHeight * k);
+    c.getContext("2d")!.drawImage(v, 0, 0, c.width, c.height);
+    navigator.vibrate?.(30);
+    onFoto(c.toDataURL("image/jpeg", 0.75));
+  }
+  const zoomRef = useRef<1 | 2>(1);
+  const [zoomOptico, setZoomOptico] = useState(false);
+  const opticoRef = useRef(false);
+
+  async function trocarZoom() {
+    const novo = zoom === 1 ? 2 : 1;
+    setZoom(novo);
+    zoomRef.current = novo;
+    const t = trilha.current;
+    const caps = (t?.getCapabilities?.() ?? {}) as { zoom?: { min: number; max: number } };
+    if (t && caps.zoom) {
+      try {
+        const z = novo === 2 ? Math.min(2, caps.zoom.max) : Math.max(1, caps.zoom.min);
+        await t.applyConstraints({ advanced: [{ zoom: z } as MediaTrackConstraintSet] });
+        setZoomOptico(true);
+        opticoRef.current = true;
+        return;
+      } catch {
+        /* sem zoom optico: fica o digital */
+      }
+    }
+    setZoomOptico(false);
+    opticoRef.current = false;
+  }
 
   async function alternarLanterna() {
     const t = trilha.current;
@@ -95,9 +141,6 @@ export function BarcodeScanner({
 
     async function start() {
       try {
-        const BD = (globalThis as unknown as {
-          BarcodeDetector?: new (o: object) => Detector;
-        }).BarcodeDetector;
 
         // A camera vem de lib/camera: a mesma das leituras anteriores, sem o
         // iPhone perguntar a permissao de novo a cada produto.
@@ -112,33 +155,35 @@ export function BarcodeScanner({
         video.srcObject = stream;
         await video.play();
 
-        // Nativo (Chrome/Android) ou ZXing (iOS Safari, Firefox), no mesmo laco.
-        // O ZXing nao abre camera aqui: le quadro a quadro do video que ja esta
-        // tocando, para a camera continuar sendo uma so.
-        let ler: (v: HTMLVideoElement) => Promise<string>;
-        let intervalo = 0;
-        // Leitura com realce contra reflexo (lib/leituraCodigo), revezando angulos
-        // e realces quadro a quadro.
+        // Leitor do sistema (Android) ou o zxing-cpp em WebAssembly (iPhone), com a
+        // mesma interface (lib/detector). Quadro sim, quadro nao (sem leitura), uma tentativa
+        // com realce contra reflexo pelo ZXing JS (carregado so quando precisa).
+        const { detector } = await obterDetector(FORMATOS);
+        if (!vivo) return;
         let volta = 0;
-        const zxing = BD ? null : await criarLeitor();
-        if (BD) {
-          const detector = new BD({ formats: FORMATOS });
-          // O nativo (Android) tambem perde codigo com reflexo: a cada 4 quadros sem
-          // leitura, uma tentativa com realce pelo ZXing (carregado so quando precisa).
-          let reforco: Awaited<ReturnType<typeof criarLeitor>> | null = null;
-          let vazios = 0;
-          ler = async (v) => {
-            const nativo = (await detector.detect(v))[0]?.rawValue ?? "";
-            if (nativo) return nativo;
-            if (++vazios % 4) return "";
-            reforco ??= await criarLeitor();
-            const realces = PASSOS.filter((p) => p.realce);
-            return reforco(v, v.videoWidth, v.videoHeight, realces[volta++ % realces.length]);
-          };
-        } else {
-          ler = async (v) => zxing!(v, v.videoWidth, v.videoHeight, PASSOS[volta++ % PASSOS.length]);
-          intervalo = 100; // decodificar em JS e pesado: nao precisa ser todo quadro
-        }
+        let vazios = 0;
+        let reforco: Awaited<ReturnType<typeof criarLeitor>> | null = null;
+        const realces = PASSOS.filter((p) => p.realce);
+        const intervalo = 0;
+        const ler = async (v: HTMLVideoElement): Promise<string> => {
+          // zoom digital: so o meio do quadro (o optico ja vem aproximado da camera)
+          const z = opticoRef.current ? 1 : zoomRef.current;
+          let fonte: ImageBitmapSource = v;
+          if (z > 1) {
+            const w = v.videoWidth / z;
+            const h = v.videoHeight / z;
+            recorte.width = w;
+            recorte.height = h;
+            recorte.getContext("2d")!.drawImage(v, (v.videoWidth - w) / 2, (v.videoHeight - h) / 2, w, h, 0, 0, w, h);
+            fonte = recorte;
+          }
+          const achado = (await detector.detect(fonte))[0]?.rawValue ?? "";
+          if (achado) return achado;
+          if (++vazios % 2) return "";
+          reforco ??= await criarLeitor();
+          return reforco(v, v.videoWidth, v.videoHeight, realces[volta++ % realces.length]);
+        };
+        const recorte = document.createElement("canvas");
 
         // Brilho medio numa miniatura do quadro, a cada segundo: escuro pede lanterna.
         const amostra = document.createElement("canvas");
@@ -184,10 +229,44 @@ export function BarcodeScanner({
   }, []);
 
   return (
-    <div className="relative mx-auto h-[220px] w-full overflow-hidden rounded-[14px] border border-border bg-black">
-      <video ref={videoRef} muted playsInline className="h-full w-full object-cover" />
+    <div className="relative mx-auto h-[260px] w-full overflow-hidden rounded-[18px] border border-border bg-black">
+      <video
+        ref={videoRef}
+        muted
+        playsInline
+        className="h-full w-full object-cover transition-transform duration-200"
+        style={zoom === 2 && !zoomOptico ? { transform: "scale(2)" } : undefined}
+      />
+      {onFoto && (
+        <button
+          type="button"
+          onClick={tirarFoto}
+          disabled={procurando}
+          aria-label="Tirar foto do produto"
+          className="absolute bottom-8 right-3 grid h-14 w-14 place-items-center rounded-full border-4 border-white/90 bg-white/25 backdrop-blur active:scale-90 disabled:opacity-40"
+        >
+          <span className="h-9 w-9 rounded-full bg-white" />
+        </button>
+      )}
+      {procurando && (
+        <div className="absolute inset-0 grid place-items-center bg-black/45 backdrop-blur-[2px]">
+          <div className="flex flex-col items-center gap-2 text-white">
+            <span className="h-8 w-8 animate-spin rounded-full border-[3px] border-white/40 border-t-white" />
+            <span className="text-[15px] font-extrabold">Procurando o produto…</span>
+          </div>
+        </div>
+      )}
+      <button
+        type="button"
+        onClick={() => void trocarZoom()}
+        aria-label={zoom === 2 ? "Zoom normal" : "Aproximar 2x"}
+        className="absolute bottom-9 left-1/2 flex h-9 -translate-x-1/2 items-center gap-1 rounded-full bg-black/55 p-1 text-[12px] font-extrabold text-white"
+      >
+        <span className={`grid h-7 w-8 place-items-center rounded-full ${zoom === 1 ? "bg-white text-black" : ""}`}>1×</span>
+        <span className={`grid h-7 w-8 place-items-center rounded-full ${zoom === 2 ? "bg-white text-black" : ""}`}>2×</span>
+      </button>
       {/* Mira quadrada: o codigo pode estar deitado, em pe ou inclinado. */}
-      <div className="pointer-events-none absolute left-1/2 top-1/2 h-[150px] w-[150px] -translate-x-1/2 -translate-y-1/2 rounded-[14px] border-2 border-white/80" />
+      <div className="pointer-events-none absolute left-1/2 top-[45%] h-[120px] w-[78%] -translate-x-1/2 -translate-y-1/2 rounded-[16px] border-2 border-white/80 shadow-[0_0_0_999px_rgba(0,0,0,.25)]" />
       {temLanterna && (
         <button
           type="button"
@@ -210,7 +289,9 @@ export function BarcodeScanner({
               ? temLanterna
                 ? "Está escuro: toque na lanterna 🔦"
                 : "Está escuro: chegue perto de uma luz"
-              : "Aponte para o código, em qualquer posição"}
+              : onFoto
+                ? "Mire no código · ou ⚪ foto da embalagem"
+                : "Aponte para o código, em qualquer posição"}
       </div>
     </div>
   );

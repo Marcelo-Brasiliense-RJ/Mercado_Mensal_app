@@ -7,6 +7,7 @@ import { brl } from "@/lib/format";
 import { unitFor } from "@/lib/defaults";
 import { useStore } from "@/lib/store";
 import { mesmoNome } from "@/lib/modoMercado";
+import { dinheiroCampo, mascaraDinheiro } from "@/lib/dinheiro";
 
 // Por no carrinho escrevendo. Campos nascem preenchidos (regra 2): unidade pelo nome,
 // preco da ultima compra ou do que estava na lista. Preco e opcional (0021).
@@ -23,7 +24,7 @@ export function DigitarCarrinho({ onClose }: { onClose: () => void }) {
     stock.find((s) => mesmoNome(s.name, nome))?.priceLast ??
     shopping.find((s) => s.status === "pending" && mesmoNome(s.name, nome))?.estimated_price ??
     null;
-  const precoTxt = mexeuPreco ? preco : conhecido ? String(conhecido).replace(".", ",") : "";
+  const precoTxt = mexeuPreco ? preco : conhecido ? dinheiroCampo(conhecido) : "";
   const q = Number(qtd.replace(",", ".")) || 0;
   const p = precoTxt ? Number(precoTxt.replace(",", ".")) : null;
   const valido = nome.trim().length > 1 && q > 0 && (p === null || p >= 0);
@@ -60,9 +61,9 @@ export function DigitarCarrinho({ onClose }: { onClose: () => void }) {
           value={precoTxt}
           onChange={(e) => {
             setMexeuPreco(true);
-            setPreco(e.target.value);
+            setPreco(mascaraDinheiro(e.target.value));
           }}
-          inputMode="decimal"
+          inputMode="numeric"
           placeholder="R$ 0,00"
           className="mb-2 h-12 w-full rounded-[13px] border border-border bg-card-2 px-3.5 text-[15px]"
         />

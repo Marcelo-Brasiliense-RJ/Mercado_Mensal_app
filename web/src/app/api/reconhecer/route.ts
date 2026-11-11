@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { chavesGemini, gemini } from "@/lib/server/gemini";
+import { chavesGemini, gemini, type RespostaGemini } from "@/lib/server/gemini";
 
 // "Não consegui ler o código": a foto do produto vai para o Gemini, que devolve o nome
 // como no rotulo (e o codigo de barras, se aparecer na foto). Fica no servidor para a
@@ -15,7 +15,10 @@ const PERGUNTA =
   "escrito na FRENTE da embalagem e diga qual é. nome: como está no rótulo, em português, " +
   "com tipo, marca, variante e tamanho (ex.: 'Detergente Líquido Ypê Neutro 500ml'). " +
   "codigo: os números do código de barras se estiverem legíveis na foto, senão vazio. " +
-  "Se der para ler só parte, dê o melhor palpite. Nome vazio só se não for produto de mercado.";
+  "Se der para ler só parte, dê o melhor palpite. Nome vazio só se não for produto de mercado. " +
+  "preco: se aparecer na foto a ETIQUETA de preço da gôndola (ou adesivo de preço) deste produto, o preço " +
+  "de UMA unidade em reais como número (ex.: 21.9); o preço de oferta/clube se houver os dois; " +
+  "ignore o preço por kg/L da etiqueta. Sem etiqueta legível, 0.";
 const ESQUEMA = {
   type: "OBJECT",
   properties: {
@@ -23,6 +26,7 @@ const ESQUEMA = {
     marca: { type: "STRING" },
     tamanho: { type: "STRING" },
     codigo: { type: "STRING" },
+    preco: { type: "NUMBER" },
   },
   required: ["nome", "marca", "tamanho", "codigo"],
 };
@@ -53,8 +57,7 @@ export async function POST(req: Request) {
 
   if (!chavesGemini().length) return NextResponse.json({ ok: false, erro: "ia_indisponivel" }, { status: 503 });
 
-  const res = await gemini(
-    {
+  const corpo = {
       contents: [
         {
           parts: [
@@ -64,12 +67,22 @@ export async function POST(req: Request) {
         },
       ],
       generationConfig: { responseMimeType: "application/json", responseSchema: ESQUEMA, temperature: 0 },
-    },
-    Boolean(nao) || forte,
-  );
+    };
+  // Rapido: dois modelos "lite" ao mesmo tempo, vale o primeiro que trouxer nome (no
+  // mercado cada segundo conta). Os dois falharam: o caminho de sempre, todos em fila.
+  const temNome = (r: RespostaGemini) => r.ok && /"nome"\s*:\s*"[^"]+"/.test(r.texto);
+  const rapido = Boolean(nao) || forte
+    ? null
+    : await Promise.any(
+        ["gemini-3.5-flash-lite", "gemini-flash-lite-latest"].map((mod) =>
+          gemini(corpo, false, 12000, 12000, [mod]).then((r) => (temNome(r) ? r : Promise.reject(r))),
+        ),
+      ).catch(() => null);
+  const res = rapido ?? (await gemini(corpo, Boolean(nao) || forte));
   if (res.ok) {
     try {
-      const d = JSON.parse(res.texto) as { nome?: string; marca?: string; tamanho?: string; codigo?: string };
+      const d = JSON.parse(res.texto) as { nome?: string; marca?: string; tamanho?: string; codigo?: string; preco?: number };
+      const preco = Number(d.preco);
       const codigo = (d.codigo ?? "").replace(/\D/g, "");
       return NextResponse.json({
         ok: true,
@@ -78,6 +91,8 @@ export async function POST(req: Request) {
         marca: (d.marca ?? "").trim(),
         tamanho: (d.tamanho ?? "").trim(),
         codigo: codigo.length >= 8 ? codigo : "",
+        // etiqueta da gondola: preco de uma unidade (0 = nao tinha etiqueta legivel)
+        preco: Number.isFinite(preco) && preco > 0 && preco < 10000 ? Math.round(preco * 100) / 100 : 0,
       });
     } catch {
       /* resposta quebrada: cai no ia_falhou */

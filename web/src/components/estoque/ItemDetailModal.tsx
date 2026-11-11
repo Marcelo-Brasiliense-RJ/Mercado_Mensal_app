@@ -236,7 +236,7 @@ export function ItemDetailModal({
               type="button"
               onClick={() => salvarPar(parDigitado)}
               disabled={busy || !Number.isFinite(parDigitado) || parDigitado < 0}
-              className="h-11 shrink-0 rounded-[12px] bg-brand px-4 text-[14px] font-bold text-brand-ink disabled:opacity-50"
+              className="h-11 shrink-0 rounded-full bg-[var(--barra)] px-4 text-[14px] font-bold text-white disabled:opacity-50"
             >
               Salvar
             </button>
@@ -253,41 +253,37 @@ export function ItemDetailModal({
         </div>
       </div>
 
-      {/* Baixa por consumo: dois atalhos, sem teclado */}
-      <div className="mb-2.5 grid grid-cols-2 gap-2">
-        <button
-          onClick={usouMetade}
-          disabled={busy || item.current <= 0}
-          className="h-11 rounded-[12px] border border-warn bg-card text-[13px] font-bold text-warn disabled:opacity-50"
-        >
-          Usei metade
+      {/* Redesenho: uma acao principal (preta) e as outras em cinza, mesma forma.
+          Antes eram cinco botoes em quatro cores. */}
+      <div data-rodape className="flex flex-col gap-2">
+        <button onClick={add} className="h-[54px] rounded-full bg-[var(--barra)] text-[16px] font-extrabold text-white">
+          Pôr na lista
         </button>
-        <button
-          onClick={baixaTotal}
-          disabled={busy || item.current <= 0}
-          className="h-11 rounded-[12px] bg-warn text-[13px] font-bold text-white disabled:opacity-50"
-        >
-          Acabou
-        </button>
-      </div>
-
-      <div data-rodape className="flex gap-2">
-        {/* Repor: volta ao normal sem virar compra (desfaz baixa errada). */}
-        {item.current < item.normal && (
+        <div className={`grid gap-2 ${item.current < item.normal ? "grid-cols-3" : "grid-cols-2"}`}>
           <button
-            onClick={repor_}
-            disabled={busy}
-            className="h-[50px] flex-1 rounded-[14px] bg-pos text-[14px] font-bold text-white disabled:opacity-50"
+            onClick={usouMetade}
+            disabled={busy || item.current <= 0}
+            className="h-12 rounded-full bg-card-2 text-[14px] font-bold disabled:opacity-40"
           >
-            Repor ao normal
+            Usei metade
           </button>
-        )}
-        <button onClick={add} className="h-[50px] flex-[1.3] rounded-[14px] bg-brand text-[15px] font-bold text-brand-ink">
-          + Lista
-        </button>
+          <button
+            onClick={baixaTotal}
+            disabled={busy || item.current <= 0}
+            className="h-12 rounded-full bg-card-2 text-[14px] font-bold disabled:opacity-40"
+          >
+            Acabou
+          </button>
+          {/* Repor: volta ao normal sem virar compra (desfaz baixa errada). */}
+          {item.current < item.normal && (
+            <button onClick={repor_} disabled={busy} className="h-12 rounded-full bg-card-2 text-[14px] font-bold disabled:opacity-40">
+              Repor
+            </button>
+          )}
+        </div>
       </div>
-      <button onClick={() => setExcluindo(true)} className="mt-1.5 h-9 w-full text-[13px] font-bold text-neg underline">
-        Excluir do estoque
+      <button onClick={() => setExcluindo(true)} className="mt-1 h-10 w-full text-[14px] font-bold text-neg">
+        Tirar da despensa
       </button>
       {excluindo && item && <ConfirmarExclusao itens={[item]} onClose={() => setExcluindo(false)} onFeito={fechar} />}
     </Modal>

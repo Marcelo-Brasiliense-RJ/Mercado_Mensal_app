@@ -1,4 +1,5 @@
-// Service worker so para os avisos "De olho" (Web Push). Nao guarda cache de nada:
+// Service worker so para os avisos (Web Push): "De olho" e os da familia (o que cada um
+// pos na lista, o que acabou, quem esta no mercado). Nao guarda cache de nada:
 // o app continua carregando da rede como sempre.
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (e) => e.waitUntil(self.clients.claim()));
@@ -14,8 +15,12 @@ self.addEventListener("push", (e) => {
     self.registration.showNotification(d.title || "Despensa", {
       body: d.body || "",
       icon: "/icon-192.png",
-      badge: "/icon-192.png",
-      tag: "de-olho",
+      badge: "/icone-badge.png",
+      // Mesmo assunto substitui o aviso anterior (nao empilha 5 "pos na lista"), mas toca de novo.
+      tag: d.tag || "de-olho",
+      renotify: true,
+      timestamp: Date.now(),
+      vibrate: [80, 40, 80],
       data: { url: d.url || "/app/ofertas" },
     }),
   );

@@ -102,10 +102,12 @@ export function VoiceModal({
   open,
   onClose,
   tela = "mercado",
+  escrever = false,
 }: {
   open: boolean;
   onClose: () => void;
   tela?: Tela;
+  escrever?: boolean; // abre direto no campo de texto (atalho "Receita")
 }) {
   const { addShopItem, addTripItem, addStock, removeItems, showToast, stock, shopping } =
     useStore();
@@ -148,7 +150,8 @@ export function VoiceModal({
   const [marcas, setMarcas] = useState<Marca[] | null>(null); // null = buscando
   const [outraMarca, setOutraMarca] = useState("");
   const [escrito, setEscrito] = useState(""); // caminho digitado, mesmo entendimento da voz
-  const [escrevendo, setEscrevendo] = useState(false);
+  const [escrevendoAgora, setEscrevendo] = useState(false);
+  const escrevendo = escrevendoAgora || escrever; // atalho "Receita" abre ja no texto
   const [prateleira, setPrateleira] = useState(false);
   const [codigo, setCodigo] = useState(false);
   const fotoRef = useRef<HTMLInputElement>(null);
@@ -1025,8 +1028,8 @@ export function VoiceModal({
                     autoFocus
                     value={escrito}
                     onChange={(e) => setEscrito(e.target.value)}
-                    rows={3}
-                    placeholder="Escreva como falaria: tenho 5 kg de arroz, preciso de café, não comprar leite esse mês"
+                    rows={4}
+                    placeholder="Escreva como falaria: tenho 5 kg de arroz, preciso de café, não comprar leite. Ou cole uma receita (ou só “receita de lasanha pra 6”) e eu monto a lista."
                     className="w-full rounded-[13px] border border-border bg-card-2 p-3 text-[15px] leading-snug"
                   />
                   <button

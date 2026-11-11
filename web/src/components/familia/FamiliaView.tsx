@@ -21,9 +21,9 @@ import { Interruptor } from "@/components/ui/Interruptor";
 import { setModoMercado, useModoMercado } from "@/lib/modoMercado";
 
 const cardCls =
-  "rounded-[20px] border border-border bg-card p-[18px] shadow-[0_2px_12px_var(--shadow)] lg:p-[22px]";
+  "rounded-[24px] bg-card p-[18px] lg:p-[22px]";
 const secao = "mb-2 mt-2 px-1 text-[12px] font-bold uppercase tracking-[0.08em] text-text-3";
-const btn2 = "h-11 rounded-[12px] border border-border bg-card-2 px-4 text-[14px] font-bold";
+const btn2 = "h-11 rounded-full bg-card-2 px-4 text-[14px] font-bold";
 
 // Ajustes do app, na ordem em que a pessoa precisa: a casa (familia e onde compra),
 // o que o app faz sozinho (avisos, localizacao), o dinheiro (orcamento) e o resto.
@@ -180,6 +180,8 @@ export function FamiliaView() {
           </div>
           <Interruptor ligado={modoMercado} onChange={setModoMercado} rotulo="Modo mercado" />
         </div>
+        {/* Tema: saiu do topo de todas as telas (era um icone a mais em cada uma). */}
+        <TemaEscuro cls={cardCls} />
         {/* Avisos no celular */}
         <AvisoCelular />
 
@@ -291,7 +293,7 @@ export function FamiliaView() {
               </div>
               <button
                 onClick={() => { setErro(null); setTrocar(true); }}
-                className="h-11 rounded-[12px] border border-border bg-card-2 px-4 text-[14px] font-bold"
+                className="h-11 rounded-full bg-card-2 px-4 text-[14px] font-bold"
               >
                 Usar outro código
               </button>
@@ -302,14 +304,14 @@ export function FamiliaView() {
                 value={novoCodigo}
                 onChange={(e) => setNovoCodigo(e.target.value.toUpperCase())}
                 placeholder="Código de convite"
-                className="mb-3 h-12 w-full rounded-[12px] border border-border bg-card-2 px-3.5 text-center font-mono text-[18px] font-extrabold uppercase tracking-[0.14em]"
+                className="mb-3 h-12 w-full rounded-full bg-card-2 px-3.5 text-center font-mono text-[18px] font-extrabold uppercase tracking-[0.14em]"
               />
               {erro && <p className="mb-3 text-[13px] font-bold text-neg">{erro}</p>}
               <div className="flex gap-3">
                 <button
                   type="button"
                   onClick={() => { setTrocar(false); setErro(null); }}
-                  className="h-11 flex-1 rounded-[12px] border border-border bg-card text-[14px] font-bold"
+                  className="h-11 flex-1 rounded-full bg-card-2 text-[14px] font-bold"
                 >
                   Cancelar
                 </button>
@@ -336,6 +338,19 @@ export function FamiliaView() {
 
       {mercadosAberto && <MeusMercadosModal onClose={() => setMercadosAberto(false)} />}
       <BudgetModal open={orcamentoAberto} onClose={() => setOrcamentoAberto(false)} />
+    </div>
+  );
+}
+
+function TemaEscuro({ cls }: { cls: string }) {
+  const { isDark, toggle } = useTheme();
+  return (
+    <div className={`${cls} flex items-center gap-3`}>
+      <div className="min-w-0 flex-1">
+        <div className="text-[16px] font-extrabold">🌙 Tema escuro</div>
+        <div className="text-[13px] text-text-2">Fundo escuro, melhor à noite.</div>
+      </div>
+      <Interruptor ligado={isDark} onChange={() => toggle()} rotulo="Tema escuro" />
     </div>
   );
 }

@@ -17,16 +17,18 @@ import {
   porCategoria,
   ritmo,
   somarMes,
+  numerosDoMes,
   type MesEconomia,
 } from "@/lib/economia";
 import { BudgetModal } from "./BudgetModal";
 import { ComprasDoMes } from "./ComprasDoMes";
+import { useStore } from "@/lib/store";
 
 // Economia: o fechamento do mes, em frases curtas. A compra da casa e mensal, entao a
 // tela e um mes por vez (setas para voltar), e cada bloco responde uma pergunta so:
 // 1. quanto gastei e se passei do combinado, 2. dava para pagar menos em outro mercado?,
 // 3. paguei mais ou menos que de costume?, 4. onde foi o dinheiro, 5. e nos outros meses?
-const card = "rounded-[20px] border border-border bg-card p-4 shadow-[0_2px_12px_var(--shadow)] lg:p-5";
+const card = "rounded-[24px] bg-card p-4 lg:p-5";
 const rotulo = "text-[12px] font-bold uppercase tracking-[0.06em] text-text-3";
 
 type Estado = { fase: "carregando" } | { fase: "desligado" } | { fase: "erro" } | { fase: "ok"; d: MesEconomia };
@@ -39,6 +41,7 @@ async function buscarMes(m: string | null): Promise<Estado> {
 }
 
 export function EconomiaView() {
+  const { openReceipt } = useStore();
   const ofertas = useListaOfertas();
   const [mes, setMes] = useState<string | null>(null); // null = mes corrente
   const [estado, setEstado] = useState<Estado>({ fase: "carregando" });
@@ -150,6 +153,21 @@ export function EconomiaView() {
 
         <MesAMes meses={d.meses} atual={d.mes} onEscolher={(m) => setMes(m)} />
 
+        {/* Nota pela foto: no celular o leitor da nota so existia no menu do desktop. */}
+        {d.atual && (
+          <button
+            onClick={() => openReceipt()}
+            className="flex items-center gap-3 rounded-[24px] bg-card px-4 py-3 text-left"
+          >
+            <span className="text-[22px]" aria-hidden>🧾</span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[15px] font-extrabold">Ler nota fiscal</span>
+              <span className="block text-[12px] text-text-2">Foto do cupom: os itens e preços entram sozinhos</span>
+            </span>
+            <span className="text-[18px] font-bold text-text-3" aria-hidden>›</span>
+          </button>
+        )}
+
         {!futuro && (
           <ComprasDoMes
             compras={d.compras}
@@ -191,9 +209,11 @@ function Resumo({
   const passou = orc != null && d.gasto > orc;
   const r = d.atual ? ritmo(d.gasto, orc) : null;
   const dif = anterior && anterior.gasto > 0 ? d.gasto - anterior.gasto : null;
+  const n = numerosDoMes(d);
 
   return (
-    <div className={card}>
+    // Destaque escuro do redesenho: o numero do mes primeiro.
+    <div className={`${card} cartao-escuro`}>
       <div className={rotulo}>{d.atual ? "Você já gastou" : "Você gastou"}</div>
       <div className="mt-1 flex flex-wrap items-baseline gap-x-2">
         <span className="text-[40px] font-extrabold leading-none tracking-[-0.02em] tabular-nums">{brl(d.gasto)}</span>
@@ -222,6 +242,16 @@ function Resumo({
       {dif != null && Math.abs(dif) >= 1 && (
         <div className="mt-3 rounded-xl bg-card-2 px-3 py-2 text-[13px] font-bold">
           {dif < 0 ? "👍" : "👀"} {brl(Math.abs(dif))} {dif < 0 ? "a menos" : "a mais"} que em {nomeMes(anterior!.mes)}
+          {n.pctAnterior != null && ` (${n.pctAnterior > 0 ? "+" : "−"}${Math.abs(n.pctAnterior).toFixed(0)}%)`}
+        </div>
+      )}
+
+      {/* Seus gastos em tres numeros, numa linha so: nao empurra o resto da tela. */}
+      {n.idas > 0 && (
+        <div className="mt-3 grid grid-cols-3 gap-2">
+          <Numero rotulo="Idas ao mercado" valor={`${n.idas}×`} />
+          <Numero rotulo="Média por ida" valor={brl(n.porIda)} />
+          <Numero rotulo="Média mensal" valor={n.mediaMensal != null ? brl(n.mediaMensal) : "—"} />
         </div>
       )}
 
@@ -230,6 +260,15 @@ function Resumo({
           {orc ? "Mudar orçamento" : "Definir orçamento"}
         </button>
       )}
+    </div>
+  );
+}
+
+function Numero({ rotulo, valor }: { rotulo: string; valor: string }) {
+  return (
+    <div className="rounded-xl bg-card-2 px-2.5 py-2">
+      <div className="text-[11px] font-bold leading-tight text-text-3">{rotulo}</div>
+      <div className="mt-0.5 truncate text-[14px] font-extrabold tracking-[-0.01em] tabular-nums">{valor}</div>
     </div>
   );
 }
@@ -375,15 +414,15 @@ function OndeFoi({ categorias, gasto }: { categorias: ReturnType<typeof porCateg
   return (
     <div className={card}>
       <div className={rotulo}>Onde foi o dinheiro</div>
-      <div className="mt-3 flex flex-col gap-1">
+      <div className="mt-2 flex flex-col divide-y divide-border">
         {categorias.map((c) => (
           <div key={c.categoria}>
             <button
               onClick={() => setAberto(aberto === c.categoria ? null : c.categoria)}
               aria-expanded={aberto === c.categoria}
-              className="flex w-full items-center gap-2.5 rounded-xl py-1.5 text-left"
+              className="flex w-full items-center gap-3 py-2.5 text-left"
             >
-              <span className="w-7 text-center text-[20px]" aria-hidden>{ICONE[c.categoria] ?? "🛒"}</span>
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-card-2 text-[20px]" aria-hidden>{ICONE[c.categoria] ?? "🛒"}</span>
               <span className="min-w-0 flex-1">
                 <span className="flex items-baseline justify-between gap-2">
                   <span className="truncate text-[14px] font-bold">{c.categoria}</span>
@@ -391,7 +430,7 @@ function OndeFoi({ categorias, gasto }: { categorias: ReturnType<typeof porCateg
                 </span>
                 <span className="mt-1 flex items-center gap-2">
                   <span className="h-2 flex-1 overflow-hidden rounded-full bg-card-2">
-                    <span className="block h-full rounded-full bg-brand" style={{ width: `${(c.total / maior) * 100}%` }} />
+                    <span className="block h-full rounded-full bg-text" style={{ width: `${(c.total / maior) * 100}%` }} />
                   </span>
                   <span className="w-9 text-right text-[11px] font-bold text-text-2">
                     {gasto > 0 ? Math.round((c.total / gasto) * 100) : 0}%
@@ -400,7 +439,7 @@ function OndeFoi({ categorias, gasto }: { categorias: ReturnType<typeof porCateg
               </span>
             </button>
             {aberto === c.categoria && (
-              <div className="mb-2 ml-9 divide-y divide-border rounded-xl bg-card-2 px-3">
+              <div className="mb-2 ml-[52px] divide-y divide-border rounded-xl bg-card-2 px-3">
                 {c.itens.map((i) => (
                   <div key={i.nome} className="flex justify-between gap-3 py-1.5 text-[13px]">
                     <span className="truncate capitalize">

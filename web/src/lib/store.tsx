@@ -4,6 +4,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -12,6 +13,7 @@ import type { StockItem, ShopItem, SavingRow, MonthPoint, Trip } from "./types";
 import { createClient } from "./supabase/client";
 import { aprenderMercado, mercadoAtual } from "./lugar";
 import { registrarPreco } from "./precosVistos";
+import { avisarFamilia } from "./avisarFamilia";
 
 // Estado das telas do app. Os dados vem do Supabase (RPCs _web, leitura por
 // familia). As acoes de edicao (marcar comprado, adicionar item, orcamento) sao
@@ -164,7 +166,9 @@ type Store = Data & {
   updateCompra: (id: string, patch: { qty?: number; price?: number }) => Promise<RpcResult>;
   deleteCompra: (id: string) => Promise<RpcResult>;
   addCompra: (c: { name: string; qty: number; price: number; unit: string }) => Promise<RpcResult>;
-  openReceipt: () => void;
+  // Com o carrinho que acabou de fechar: a leitura da nota vira conferencia.
+  openReceipt: (conferir?: boolean) => void;
+  conferirNota: boolean;
   closeReceipt: () => void;
   confirmReceipt: (
     items: { nome: string; marca?: string; qtd: number; preco: number; unidade: string }[],
@@ -174,6 +178,58 @@ type Store = Data & {
   // itens que acabou de por). `true` usa o desfazer do banco (ultimo evento, 0023).
   showToast: (msg: string, opts?: { desfazer?: boolean | (() => Promise<void>) }) => void;
 };
+
+// Uma leitura completa da casa. null = erro (rede ou sessao renovando): quem chama
+// mantem o que tinha em vez de mostrar lista vazia.
+async function buscarTudo(): Promise<Data | null> {
+  try {
+    const supabase = createClient();
+    const [stockR, listR, ecoR, tripR] = await Promise.all([
+      supabase.rpc("mercado_stock_web"),
+      supabase.rpc("mercado_list_web"),
+      supabase.rpc("mercado_economia_web"),
+      supabase.rpc("mercado_trip_web"),
+    ]);
+    if (stockR.error || listR.error) return null;
+    const eco = (ecoR.data ?? {}) as {
+      budget?: { total: number; spent: number };
+      months?: MonthPoint[];
+      savings?: SavingRow[];
+    };
+    return {
+      stock: (stockR.data as StockItem[] | null) ?? [],
+      shopping: (listR.data as ShopItem[] | null) ?? [],
+      budget: eco.budget ?? { total: 0, spent: 0 },
+      months: eco.months ?? [],
+      savings: eco.savings ?? [],
+      trip: (tripR.data as Trip | null) ?? null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+// Lista dividida com a familia: o que outra pessoa pos aparece sozinho (a cada 30 s
+// com o app aberto, e ao voltar para ele) e vem um aviso "Na lista agora: cafe, pao".
+// ponytail: leitura periodica pelas RPCs de sempre. O upgrade e o Realtime do
+// Supabase, que pede policy/publication nova no banco (migration aplicada a mao).
+const SINCRONIZAR_MS = 30_000;
+const chave = (n: string) => n.trim().toLowerCase();
+
+export function novosNaLista(antes: ShopItem[], depois: ShopItem[]): string[] {
+  const tinha = new Set(antes.filter((i) => i.status === "pending").map((i) => chave(i.name)));
+  const vistos = new Set<string>();
+  return depois
+    .filter((i) => i.status === "pending" && !tinha.has(chave(i.name)))
+    .map((i) => i.name.trim())
+    .filter((n) => (vistos.has(chave(n)) ? false : (vistos.add(chave(n)), true)));
+}
+
+export function avisoNovos(nomes: string[]): string {
+  const mostra = nomes.slice(0, 3).join(", ");
+  const resto = nomes.length - 3;
+  return `👨‍👩‍👧 Na lista agora: ${mostra}${resto > 0 ? ` e mais ${resto}` : ""}`;
+}
 
 const Ctx = createContext<Store | null>(null);
 
@@ -193,43 +249,27 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   const toastT = useRef<ReturnType<typeof setTimeout> | null>(null);
   const desfazerProprio = useRef<(() => Promise<void>) | null>(null);
 
-  const openReceipt = useCallback(() => setReceiptOpen(true), []);
+  const [conferirNota, setConferirNota] = useState(false);
+  const openReceipt = useCallback((conferir?: boolean) => {
+    setConferirNota(!!conferir);
+    setReceiptOpen(true);
+  }, []);
   const closeReceipt = useCallback(() => setReceiptOpen(false), []);
 
+  const ultimaRecarga = useRef(0); // escrita do proprio aparelho recarrega: a sincronia espera
   const reloadData = useCallback(async (): Promise<void> => {
+    ultimaRecarga.current = Date.now();
     setDataLoading(true);
     try {
       // Erro do banco (ex.: sessao ainda renovando logo apos o app recarregar) volta
       // como data null, e isso virava "lista vazia". Nao apaga o que tinha: tenta de novo.
       for (let tentativa = 0; tentativa < 4; tentativa++) {
         if (tentativa) await new Promise((r) => setTimeout(r, 1500 * tentativa));
-        try {
-          const supabase = createClient();
-          const [stockR, listR, ecoR, tripR] = await Promise.all([
-            supabase.rpc("mercado_stock_web"),
-            supabase.rpc("mercado_list_web"),
-            supabase.rpc("mercado_economia_web"),
-            supabase.rpc("mercado_trip_web"),
-          ]);
-          if (stockR.error || listR.error) continue;
-          const eco = (ecoR.data ?? {}) as {
-            budget?: { total: number; spent: number };
-            months?: MonthPoint[];
-            savings?: SavingRow[];
-          };
-          setData({
-            stock: (stockR.data as StockItem[] | null) ?? [],
-            shopping: (listR.data as ShopItem[] | null) ?? [],
-            budget: eco.budget ?? { total: 0, spent: 0 },
-            months: eco.months ?? [],
-            savings: eco.savings ?? [],
-            trip: (tripR.data as Trip | null) ?? null,
-          });
-          setDataReady(true);
-          return;
-        } catch {
-          // Falha de rede: mantem o que tinha e tenta de novo.
-        }
+        const d = await buscarTudo();
+        if (!d) continue;
+        setData(d);
+        setDataReady(true);
+        return;
       }
     } finally {
       setDataLoading(false);
@@ -284,19 +324,26 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   const zerarStock = useCallback(
     async (ids: string[]) => {
       const r = await callRpc("mercado_stock_zerar_web", { p_ids: ids });
-      if (r.ok) await reloadData();
+      if (r.ok) {
+        avisarFamilia({ tipo: "acabou", nomes: data.stock.filter((i) => ids.includes(i.id)).map((i) => i.name) });
+        await reloadData();
+      }
       return r;
     },
-    [reloadData],
+    [reloadData, data.stock],
   );
 
   const baixaStock = useCallback(
     async (id: string, qty: number) => {
       const r = await callRpc("mercado_stock_baixa_web", { p_id: id, p_qty: qty });
-      if (r.ok) await reloadData();
+      if (r.ok) {
+        const it = data.stock.find((i) => i.id === id);
+        if (it && it.current - qty <= 0) avisarFamilia({ tipo: "acabou", nomes: [it.name] });
+        await reloadData();
+      }
       return r;
     },
-    [reloadData],
+    [reloadData, data.stock],
   );
 
   const addStock = useCallback(
@@ -346,6 +393,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
     async (ids: string[]) => {
       const r = await callRpc("mercado_stock_to_list_web", { p_ids: ids });
       if (r.ok) {
+        avisarFamilia({ tipo: "lista", nomes: data.stock.filter((i) => ids.includes(i.id)).map((i) => i.name) });
         naListaLocal(
           data.stock
             .filter((i) => ids.includes(i.id))
@@ -368,6 +416,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   const startTrip = useCallback(async () => {
     const r = await callRpc("mercado_trip_start_web");
     if (r.ok) {
+      avisarFamilia({ tipo: "mercado", nomes: [] }, true);
       await reloadTrip();
       void aprenderMercado(); // abriu a compra aqui: provavel mercado (so grava com GPS bom)
     }
@@ -537,11 +586,15 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   );
 
   const finalizeTrip = useCallback(async () => {
+    const antes = data.trip;
     const r = await callRpc("mercado_trip_finalize_web");
     // recarrega estoque/lista/economia repostos + limpa o carrinho
-    if (r.ok) await reloadData();
+    if (r.ok) {
+      avisarFamilia({ tipo: "compra", nomes: [], total: antes?.total, itens: antes?.items.length }, true);
+      await reloadData();
+    }
     return r;
-  }, [reloadData]);
+  }, [reloadData, data.trip]);
 
   const removeTripItem = useCallback(
     async (id: string) => {
@@ -563,6 +616,38 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       setToastDesfazer(false);
     }, opts?.desfazer ? 6000 : 2200);
   }, []);
+
+  // Sincronia da familia (ver SINCRONIZAR_MS): so com a tela visivel e longe de uma
+  // escrita deste aparelho, para nao atropelar o que acabou de ser posto na mao.
+  const dataRef = useRef(data);
+  useEffect(() => {
+    dataRef.current = data;
+  }, [data]);
+  useEffect(() => {
+    if (!dataReady) return;
+    let rodando = false;
+    async function sincronizar() {
+      if (rodando || document.visibilityState !== "visible") return;
+      if (Date.now() - ultimaRecarga.current < 5000) return;
+      rodando = true;
+      const antes = dataRef.current;
+      const d = await buscarTudo();
+      rodando = false;
+      if (!d || Date.now() - ultimaRecarga.current < 5000) return;
+      setData(d);
+      const novos = novosNaLista(antes.shopping, d.shopping);
+      if (novos.length) showToast(avisoNovos(novos));
+    }
+    const aoVoltar = () => {
+      if (document.visibilityState === "visible") void sincronizar();
+    };
+    const id = setInterval(sincronizar, SINCRONIZAR_MS);
+    document.addEventListener("visibilitychange", aoVoltar);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", aoVoltar);
+    };
+  }, [dataReady, showToast]);
 
   // Volta a ultima escrita da casa (0023). ponytail: desfaz o ultimo evento da familia,
   // nao "o meu": se outra pessoa escreveu nesses 6 s, desfaz o dela. Raro com o aviso curto;
@@ -597,6 +682,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
         p_price: item.estimated_price,
       });
       if (r.ok) {
+        avisarFamilia({ tipo: "lista", nomes: [item.name] });
         naListaLocal([item]);
         void reloadData();
       }
@@ -631,6 +717,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
         p_price: item.priceLast,
       });
       if (r.ok) {
+        avisarFamilia({ tipo: "lista", nomes: [item.name] });
         naListaLocal([{ name: item.name, desired_quantity: Math.max(1, Math.round(item.normal - item.current)), unit: item.unit, estimated_price: item.priceLast }]);
         void reloadData();
       }
@@ -655,12 +742,13 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
     async (ids: string[]) => {
       const r = await callRpc("mercado_list_remove_web", { p_ids: ids });
       if (r.ok) {
+        avisarFamilia({ tipo: "tirou", nomes: data.shopping.filter((i) => ids.includes(i.id) && i.status === "pending").map((i) => i.name) });
         listaStatusLocal(ids, "removed");
         void reloadData();
       }
       return r;
     },
-    [reloadData, listaStatusLocal],
+    [reloadData, listaStatusLocal, data.shopping],
   );
 
   // Ate a 0021 isto so mexia no estado em memoria: o orcamento sumia no reload.
@@ -751,6 +839,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       receiptOpen,
       openReceipt,
       closeReceipt,
+      conferirNota,
       reloadData,
       zerarStock,
       baixaStock,
@@ -793,6 +882,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       toastDesfazer,
       desfazer,
       receiptOpen,
+      conferirNota,
       openReceipt,
       closeReceipt,
       reloadData,

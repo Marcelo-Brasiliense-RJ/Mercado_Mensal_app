@@ -83,6 +83,29 @@ function contexto(tela: Tela | undefined): string {
   return "";
 }
 
+// "Receita vira lista": a pessoa cola uma receita inteira (ou so diz o prato, "receita
+// de lasanha pra 6") e sai a lista de compras. Detectado aqui, no servidor, para valer
+// igual no texto digitado e no audio, sem botao novo.
+const SINAIS_RECEITA =
+  /\b(receita|ingredientes?|modo de preparo|rendimento|rende \d|por[cç](ao|ão|oes|ões)|x[ií]caras?|colher(es)? de (sopa|ch[aá]|caf[eé])|a gosto|pitada)\b/i;
+
+export function pareceReceita(texto: string): boolean {
+  if (SINAIS_RECEITA.test(texto)) return true;
+  // Lista de ingredientes colada sem cabecalho: varias linhas comecando por medida.
+  const linhas = texto.split(/\n/).filter((l) => /^\s*[-•*]?\s*(\d|meia|meio|uma?|duas?)\b.*\b(g|kg|ml|l|x[ií]cara|colher|lata|pacote|caixa|dente)s?\b/i.test(l));
+  return linhas.length >= 3;
+}
+
+export const RECEITA = `
+
+RECEITA: a pessoa mandou uma receita (colada inteira, só a lista de ingredientes, ou só o nome do prato, ex.: "receita de lasanha pra 6 pessoas").
+- Devolva os INGREDIENTES a comprar, todos com "acao":"lista" e "intencao":"lista". Nada de estoque, carrinho ou remover.
+- Só o nome do prato: liste os ingredientes típicos dessa receita como se faz no Brasil.
+- Medida de cozinha vira compra de mercado: "2 xícaras de farinha" = farinha de trigo 1 "pct"; "3 ovos" = ovo 3 "un"; "200 g de queijo" = 200 "g"; "1 lata de leite condensado" = leite condensado 1 "un"; "2 dentes de alho" = alho 1 "un".
+- Ignore água e o modo de preparo. Sal, óleo, açúcar e temperos "a gosto" entram com qtd 1.
+- Se disser para quantas pessoas, ajuste as quantidades.
+- "nome" é o produto como se compra ("farinha de trigo", "creme de leite", "queijo mussarela"), minúsculo e singular.`;
+
 export type Entendido = { intencao: VozIntencao; itens: VozItem[]; por: "groq" | "gemini" | "regra" };
 
 function ler(txt: string | undefined): { intencao?: unknown; itens?: unknown } | null {
@@ -96,7 +119,7 @@ function ler(txt: string | undefined): { intencao?: unknown; itens?: unknown } |
 // Texto -> itens. Groq primeiro (se tiver chave), Gemini de reserva, e a regra local
 // por ultimo: frase ouvida nunca volta vazia.
 export async function entenderTexto(texto: string, tela?: Tela): Promise<Entendido> {
-  const sistema = INSTRUCAO + JEITOS + contexto(tela);
+  const sistema = INSTRUCAO + JEITOS + (pareceReceita(texto) ? RECEITA : contexto(tela));
   const key = process.env.GROQ_API_KEY;
   if (key) {
     for (const modelo of MODELOS_TEXTO) {

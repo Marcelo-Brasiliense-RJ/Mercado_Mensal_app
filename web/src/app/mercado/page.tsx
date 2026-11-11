@@ -16,6 +16,7 @@ import {
   totalDo,
   type ItemLocal,
 } from "@/lib/carrinhoLocal";
+import { mascaraDinheiro } from "@/lib/dinheiro";
 
 // Modo mercado sem conta. Rota fora de /app de proposito: a guarda de rota manda
 // /app/* para o login, e o ponto deste modo e justamente nao depender de login.
@@ -240,7 +241,7 @@ export default function ModoMercado() {
       </div>
 
       {/* Barra fixa: o total sempre a vista e as tres formas de anotar a um toque. */}
-      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-card px-3 pb-[calc(10px+env(safe-area-inset-bottom))] pt-2.5 shadow-[0_-4px_16px_var(--shadow)]">
+      <div className="acima-teclado fixed inset-x-0 bottom-0 z-20 border-t border-border bg-card px-3 pb-[calc(10px+env(safe-area-inset-bottom))] pt-2.5 shadow-[0_-4px_16px_var(--shadow)]">
         <div className="mx-auto w-full max-w-[640px]">
           <div className="mb-2 flex items-baseline justify-between gap-3">
             <span className="text-[11px] font-bold uppercase tracking-wide text-text-3">
@@ -317,8 +318,8 @@ export default function ModoMercado() {
               </select>
               <input
                 value={preco}
-                onChange={(e) => setPreco(e.target.value)}
-                inputMode="decimal"
+                onChange={(e) => setPreco(mascaraDinheiro(e.target.value))}
+                inputMode="numeric"
                 placeholder="preço"
                 aria-label="Preço"
                 className={`${campoBase} w-[76px] shrink-0 px-2 text-right`}

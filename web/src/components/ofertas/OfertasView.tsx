@@ -228,7 +228,7 @@ function Grade({ children }: { children: React.ReactNode }) {
 
 function Aviso({ titulo, texto }: { titulo: string; texto: string }) {
   return (
-    <div className="flex flex-col items-center gap-2 rounded-[20px] border border-border bg-card px-6 py-10 text-center">
+    <div className="flex flex-col items-center gap-2 rounded-[24px] bg-card px-6 py-10 text-center">
       <TagIcon size={34} className="text-brand" />
       <div className="text-[18px] font-extrabold">{titulo}</div>
       <div className="max-w-[340px] text-[14px] text-text-2">{texto}</div>
@@ -258,7 +258,7 @@ function CardOferta({
   const off = desconto(o);
   const p = prazo(o);
   return (
-    <article className="flex min-w-0 flex-col overflow-hidden rounded-[18px] border border-border bg-card shadow-[0_2px_10px_var(--shadow)]">
+    <article className="flex min-w-0 flex-col overflow-hidden rounded-[24px] bg-card">
       <div
         className="flex items-center justify-between gap-2 px-3 py-2 text-[14px] font-extrabold text-white"
         style={{ background: corMercado(o.mercado) }}

@@ -1,19 +1,22 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { isRjQrUrl } from "@/lib/nfce";
+import { chaveDoQr } from "@/lib/nfce";
+import { obterDetector } from "@/lib/detector";
 import { abrirCamera, soltarCamera } from "@/lib/camera";
 
-// Leitura de QR pela camera. BarcodeDetector existe em Chrome/Android; iOS Safari
-// cai no fallback jsQR. Ao ler um QR de NFC-e do RJ, chama onResult com a URL.
-type Detector = { detect: (src: CanvasImageSource) => Promise<{ rawValue: string }[]> };
+// Leitura de QR pela camera: leitor do sistema (Android) ou zxing-cpp em WebAssembly
+// (iPhone, lib/detector), com jsQR de reserva. Le o QR de NFC-e de QUALQUER estado
+// (tem a chave de 44 digitos) e chama onResult com o texto do QR.
 
 export function QrScanner({
   onResult,
   onError,
+  cheia = false,
 }: {
   onResult: (qrUrl: string) => void;
   onError: (msg: string) => void;
+  cheia?: boolean; // ocupa a tela toda (tela da nota fiscal)
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const doneRef = useRef(false);
@@ -21,8 +24,9 @@ export function QrScanner({
   useEffect(() => {
     let raf = 0;
     let vivo = true;
+    doneRef.current = false; // o efeito pode rodar de novo (montagem dupla): reabre a leitura
     const el = videoRef.current;
-    let detector: Detector | null = null;
+    let detector: Awaited<ReturnType<typeof obterDetector>>["detector"] | null = null;
 
     async function start() {
       try {
@@ -33,13 +37,13 @@ export function QrScanner({
         video.srcObject = stream;
         await video.play();
 
-        const BD = (globalThis as unknown as {
-          BarcodeDetector?: new (o: object) => Detector;
-        }).BarcodeDetector;
-        if (BD) detector = new BD({ formats: ["qr_code"] });
-
+        try {
+          detector = (await obterDetector(["qr_code"])).detector;
+        } catch {
+          detector = null;
+        }
         const canvas = document.createElement("canvas");
-        const jsQR = BD ? null : (await import("jsqr")).default;
+        const jsQR = detector ? null : (await import("jsqr")).default;
 
         const tick = async () => {
           if (doneRef.current || !videoRef.current) return;
@@ -47,8 +51,12 @@ export function QrScanner({
           if (v.readyState === v.HAVE_ENOUGH_DATA) {
             let value = "";
             if (detector) {
-              const codes = await detector.detect(v);
-              value = codes[0]?.rawValue ?? "";
+              try {
+                const codes = await detector.detect(v);
+                value = codes[0]?.rawValue ?? "";
+              } catch {
+                // quadro ruim: tenta o proximo
+              }
             } else if (jsQR) {
               // A camera vem em alta (por causa do codigo de barras); para o QR,
               // 1280 de largura basta e o jsQR fica bem mais rapido.
@@ -60,7 +68,7 @@ export function QrScanner({
               const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
               value = jsQR(img.data, img.width, img.height)?.data ?? "";
             }
-            if (value && isRjQrUrl(value)) {
+            if (value && chaveDoQr(value)) {
               doneRef.current = true;
               onResult(value);
               return;
@@ -85,9 +93,13 @@ export function QrScanner({
   }, [onResult, onError]);
 
   return (
-    <div className="relative mx-auto h-[280px] w-full overflow-hidden rounded-[14px] border border-border bg-black">
+    <div className={cheia ? "absolute inset-0 bg-black" : "relative mx-auto h-[280px] w-full overflow-hidden rounded-[14px] border border-border bg-black"}>
       <video ref={videoRef} muted playsInline className="h-full w-full object-cover" />
-      <div className="pointer-events-none absolute inset-8 rounded-[12px] border-2 border-white/70" />
+      <div
+        className={`pointer-events-none absolute left-1/2 -translate-x-1/2 rounded-[22px] border-[3px] border-white/85 ${
+          cheia ? "top-[22%] h-[min(68vw,300px)] w-[min(68vw,300px)]" : "top-8 bottom-8 w-[70%]"
+        }`}
+      />
     </div>
   );
 }

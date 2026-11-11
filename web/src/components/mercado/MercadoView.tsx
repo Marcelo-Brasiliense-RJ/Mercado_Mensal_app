@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { brl } from "@/lib/format";
 import { useStore } from "@/lib/store";
 import type { ShopItem, TripItem } from "@/lib/types";
-import { BarcodeIcon, CameraIcon, CartIcon, MicIcon, PlusIcon, SearchIcon } from "@/components/ui/icons";
+import { BarcodeIcon, CameraIcon, MicIcon, PlusIcon, SearchIcon } from "@/components/ui/icons";
 import { FotoModal } from "@/components/lista/FotoModal";
 import { BarcodeModal } from "@/components/lista/BarcodeModal";
 import { CartItemModal } from "@/components/lista/CartItemModal";
@@ -31,6 +31,7 @@ import { DigitarCarrinho } from "./DigitarCarrinho";
 import { PainelGasto } from "./PainelGasto";
 import { CardFalta, LinhaCarrinho, LinhaFaltaCompacta, LinhaTroca } from "./LinhasMercado";
 import { RevisarFim } from "./RevisarFim";
+import { guardarUltimaCompra } from "@/lib/conferencia";
 
 type Aba = "falta" | "carrinho";
 
@@ -56,6 +57,7 @@ export function MercadoView() {
     removeTripItem,
     removeItems,
     showToast,
+    openReceipt,
   } = useStore();
   const { noMercado, mercado } = useLugar();
   const cats = useCategorias();
@@ -66,11 +68,10 @@ export function MercadoView() {
   const [cat, setCat] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [buscando, setBuscando] = useState(false);
-  const [add, setAdd] = useState(false); // opcoes de adicionar abertas
   // Grade de fotos (4 por linha) ou lista de uma linha por item. Lembrado no aparelho.
   const [visual, setVisualState] = useState<"grade" | "lista">(() => {
     try {
-      return typeof window !== "undefined" && localStorage.getItem("mercado_visual") === "lista" ? "lista" : "grade";
+      return typeof window !== "undefined" && localStorage.getItem("mercado_visual") === "grade" ? "grade" : "lista";
     } catch {
       return "grade";
     }
@@ -190,6 +191,7 @@ export function MercadoView() {
     // lista o de nome igual, entao estes saem da lista aqui.
     const trocados = r.paraLimpar;
     setBusy("fim");
+    const retrato = trip.items.map((t) => ({ name: t.name, quantity: Number(t.quantity), unit: t.unit, unit_price: Number(t.unit_price) }));
     const x = await finalizeTrip();
     // Os da lista trocados por outra marca saem dela: o que foi pego ja repos o estoque.
     if (x.ok && trocados.length) await removeItems(trocados);
@@ -197,6 +199,9 @@ export function MercadoView() {
     if (x.ok) {
       limparTrocas();
       setRevisar(false);
+      // Fecha o ciclo: pede a nota (sem obrigar) para conferir carrinho x caixa.
+      guardarUltimaCompra(retrato);
+      openReceipt(true);
     }
     showToast(x.ok ? "Compra finalizada, estoque reposto 🎉" : x.erro);
   }
@@ -230,13 +235,13 @@ export function MercadoView() {
   const catAtiva = cat && chips.some((c) => c.categoria === cat) ? cat : null;
   const grupos = r.grupos.filter((g) => !catAtiva || g.categoria === catAtiva);
 
-  const titulo = `🛒 ${noMercado && mercado ? `No ${nomeMercado(mercado)}` : "No carrinho"} · ${carrinho.length} ${carrinho.length === 1 ? "item" : "itens"}`;
+  const titulo = `${noMercado && mercado ? `No ${nomeMercado(mercado)}` : "No carrinho"} · ${carrinho.length} ${carrinho.length === 1 ? "item" : "itens"}`;
 
   return (
     <div className="space-y-3">
       <QualMercado />
 
-      <PainelGasto r={r} conta={conta} titulo={titulo} />
+      <PainelGasto r={r} conta={conta} titulo={titulo} onFinalizar={() => setRevisar(true)} podeFinalizar={!!trip && carrinho.length > 0 && busy !== "fim"} />
 
       {!trip && (
         <button
@@ -251,25 +256,6 @@ export function MercadoView() {
           </span>
         </button>
       )}
-
-      {/* Um botao so para por no carrinho; tocar mostra as formas (foto, codigo, falar,
-          digitar). Fechado ocupa uma linha: os itens ficam com a tela. */}
-      <div className="overflow-hidden rounded-[16px] border-2 border-brand bg-card">
-        <button
-          onClick={() => setAdd(!add)}
-          aria-expanded={add}
-          className="flex h-[50px] w-full items-center justify-center gap-2 text-[16px] font-extrabold text-brand"
-        >
-          <CartIcon size={20} />
-          Adicionar ao carrinho
-          <span className={`text-[13px] transition-transform ${add ? "rotate-180" : ""}`} aria-hidden>
-            ▼
-          </span>
-        </button>
-        {add && (
-          <div className="border-t border-border p-2">{gradeAdd()}</div>
-        )}
-      </div>
 
       {/* "Pegou X de limpeza e na lista tem Y parecido": e o mesmo? */}
       {trip &&
@@ -296,38 +282,27 @@ export function MercadoView() {
 
       {/* Abas + categorias: ficam presas no topo enquanto rola a lista. */}
       <div className="sticky top-0 z-10 -mx-4 space-y-2 bg-bg/95 px-4 pb-2 pt-2 backdrop-blur lg:-mx-9 lg:px-9">
-        <div className="grid grid-cols-2 gap-2" role="tablist">
-          <button
-            role="tab"
-            aria-selected={aba === "carrinho"}
-            onClick={() => trocarAba("carrinho")}
-            className={`flex h-[52px] items-center justify-center gap-2 rounded-[14px] text-[16px] font-extrabold transition-colors ${
-              aba === "carrinho" ? "bg-pos text-white shadow-[0_4px_12px_var(--shadow)]" : "border-2 border-border bg-card text-text-2"
-            }`}
-          >
-            🛒 Carrinho
-            <span
-              key={carrinho.length}
-              className={`ic-pop min-w-[30px] rounded-full px-2 py-0.5 text-[15px] tabular-nums ${aba === "carrinho" ? "bg-black/15" : "bg-pos-soft text-pos"}`}
-            >
-              {carrinho.length}
-            </span>
-          </button>
+        {/* Segmentado: o que falta primeiro, que e o uso no corredor. */}
+        <div className="grid grid-cols-2 gap-1 rounded-[22px] bg-border p-1" role="tablist">
           <button
             role="tab"
             aria-selected={aba === "falta"}
             onClick={() => trocarAba("falta")}
-            className={`flex h-[52px] items-center justify-center gap-2 rounded-[14px] text-[16px] font-extrabold transition-colors ${
-              aba === "falta" ? "bg-brand text-brand-ink shadow-[0_4px_12px_var(--shadow)]" : "border-2 border-border bg-card text-text-2"
+            className={`h-10 whitespace-nowrap rounded-[18px] text-[15px] transition-colors ${
+              aba === "falta" ? "bg-card font-extrabold text-text shadow-[0_1px_4px_var(--shadow)]" : "font-bold text-text-2"
             }`}
           >
-            ⏳ Falta
-            <span
-              key={faltamN}
-              className={`ic-pop min-w-[30px] rounded-full px-2 py-0.5 text-[15px] tabular-nums ${aba === "falta" ? "bg-black/15" : "bg-brand-soft text-brand"}`}
-            >
-              {faltamN}
-            </span>
+            Falta pegar · <span key={faltamN} className="ic-pop inline-block tabular-nums">{faltamN}</span>
+          </button>
+          <button
+            role="tab"
+            aria-selected={aba === "carrinho"}
+            onClick={() => trocarAba("carrinho")}
+            className={`h-10 whitespace-nowrap rounded-[18px] text-[15px] transition-colors ${
+              aba === "carrinho" ? "bg-card font-extrabold text-text shadow-[0_1px_4px_var(--shadow)]" : "font-bold text-text-2"
+            }`}
+          >
+            No carrinho · <span key={carrinho.length} className="ic-pop inline-block tabular-nums">{carrinho.length}</span>
           </button>
         </div>
 
@@ -413,24 +388,26 @@ export function MercadoView() {
       {/* Respiro para a barra do rodape. */}
       <div className="h-[110px] lg:hidden" />
 
-      {/* Rodape fixo: o total e o finalizar sempre no alcance do polegar. */}
-      {trip && (
-        <div className="fixed inset-x-0 bottom-[calc(56px+env(safe-area-inset-bottom))] z-20 flex items-center gap-3 border-t border-border bg-card px-4 py-2.5 shadow-[0_-4px_16px_var(--shadow)] lg:static lg:rounded-[18px] lg:border lg:shadow-none">
-          <div className="min-w-0 flex-1">
-            <div className="text-[11px] font-bold uppercase tracking-wide text-text-3">
-              {faltamN ? `Faltam ${faltamN}` : r.totalLista ? "Lista completa ✓" : "No carrinho"}
-            </div>
-            <div className="text-[22px] font-extrabold leading-none tabular-nums text-brand">{brl(total)}</div>
-          </div>
-          <button
-            onClick={() => setRevisar(true)}
-            disabled={busy === "fim" || carrinho.length === 0}
-            className="mr-[68px] h-12 shrink-0 rounded-[14px] bg-brand px-5 text-[15px] font-bold text-brand-ink disabled:opacity-50 lg:mr-0"
-          >
-            Finalizar ✓
-          </button>
-        </div>
-      )}
+      {/* Barra do polegar (redesenho "modo correria"): o leitor de codigo/foto no
+          botao grande do meio; falar e por algo fora da lista dos lados. O Finalizar
+          fica no painel de cima, longe de toque sem querer. */}
+      <div data-abas className="fixed inset-x-3 bottom-[calc(12px+env(safe-area-inset-bottom))] z-20 grid h-[76px] grid-cols-3 items-center rounded-full bg-[var(--barra)] px-2 text-white shadow-[0_10px_30px_var(--shadow-lg)] lg:static lg:rounded-[22px]">
+        <button onClick={() => setFalar(true)} aria-label="Falar o que pegou" className="flex h-16 flex-col items-center justify-center gap-1 text-[12px] font-bold">
+          <MicIcon size={24} />
+          Falar
+        </button>
+        <button
+          onClick={() => setCodigo(true)}
+          aria-label="Escanear código ou tirar foto do produto"
+          className="-mt-7 grid h-[72px] w-[72px] place-items-center justify-self-center rounded-full border-4 border-[var(--barra)] bg-[var(--barra-ativa)] text-[var(--barra-ativa-ink)] active:scale-95"
+        >
+          <BarcodeIcon size={30} />
+        </button>
+        <button onClick={() => setDigitar(true)} aria-label="Pôr item fora da lista" className="flex h-16 flex-col items-center justify-center gap-1 text-[12px] font-bold">
+          <PlusIcon size={24} />
+          Fora da lista
+        </button>
+      </div>
 
       {foto && (
         <FotoModal
@@ -474,10 +451,7 @@ export function MercadoView() {
         ).map(([rot, Icone, abrir]) => (
           <button
             key={rot}
-            onClick={() => {
-              setAdd(false);
-              abrir();
-            }}
+            onClick={abrir}
             className="flex flex-col items-center justify-center gap-1 rounded-[12px] bg-card-2 py-2.5 text-[13px] font-bold transition-transform active:scale-95"
           >
             <span className="grid h-10 w-10 place-items-center rounded-full bg-brand text-brand-ink">
@@ -491,21 +465,27 @@ export function MercadoView() {
   }
 
   // Titulo da categoria: toque recolhe/abre. Fechada, mostra so a contagem e o valor.
+  // Cabecalho do grupo DENTRO do card dos itens (redesenho): azulejo com o icone da
+  // categoria, nome e contagem; o corredor onde a pessoa esta ganha "Voce esta aqui".
   function titulo_(c: string, direita: React.ReactNode, extra?: React.ReactNode) {
     const fechada = fechadas.has(c);
     return (
       <button
         onClick={() => alternar(c)}
         aria-expanded={!fechada}
-        className="flex min-h-[40px] w-full items-center gap-2 px-1 text-left text-[15px] font-extrabold"
+        className={`flex min-h-[60px] w-full items-center gap-2.5 px-3.5 py-2.5 text-left ${extra ? "bg-brand-soft" : ""}`}
       >
-        <span className={`text-[12px] text-text-3 transition-transform ${fechada ? "-rotate-90" : ""}`} aria-hidden>
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-card-2 text-[21px]" aria-hidden>
+          {iconeDe(cats, c)}
+        </span>
+        <span className="min-w-0 flex-1">
+          {extra && <span className="block text-[11px] font-extrabold uppercase tracking-[0.08em] text-brand">Você está aqui</span>}
+          <span className="block truncate text-[17px] font-extrabold">{c}</span>
+        </span>
+        <span className="shrink-0 text-[13px] font-bold tabular-nums text-text-2">{direita}</span>
+        <span className={`shrink-0 text-[12px] text-text-3 transition-transform ${fechada ? "" : "rotate-180"}`} aria-hidden>
           ▼
         </span>
-        <span className="text-[19px]" aria-hidden>{iconeDe(cats, c)}</span>
-        <span className="truncate">{c}</span>
-        {extra}
-        <span className="ml-auto shrink-0 text-[13px] font-bold tabular-nums text-text-2">{direita}</span>
       </button>
     );
   }
@@ -563,23 +543,21 @@ export function MercadoView() {
           {recolherTudo(secoes.map((x) => x.g.categoria))}
         </div>
         {secoes.map(({ g, faltam, restos }) => (
-          <section key={g.categoria}>
+          <section key={g.categoria} className="overflow-hidden rounded-[24px] bg-card">
             {titulo_(
               g.categoria,
               <>
                 {faltam.length + restos.length}
                 {g.falta > 0 && <span className="text-text-3"> · ~{brl(g.falta)}</span>}
               </>,
-              g.categoria === aqui && (
-                <span className="shrink-0 rounded-full bg-warn-soft px-2 py-[1px] text-[11px] font-extrabold text-warn">📍 aqui</span>
-              ),
+              g.categoria === aqui,
             )}
             {!fechadas.has(g.categoria) && (
               <ul
                 className={
                   visual === "grade"
-                    ? "mt-1 grid grid-cols-4 gap-1.5 sm:grid-cols-5 lg:grid-cols-8"
-                    : "mt-1 divide-y divide-border overflow-hidden rounded-[14px] border border-border bg-card"
+                    ? "grid grid-cols-4 gap-2 border-t border-border p-2 sm:grid-cols-5 lg:grid-cols-8"
+                    : "divide-y divide-border border-t border-border"
                 }
               >
                 {restos.map((p) => (
@@ -652,7 +630,7 @@ export function MercadoView() {
           {recolherTudo(secoes.map((x) => x.g.categoria))}
         </div>
         {secoes.map(({ g, pegoDe, itens, trocados }) => (
-          <section key={g.categoria}>
+          <section key={g.categoria} className="overflow-hidden rounded-[24px] bg-card">
             {titulo_(
               g.categoria,
               <>
@@ -661,7 +639,7 @@ export function MercadoView() {
               </>,
             )}
             {!fechadas.has(g.categoria) && (
-              <ul className="mt-1 divide-y divide-border overflow-hidden rounded-[14px] border border-border bg-card">
+              <ul className="divide-y divide-border border-t border-border">
                 {itens.map((t) => (
                   <LinhaCarrinho
                     key={t.id}

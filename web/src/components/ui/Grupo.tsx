@@ -38,6 +38,7 @@ export function Grupo({
   destaque,
   aberto,
   onAlternar,
+  colado = false,
   children,
 }: {
   titulo: string;
@@ -46,8 +47,32 @@ export function Grupo({
   destaque?: string;
   aberto: boolean;
   onAlternar: () => void;
+  // Redesenho: cabecalho e itens no MESMO card (o cabecalho e a primeira linha).
+  colado?: boolean;
   children: React.ReactNode;
 }) {
+  if (colado)
+    return (
+      <section className="overflow-hidden rounded-[24px] bg-card">
+        <button onClick={onAlternar} aria-expanded={aberto} className="flex min-h-[60px] w-full items-center gap-2.5 px-3.5 py-2.5 text-left">
+          {icone && (
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-card-2 text-[21px]" aria-hidden>
+              {icone}
+            </span>
+          )}
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-[17px] font-extrabold">{titulo}</span>
+            <span className="block truncate text-[12px] font-semibold text-text-3">
+              {[info, destaque].filter(Boolean).join(" · ")}
+            </span>
+          </span>
+          <span className={`shrink-0 text-[12px] text-text-3 transition-transform ${aberto ? "rotate-180" : ""}`} aria-hidden>
+            ▼
+          </span>
+        </button>
+        {aberto && <div className="border-t border-border">{children}</div>}
+      </section>
+    );
   return (
     <section className="flex flex-col gap-2.5">
       <button
