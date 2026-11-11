@@ -22,6 +22,8 @@ import {
 } from "@/lib/economia";
 import { BudgetModal } from "./BudgetModal";
 import { ComprasDoMes } from "./ComprasDoMes";
+import { ComprasLista } from "./ComprasLista";
+import { EVENTO_COMPRAS, diaMes, type ComprasMes } from "@/lib/compras";
 import { useStore } from "@/lib/store";
 
 // Economia: o fechamento do mes, em frases curtas. A compra da casa e mensal, entao a
@@ -48,6 +50,19 @@ export function EconomiaView() {
   const [orcamentoAberto, setOrcamentoAberto] = useState(false);
 
   const carregar = useCallback(async (m: string | null) => setEstado(await buscarMes(m)), []);
+  // Compras sem nota de QUALQUER mes (icone de pendencias) e o pedido de abrir uma.
+  const [pendentes, setPendentes] = useState<ComprasMes["pendentes"]>([]);
+  const [verPendentes, setVerPendentes] = useState(false);
+  const [abrirId, setAbrirId] = useState<string | null>(null);
+  const onPendentes = useCallback((p: ComprasMes["pendentes"]) => setPendentes(p), []);
+  const onAbriu = useCallback(() => setAbrirId(null), []);
+
+  // Nota trocada pelo leitor (popup global): o gasto do mes muda.
+  useEffect(() => {
+    const f = () => void carregar(mes);
+    window.addEventListener(EVENTO_COMPRAS, f);
+    return () => window.removeEventListener(EVENTO_COMPRAS, f);
+  }, [carregar, mes]);
 
   // setState no .then: chamada sincrona no corpo do effect dispara render em cascata.
   useEffect(() => {
@@ -132,12 +147,62 @@ export function EconomiaView() {
           </button>
         </div>
 
+        {/* Pendencias: compras do mercado sem nota, de qualquer mes. */}
+        {pendentes.length > 0 && (
+          <div>
+            <button
+              type="button"
+              onClick={() => setVerPendentes((v) => !v)}
+              aria-expanded={verPendentes}
+              className="flex h-10 items-center gap-2 rounded-full bg-warn-soft px-3.5 text-[13px] font-bold text-warn"
+            >
+              <span aria-hidden>🧾</span>
+              {pendentes.length} {pendentes.length === 1 ? "compra sem nota" : "compras sem nota"}
+              <span aria-hidden>{verPendentes ? "▴" : "▾"}</span>
+            </button>
+            {verPendentes && (
+              <ul className="mt-2 divide-y divide-border rounded-[18px] bg-card px-3">
+                {pendentes.map((p) => (
+                  <li key={p.id}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setVerPendentes(false);
+                        setAbrirId(p.id);
+                        const m = `${p.data.slice(0, 7)}-01`;
+                        if (m !== d.mes) setMes(m);
+                      }}
+                      className="flex h-12 w-full items-center justify-between gap-2 text-left text-[14px]"
+                    >
+                      <span className="font-bold">Compra de {diaMes(p.data)}</span>
+                      <span className="tabular-nums text-text-2">
+                        {brl(Number(p.total))} <span className="ml-1 font-bold text-brand">Subir nota ›</span>
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+
         {futuro ? (
           <Planejar d={d} onOrcamento={() => setOrcamentoAberto(true)} />
         ) : (
           <Resumo d={d} anterior={anterior} itens={contas.itens.length} onOrcamento={() => setOrcamentoAberto(true)} />
         )}
         {d.atual && <LiveloMes />}
+
+        {!futuro && (
+          <ComprasLista
+            mes={d.mes}
+            titulo={`Compras de ${nomeMes(d.mes)}`}
+            onMudou={() => carregar(mes)}
+            onPendentes={onPendentes}
+            abrirId={abrirId}
+            onAbriu={onAbriu}
+          />
+        )}
 
         {futuro ? null : vazio ? (
           <p className="px-4 py-6 text-center text-[15px] leading-relaxed text-text-2">
@@ -172,7 +237,7 @@ export function EconomiaView() {
           <ComprasDoMes
             compras={d.compras}
             podeIncluir={d.atual}
-            titulo={`Compras de ${nomeMes(d.mes)}`}
+            titulo={`Itens de ${nomeMes(d.mes)}`}
             recarregar={() => carregar(mes)}
           />
         )}

@@ -11,6 +11,7 @@ import {
   useState,
 } from "react";
 import type { StockItem, ShopItem, SavingRow, MonthPoint, Trip } from "./types";
+import type { CompraResumo } from "./compras";
 import { createClient } from "./supabase/client";
 import { aprenderMercado, mercadoAtual } from "./lugar";
 import { registrarPreco } from "./precosVistos";
@@ -170,6 +171,10 @@ type Store = Data & {
   // Com o carrinho que acabou de fechar: a leitura da nota vira conferencia.
   openReceipt: (conferir?: boolean) => void;
   conferirNota: boolean;
+  // Nota para uma compra que ja existe (Gastos > compra > "Subir nota"): os itens da
+  // nota substituem os da compra, na mesma data (0055).
+  notaDaCompra: CompraResumo | null;
+  abrirNotaDaCompra: (c: CompraResumo) => void;
   closeReceipt: () => void;
   confirmReceipt: (
     items: { nome: string; marca?: string; qtd: number; preco: number; unidade: string }[],
@@ -251,11 +256,21 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   const desfazerProprio = useRef<(() => Promise<void>) | null>(null);
 
   const [conferirNota, setConferirNota] = useState(false);
+  const [notaDaCompra, setNotaDaCompra] = useState<CompraResumo | null>(null);
   const openReceipt = useCallback((conferir?: boolean) => {
     setConferirNota(!!conferir);
+    setNotaDaCompra(null);
     setReceiptOpen(true);
   }, []);
-  const closeReceipt = useCallback(() => setReceiptOpen(false), []);
+  const abrirNotaDaCompra = useCallback((c: CompraResumo) => {
+    setConferirNota(false);
+    setNotaDaCompra(c);
+    setReceiptOpen(true);
+  }, []);
+  const closeReceipt = useCallback(() => {
+    setReceiptOpen(false);
+    setNotaDaCompra(null);
+  }, []);
 
   const ultimaRecarga = useRef(0); // escrita do proprio aparelho recarrega: a sincronia espera
   const reloadData = useCallback(async (): Promise<void> => {
@@ -846,6 +861,8 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       openReceipt,
       closeReceipt,
       conferirNota,
+      notaDaCompra,
+      abrirNotaDaCompra,
       reloadData,
       zerarStock,
       baixaStock,
@@ -889,6 +906,8 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       desfazer,
       receiptOpen,
       conferirNota,
+      notaDaCompra,
+      abrirNotaDaCompra,
       openReceipt,
       closeReceipt,
       reloadData,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { TelegramIcon, CheckIcon } from "@/components/ui/icons";
 import { useStore } from "@/lib/store";
@@ -12,6 +12,8 @@ import { Conferencia } from "./Conferencia";
 import { conferir, esquecerUltimaCompra, lerUltimaCompra, type Conferencia as Conf, type ItemNota } from "@/lib/conferencia";
 import { createClient } from "@/lib/supabase/client";
 import type { CompraMes } from "@/lib/economia";
+import { avisarComprasMudaram, diaMes } from "@/lib/compras";
+import { brl } from "@/lib/format";
 
 type Item = GridItem;
 type Phase = "capture" | "scanning" | "fotos" | "processing" | "review" | "conferencia" | "error";
@@ -50,11 +52,17 @@ export function ReceiptModal({
   open: boolean;
   onClose: () => void;
 }) {
-  const { confirmReceipt, showToast, updateCompra, reloadData } = useStore();
+  const { confirmReceipt, showToast, updateCompra, reloadData, notaDaCompra } = useStore();
   // Carrinho que acabou de fechar (guardado ao finalizar): com ele, a nota vira
   // conferencia carrinho x nota em vez da revisao simples.
   const [conf, setConf] = useState<Conf | null>(null);
-  const ultima = open ? lerUltimaCompra() : null;
+  // Nota para uma compra ja registrada: nao e conferencia do ultimo carrinho.
+  const ultima = open && !notaDaCompra ? lerUltimaCompra() : null;
+  // O leitor de QR guarda a funcao do primeiro render: a compra-alvo vai por ref.
+  const notaRef = useRef(notaDaCompra);
+  useEffect(() => {
+    notaRef.current = notaDaCompra;
+  }, [notaDaCompra]);
   // QR da nota (qualquer estado): tenta a SEFAZ e, se ela barrar (a do RJ barra
   // servidor), guarda a chave e pede a foto. qr = o que o QR/link trouxe.
   const [qr, setQr] = useState<{ url: string; chave: string; uf: string } | null>(null);
@@ -128,7 +136,7 @@ export function ReceiptModal({
 
   // Com a ultima compra guardada: conferencia. Sem: revisao para gravar na despensa.
   function irParaRevisao(nota: ItemNota[], total: number) {
-    const u = lerUltimaCompra();
+    const u = notaRef.current ? null : lerUltimaCompra();
     if (u) {
       setConf(conferir(u.itens, nota, total));
       setPhase("conferencia");
@@ -141,7 +149,25 @@ export function ReceiptModal({
     if (!conf) return;
     setSaving(true);
     let feitos = 0;
-    if (esquecidos.length) {
+    // A nota e da compra do carrinho que acabou de fechar: os esquecidos entram NELA e
+    // ela sai das pendencias (0055). Sem a 0055 no banco, segue o caminho antigo.
+    const sb = createClient();
+    const ult = await sb.rpc("mercado_compra_ultimo_carrinho_web");
+    const compraId = (ult.data as { ok?: boolean; id?: string } | null)?.id;
+    if (compraId) {
+      const r = await sb.rpc("mercado_compra_nota_web", {
+        p_id: compraId,
+        p_items: esquecidos.map((n) => ({ nome: n.nome, marca: n.marca, qtd: n.qtd, preco: n.preco, unidade: n.unidade })),
+        p_trocar: false,
+        p_chave: chave || null,
+        p_emitente: emitente || null,
+        p_total: conf.totalNota || null,
+      });
+      const d = r.data as { ok?: boolean; erro?: string } | null;
+      if (d?.ok) feitos += esquecidos.length;
+      else if (d?.erro === "ja_importada") showToast("Essa nota já tinha sido registrada.");
+      avisarComprasMudaram();
+    } else if (esquecidos.length) {
       const res = await confirmReceipt(
         esquecidos.map((n) => ({ nome: n.nome, marca: n.marca, qtd: n.qtd, preco: n.preco, unidade: n.unidade })),
         chave ? { chave, emitente, total: conf.totalNota } : undefined,
@@ -233,10 +259,40 @@ export function ReceiptModal({
     setItems((prev) => prev.filter((_, idx) => idx !== i));
   }
 
+  // Nota de uma compra ja registrada: os itens da nota SUBSTITUEM os da compra, na mesma
+  // data (o carrinho anotou 820, a nota foi 1.800). Gasto e estoque nao duplicam.
+  async function trocarNaCompra(clean: Item[]) {
+    if (!notaDaCompra) return;
+    const { data, error } = await createClient().rpc("mercado_compra_nota_web", {
+      p_id: notaDaCompra.id,
+      p_items: clean,
+      p_trocar: true,
+      p_chave: chave || null,
+      p_emitente: emitente || null,
+      p_total: totalNota || null,
+    });
+    const d = data as { ok?: boolean; erro?: string; antes?: number; depois?: number } | null;
+    if (error || !d?.ok) {
+      setSaving(false);
+      return showToast(
+        d?.erro === "ja_importada"
+          ? "Essa nota já está em outra compra."
+          : error?.code === "PGRST202"
+            ? "Falta rodar a migration 0055 no Supabase."
+            : "Não consegui trocar a nota. Tente de novo.",
+      );
+    }
+    await reloadData();
+    avisarComprasMudaram();
+    showToast(`Compra de ${diaMes(notaDaCompra.data)}: ${brl(Number(d.antes))} → ${brl(Number(d.depois))} pela nota`);
+    close();
+  }
+
   async function confirm() {
     const clean = items.filter((i) => i.nome.trim());
     if (!clean.length) return;
     setSaving(true);
+    if (notaDaCompra) return trocarNaCompra(clean);
     try {
       const res = await confirmReceipt(
         clean,
@@ -277,7 +333,7 @@ export function ReceiptModal({
           <button onClick={close} aria-label="Fechar" className="grid h-12 w-12 place-items-center rounded-full bg-white/15 text-[20px] backdrop-blur">
             ✕
           </button>
-          <span className="rounded-full bg-white/15 px-4 py-2 text-[15px] font-bold backdrop-blur">{ultima ? "Conferir com a nota" : "Nota fiscal"}</span>
+          <span className="rounded-full bg-white/15 px-4 py-2 text-[15px] font-bold backdrop-blur">{notaDaCompra ? `Nota da compra de ${diaMes(notaDaCompra.data)}` : ultima ? "Conferir com a nota" : "Nota fiscal"}</span>
           <span className="w-12" />
         </div>
 
@@ -426,9 +482,17 @@ export function ReceiptModal({
               O total dos itens não bateu com o total da nota. Confira antes de confirmar.
             </div>
           )}
-          <div className="mb-3.5 text-[14px] text-text-2">
-            Confira e ajuste antes de adicionar ao estoque. Toque para editar.
-          </div>
+          {notaDaCompra ? (
+            <div className="mb-3.5 rounded-[14px] bg-warn-soft p-3 text-[13px] leading-snug text-text">
+              Vai <b>trocar</b> os {notaDaCompra.itens} itens da compra de {diaMes(notaDaCompra.data)} (
+              {brl(notaDaCompra.total)}) por estes{totalNota ? <>, total da nota <b>{brl(totalNota)}</b></> : null}. A
+              data continua {diaMes(notaDaCompra.data)} e o estoque é acertado. Confira e toque para editar.
+            </div>
+          ) : (
+            <div className="mb-3.5 text-[14px] text-text-2">
+              Confira e ajuste antes de adicionar ao estoque. Toque para editar.
+            </div>
+          )}
           <ItemGrid items={items} onPatch={patch} onRemove={remove} />
           <div data-rodape className="flex gap-3">
             <button
@@ -442,7 +506,7 @@ export function ReceiptModal({
               disabled={saving || items.length === 0}
               className="h-[50px] flex-[1.6] rounded-[14px] bg-brand text-[15px] font-bold text-brand-ink disabled:opacity-50"
             >
-              {saving ? "Salvando..." : "Confirmar e adicionar"}
+              {saving ? "Salvando..." : notaDaCompra ? `Trocar pela nota · ${brl(items.reduce((a, i) => a + Number(i.preco) * Number(i.qtd), 0))}` : "Confirmar e adicionar"}
             </button>
           </div>
         </>
