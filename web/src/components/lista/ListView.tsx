@@ -23,17 +23,15 @@ import { useLivelo } from "@/components/ofertas/useLivelo";
 import { comPontos, ofertasLivelo } from "@/lib/livelo";
 import { corMercado, corredor, faltaEmCasa, maisBarataPara, nomeMercado, porMercado, resumir } from "@/lib/ofertas";
 import { MercadoModal, type ItemMercado } from "./MercadoModal";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Interruptor } from "@/components/ui/Interruptor";
 import { CartIcon } from "@/components/ui/icons";
-import { setModoMercado, useModoMercado } from "@/lib/modoMercado";
+import { setModoMercado } from "@/lib/modoMercado";
+import { categoriaDoItem, iconeDe, useCategorias } from "@/components/estoque/useCategorias";
 
 export function ListView() {
   const { shopping, trip, buyItems, removeItems, addTripItem, showToast, reloadTrip, stock, stockToList, dataReady } =
     useStore();
   const router = useRouter();
-  const modoMercado = useModoMercado();
   const [addManualOpen, setAddManualOpen] = useState(false);
   const [fotoOpen, setFotoOpen] = useState(false);
   const [scanOpen, setScanOpen] = useState(false);
@@ -88,6 +86,8 @@ export function ListView() {
   const [rotaAberta, setRotaAberta] = useState(false);
   const [ondeAberto, setOndeAberto] = useState(false);
   const [montar, setMontar] = useState(false);
+  const [receita, setReceita] = useState(false);
+  const cats = useCategorias();
   const [mercadoAberto, setMercadoAberto] = useState<string | null>(null);
   // Produtos do encarte que entram na conta do mercado aberto.
   const itensDoMercado = (m: string): ItemMercado[] =>
@@ -122,6 +122,17 @@ export function ListView() {
   // A quantidade sai do proprio estoque (normal - tem), pela mesma RPC do "Mandar pra lista".
   const naLista = new Set(pendentes.map((i) => i.name.toLowerCase()));
   const doMes = stock.filter((s) => s.normal > 0 && s.current < s.normal && !naLista.has(s.name.toLowerCase()));
+
+  // Itens por categoria, na ordem em que aparecem (a ordem de "visible" ja vem pelos
+  // corredores quando a pessoa escolhe o mercado).
+  const grupos: { categoria: string; itens: ShopItem[]; total: number }[] = [];
+  for (const i of visible) {
+    const categoria = categoriaDoItem({ name: i.name, category: stock.find((x) => x.name.toLowerCase() === i.name.toLowerCase())?.category }, cats);
+    let g = grupos.find((x) => x.categoria === categoria);
+    if (!g) grupos.push((g = { categoria, itens: [], total: 0 }));
+    g.itens.push(i);
+    if (i.status !== "bought" && !i.em_estoque) g.total += i.desired_quantity * (i.estimated_price ?? 0);
+  }
   async function montarMes() {
     setMontando(true);
     const r = await stockToList(doMes.map((s) => s.id));
@@ -195,35 +206,50 @@ export function ListView() {
       <ScreenHeader title="Lista de compras" action={addBtn} />
 
       <div className="space-y-4 lg:space-y-6">
-        {/* Modo mercado: liga a aba do carrinho (escondida ate ligar), so de pegar. */}
-        <div className="flex items-center gap-3 rounded-[18px] border border-border bg-card p-3.5 shadow-[0_1px_3px_var(--shadow)]">
-          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-[13px] bg-brand-soft text-brand">
-            <CartIcon size={22} />
-          </span>
-          <div className="min-w-0 flex-1">
-            <div className="text-[16px] font-extrabold">Modo mercado</div>
-            <div className="text-[13px] leading-snug text-text-2">
-              {modoMercado ? (
-                <Link href="/app/mercado" className="font-bold text-brand">
-                  Abrir a aba Mercado ›
-                </Link>
-              ) : (
-                "Aba própria do carrinho: por categoria, o que falta e o valor"
-              )}
-            </div>
-          </div>
-          <Interruptor
-            ligado={modoMercado}
-            rotulo="Modo mercado"
-            onChange={(v) => {
-              setModoMercado(v);
-              if (v) router.push("/app/mercado");
+        {/* Redesenho aprovado (Claude Design): um botao grande para ir ao mercado e quatro
+            atalhos, no lugar da pilha de cards (modo mercado, montar lista, nao comprar). */}
+        <div className="space-y-2">
+          <button
+            onClick={() => {
+              setModoMercado(true);
+              router.push("/app/mercado");
             }}
-          />
+            className="flex h-[60px] w-full items-center gap-3 rounded-full bg-[var(--barra)] pl-5 pr-2 text-white"
+          >
+            <CartIcon size={24} />
+            <span className="min-w-0 flex-1 truncate text-left text-[17px] font-extrabold">{trip ? "Voltar ao mercado" : "Estou no mercado"}</span>
+            <span className="flex h-11 shrink-0 items-center rounded-full bg-[var(--barra-ativa)] px-4 text-[14px] font-extrabold text-[var(--barra-ativa-ink)]">
+              {trip ? `${trip.items.length} no carrinho` : "Começar"}
+            </span>
+          </button>
+          <div className="grid grid-cols-4 gap-1.5">
+            {(
+              [
+                // Um toque poe na lista tudo o que esta abaixo do normal em casa; sem nada
+                // abaixo, abre o montar (escolher na vitrine).
+                ["⚡", doMes.length ? (montando ? "Pondo…" : `Repor ${doMes.length}`) : "Montar", () => (doMes.length ? void montarMes() : setMontar(true))],
+                ["🎤", "Falar", () => setVoiceOpen(true)],
+                ["🍝", "Receita", () => setReceita(true)],
+                ["🚫", "Não comprar", () => document.getElementById("nao-compro")?.scrollIntoView({ behavior: "smooth", block: "center" })],
+              ] as const
+            ).map(([ic, rot, fn]) => (
+              <button
+                key={rot}
+                onClick={fn}
+                className="flex h-16 flex-col items-center justify-center gap-1 rounded-[18px] bg-card text-[12px] font-bold active:scale-95"
+              >
+                <span className="text-[19px] leading-none" aria-hidden>{ic}</span>
+                <span className="max-w-full truncate px-1">{rot}</span>
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* O carrinho vem antes dos cards: dentro do mercado e o numero que muda. */}
-        <CartPanel onScan={() => setScanOpen(true)} />
+        {/* No celular o carrinho vive no Mercado (o botao preto acima leva la). */}
+        <div className="hidden lg:block">
+          <CartPanel onScan={() => setScanOpen(true)} />
+        </div>
 
         {/* No celular esses dois numeros ja vivem na QuickBar, fixa no rodape:
             repetir aqui custava meia tela dentro do mercado. */}
@@ -248,51 +274,10 @@ export function ListView() {
           </div>
         </div>
 
-        {/* Montar a lista como numa vitrine: um toque por produto, com foto.
-            Dentro do mercado (carrinho aberto) vira um botao discreto: a tela e de pegar,
-            mas lembrar de algo no corredor ainda e um toque. */}
-        {trip ? (
-          <button
-            onClick={() => setMontar(true)}
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-[14px] border-2 border-brand bg-card text-[15px] font-bold text-brand"
-          >
-            ⚡ Montar lista rápida
-          </button>
-        ) : (
-        <button
-          onClick={() => setMontar(true)}
-          className="flex w-full items-center gap-3 rounded-[18px] bg-brand px-4 py-3.5 text-left text-brand-ink shadow-[0_4px_14px_var(--shadow)]"
-        >
-          <span className="text-[26px]" aria-hidden>⚡</span>
-          <span className="min-w-0 flex-1">
-            <span className="block text-[17px] font-extrabold">Montar lista rápida</span>
-            <span className="block text-[13px] opacity-90">Toque nos produtos: acabando, de casa ou em oferta</span>
-          </span>
-          <span className="text-[22px]" aria-hidden>›</span>
-        </button>
-        )}
-
         {/* Nao compro (0045): os produtos ruins, aqui onde a lista e montada. */}
-        <NaoCompro ofertas={ofertasMercado} escondidas={escondidas} />
-
-        {/* Lista do mes num toque: o app ja sabe o que falta para completar a casa. */}
-        {!trip && doMes.length > 0 && (
-          <div className="flex items-center gap-3 rounded-[18px] border-2 border-brand/40 bg-brand-soft p-4">
-            <div className="min-w-0 flex-1">
-              <div className="text-[17px] font-extrabold text-brand">Lista do mês</div>
-              <div className="text-[13px] text-text-2">
-                {doMes.length} {doMes.length > 1 ? "itens estão" : "item está"} abaixo do normal em casa
-              </div>
-            </div>
-            <button
-              onClick={montarMes}
-              disabled={montando}
-              className="h-12 shrink-0 rounded-[14px] bg-brand px-4 text-[15px] font-bold text-brand-ink disabled:opacity-50"
-            >
-              {montando ? "Montando…" : "Montar"}
-            </button>
-          </div>
-        )}
+        <div id="nao-compro">
+          <NaoCompro ofertas={ofertasMercado} escondidas={escondidas} />
+        </div>
 
         {/* Onde compensa: cada mercado com quantos itens da lista e quanto sai la.
             Tocar filtra a lista por aquele mercado, na ordem dos corredores. */}
@@ -452,106 +437,66 @@ export function ListView() {
           </p>
         )}
 
-        <ul className="space-y-2.5 lg:space-y-0 lg:overflow-hidden lg:rounded-[20px] lg:border lg:border-border lg:bg-card lg:shadow-[0_2px_12px_var(--shadow)] empty:hidden">
-          {visible.map((i) => {
-            const bought = i.status === "bought";
-            const price = i.estimated_price ?? 0;
-            const jaTenho = !bought && i.em_estoque;
-            return (
-              <li
-                key={i.id}
-                className={`flex items-center gap-3.5 rounded-[16px] border border-border bg-card p-3 shadow-[0_1px_3px_var(--shadow)] lg:rounded-none lg:border-0 lg:border-t lg:border-border lg:bg-transparent lg:px-5 lg:py-[15px] lg:shadow-none ${
-                  bought ? "opacity-60" : ""
-                }`}
-              >
-                {/* No mercado o "Peguei" faz o papel da caixinha: ela sai e o nome ganha espaco. */}
-                <button
-                  onClick={() => !bought && comprar(i.id)}
-                  disabled={bought || busy === i.id}
-                  aria-label={bought ? "Comprado" : "Marcar como comprado"}
-                  className={`${trip && !bought ? "hidden" : "grid"} h-[26px] w-[26px] shrink-0 place-items-center rounded-lg border-2 ${
-                    bought
-                      ? "border-brand bg-brand text-brand-ink"
-                      : "border-border text-transparent"
-                  }`}
-                >
-                  <CheckIcon size={14} />
-                </button>
-                <FotoItem nome={i.name} className="h-10 w-10 rounded-lg" />
-                {/* Clicar no corpo abre as acoes: comprei, baixa (se ja tenho), tirar */}
-                <button
-                  onClick={() => !bought && setAction(i)}
-                  disabled={bought}
-                  className="min-w-0 flex-1 text-left"
-                >
-                  <div className={`font-bold ${bought ? "text-text-3 line-through" : ""}`}>
-                    {i.name}
-                    {livelo?.fixos.includes(i.name.trim().toLowerCase()) && (
-                      <span className="ml-1 text-[13px]" title="Fixo do mês">
-                        ⭐
+        {/* Por categoria, cada uma num card com o icone no cabecalho (redesenho). Uma
+            linha por item com a foto: muitos itens por tela. */}
+        {grupos.map(({ categoria, itens, total: totalGrupo }) => (
+          <section key={categoria} className="overflow-hidden rounded-[24px] bg-card">
+            <div className="flex min-h-[60px] items-center gap-2.5 px-3.5 py-2.5">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-card-2 text-[21px]" aria-hidden>
+                {iconeDe(cats, categoria)}
+              </span>
+              <span className="min-w-0 flex-1 truncate text-[17px] font-extrabold">
+                {categoria} · {itens.length}
+              </span>
+              {totalGrupo > 0 && <span className="shrink-0 text-[13px] font-bold tabular-nums text-text-2">~{brl(totalGrupo)}</span>}
+            </div>
+            <ul className="divide-y divide-border border-t border-border">
+              {itens.map((i) => {
+                const bought = i.status === "bought";
+                const price = i.estimated_price ?? 0;
+                const jaTenho = !bought && i.em_estoque;
+                const o = bought ? null : maisBarataPara(ofertas, i.name);
+                return (
+                  <li key={i.id} className={`flex min-h-[60px] items-center gap-3 px-3.5 py-2 ${bought ? "opacity-55" : ""}`}>
+                    <FotoItem nome={i.name} className="h-11 w-11 shrink-0 rounded-xl" />
+                    {/* Tocar no corpo abre as acoes: comprei, baixa (se ja tenho), tirar */}
+                    <button onClick={() => !bought && setAction(i)} disabled={bought} className="min-w-0 flex-1 text-left">
+                      <span className={`block truncate text-[15px] font-bold ${bought ? "text-text-3 line-through" : ""}`}>
+                        {i.name}
+                        {livelo?.fixos.includes(i.name.trim().toLowerCase()) && <span className="ml-1 text-[13px]" title="Fixo do mês">⭐</span>}
                       </span>
-                    )}
-                    {jaTenho && (
-                      <span className="mt-0.5 block w-fit rounded-full bg-pos-soft px-2 py-[1px] text-[11px] font-bold text-pos">
-                        já tem em casa
+                      <span className="block truncate text-[12px] text-text-3">
+                        {i.desired_quantity} {i.unit}
+                        {price > 0 && ` × ${brl(price)}`}
+                        {jaTenho && <b className="text-pos"> · já tem em casa</b>}
+                        {o && <b style={{ color: corMercado(o.mercado) }}> · {nomeMercado(o.mercado)} {brl(o.preco_por)}</b>}
                       </span>
+                    </button>
+                    {!bought && trip ? (
+                      <button
+                        onClick={() => peguei(i)}
+                        disabled={busy === i.id}
+                        aria-label={`Peguei ${i.name}`}
+                        className="grid h-11 w-11 shrink-0 place-items-center rounded-full border-[2.5px] border-border disabled:opacity-50"
+                      />
+                    ) : bought ? (
+                      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-pos text-white" aria-label="Comprado">
+                        <CheckIcon size={16} />
+                      </span>
+                    ) : (
+                      !jaTenho &&
+                      price > 0 && (
+                        <span className="shrink-0 whitespace-nowrap text-[15px] font-extrabold tabular-nums">
+                          {brl(i.desired_quantity * price).replace("R$ ", "")}
+                        </span>
+                      )
                     )}
-                  </div>
-                  <div className="whitespace-nowrap text-[13px] text-text-3">
-                    {i.desired_quantity} {i.unit}
-                    {price > 0 && i.desired_quantity !== 1 && ` × ${brl(price)}`}
-                  </div>
-                  {!bought &&
-                    (() => {
-                      const o = maisBarataPara(ofertas, i.name);
-                      return (
-                        o && (
-                          <div
-                            title={`Em oferta no ${nomeMercado(o.mercado)}`}
-                            className="mt-1 inline-flex max-w-full items-center gap-1.5 rounded-md px-2 py-0.5 text-[12px] font-bold text-white"
-                            style={{ background: corMercado(o.mercado) }}
-                          >
-                            <span className="whitespace-nowrap">
-                              {nomeMercado(o.mercado)} {brl(o.preco_por)}
-                            </span>
-                          </div>
-                        )
-                      );
-                    })()}
-                </button>
-                {/* Com compra aberta, o alvo grande da linha e "Peguei". Sem
-                    compra, continua sendo o valor, que e a informacao da lista. */}
-                {/* Valor (ou Peguei) e o X empilhados: o nome e a oferta ganham a largura. */}
-                <div className="flex shrink-0 flex-col items-end">
-                <button
-                  onClick={() => remover(i.id)}
-                  disabled={busy === i.id}
-                  aria-label="Remover"
-                  className="-mr-1.5 -mt-1.5 grid h-8 w-8 place-items-center rounded-lg text-[18px] text-text-3 hover:bg-card-2"
-                >
-                  ×
-                </button>
-                {!bought && trip ? (
-                  <button
-                    onClick={() => peguei(i)}
-                    disabled={busy === i.id}
-                    className="h-11 shrink-0 rounded-[12px] bg-brand px-3.5 text-[14px] font-bold text-brand-ink disabled:opacity-50"
-                  >
-                    Peguei
-                  </button>
-                ) : (
-                  !jaTenho &&
-                  price > 0 && (
-                    <span className="shrink-0 whitespace-nowrap text-[16px] font-extrabold tabular-nums">
-                      {brl(i.desired_quantity * price)}
-                    </span>
-                  )
-                )}
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        ))}
         {shopping.filter((i) => i.status !== "removed").length > 0 &&
           visible.length === 0 && (
             <p className="pt-6 text-center text-text-3">Nenhum item encontrado.</p>
@@ -585,6 +530,7 @@ export function ListView() {
       )}
       {montar && <MontarLista onClose={() => setMontar(false)} />}
       <VoiceModal open={voiceOpen} onClose={() => setVoiceOpen(false)} />
+      <VoiceModal open={receita} onClose={() => setReceita(false)} tela="lista" escrever />
       <ListItemActions
         key={action?.id}
         item={action}

@@ -69,9 +69,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // Mercado tambem tem a barra do total no rodape.
   const noModoMercado = path.startsWith("/app/mercado");
   const naLista = path.startsWith("/app/lista") || noModoMercado;
-  // O + so onde se poe item: Estoque e Lista. Em Ofertas, Economia e Ajustes ele so
+  // O + so onde se poe item: o Estoque. Em Ofertas, Economia e Ajustes ele so
   // cobria o conteudo; no Mercado o "Adicionar ao carrinho" ja faz isso.
-  const comMais = path.startsWith("/app/estoque") || path.startsWith("/app/lista");
+  // Na Lista os atalhos do topo (Falar, Receita, Montar) ja fazem esse papel.
+  const comMais = path.startsWith("/app/estoque");
   useEffect(() => {
     document.documentElement.style.setProperty(
       "--acima-fab",
