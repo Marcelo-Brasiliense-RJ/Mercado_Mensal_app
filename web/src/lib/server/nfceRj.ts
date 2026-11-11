@@ -46,7 +46,9 @@ export function lerPaginaNfce(html: string): NotaSefaz {
   return { emitente, chave: chave.length === 44 ? chave : "", total_nota: numeroBr(total), itens };
 }
 
-export const bloqueado = (html: string) => /operadoras de telecomunica/i.test(html) || (/captcha/i.test(html) && !/tabResult/i.test(html));
+// Bloqueio por IP ("operadoras...") ou o antirrobo F5 ("humano ou robo", codigo da imagem).
+export const bloqueado = (html: string) =>
+  /operadoras de telecomunica/i.test(html) || (/captcha|humano ou rob|c[oó]digo da imagem/i.test(html) && !/tabResult/i.test(html));
 
 // So endereco de consulta de NFC-e do governo: o intermediario nao vira proxy aberto.
 export const urlDeNota = (u: string) => /^https?:\/\/([a-z0-9-]+\.)*fazenda\.[a-z]{2}\.gov\.br\//i.test(u);

@@ -16,6 +16,7 @@ describe("pagina da NFC-e (SEFAZ-RJ)", () => {
   });
   it("reconhece a pagina de bloqueio por IP", () => {
     expect(bloqueado("<body>As operadoras de telecomunicação do Brasil possuem...</body>")).toBe(true);
+    expect(bloqueado("<p>Queremos saber se é humano ou robô. Qual é o Código da Imagem?</p>")).toBe(true);
     expect(bloqueado(html)).toBe(false);
   });
   it("so aceita endereco de nota do governo", () => {

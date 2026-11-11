@@ -122,6 +122,16 @@ export function FamiliaView() {
           </p>
         </div>
 
+        {/* Nota do RJ pelo atalho do iPhone (a SEFAZ nao deixa o app buscar sozinho). */}
+        <a href="/app/atalho" className={`${cardCls} flex items-center gap-3 no-underline`}>
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-card-2 text-[20px]" aria-hidden>🧾</span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-[16px] font-extrabold text-text">Nota automática no iPhone</span>
+            <span className="block text-[13px] text-text-2">Crie o atalho uma vez (2 min) e a nota entra sozinha.</span>
+          </span>
+          <span className="text-[18px] font-bold text-text-3" aria-hidden>›</span>
+        </a>
+
         {/* Onde compra */}
         <div className={cardCls}>
           <div className="flex items-start justify-between gap-3">

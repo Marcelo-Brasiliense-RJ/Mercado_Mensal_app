@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { Modal } from "@/components/ui/Modal";
 import { TelegramIcon, CheckIcon } from "@/components/ui/icons";
 import { useStore } from "@/lib/store";
@@ -125,6 +126,43 @@ export function ReceiptModal({
     irParaRevisao(resp.itens.map((it) => ({ nome: it.nome || "", marca: it.marca || "", qtd: Number(it.qtd) || 1, preco: Number(it.preco) || 0, unidade: it.unidade || "un" })), resp.total_nota);
   }, []);
   const semCamera = useCallback(() => {}, []);
+
+  // Esperando a nota pelo Atalho do iPhone: pergunta a cada 3 s e ao voltar para o app.
+  useEffect(() => {
+    if (!open || !qr || phase !== "capture") return;
+    let vivo = true;
+    const perguntar = async () => {
+      try {
+        const r = await fetch(`/api/nota/${qr.chave}`, { cache: "no-store" });
+        const d = await r.json();
+        if (!vivo || !d?.ok) return;
+        setChave(d.chave);
+        setEmitente(d.emitente ?? "");
+        setTotalNota(Number(d.total_nota) || 0);
+        setConfere(d.total_confere !== false);
+        const itens = (d.itens as { nome: string; marca?: string; qtd: number; preco: number; unidade: string }[]).map((it) => ({
+          nome: it.nome || "",
+          marca: it.marca || "",
+          qtd: Number(it.qtd) || 1,
+          preco: Number(it.preco) || 0,
+          unidade: it.unidade || "un",
+        }));
+        setItems(itens);
+        navigator.vibrate?.(60);
+        irParaRevisao(itens, Number(d.total_nota) || 0);
+      } catch {
+        /* sem rede: tenta de novo */
+      }
+    };
+    const id = setInterval(perguntar, 3000);
+    const aoVoltar = () => document.visibilityState === "visible" && void perguntar();
+    document.addEventListener("visibilitychange", aoVoltar);
+    return () => {
+      vivo = false;
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", aoVoltar);
+    };
+  }, [open, qr, phase]);
 
   // Com a ultima compra guardada: conferencia. Sem: revisao para gravar na despensa.
   function irParaRevisao(nota: ItemNota[], total: number) {
@@ -283,15 +321,41 @@ export function ReceiptModal({
 
         <div className="relative z-10 flex flex-1 flex-col items-center justify-center px-8 text-center">
           {qr ? (
-            <>
-              <span className="mb-4 rounded-full bg-brand px-3.5 py-1 text-[13px] font-extrabold uppercase tracking-[0.1em] text-brand-ink">
-                Pela foto
-              </span>
-              <p className="text-[21px] font-bold leading-snug">
-                Nota{qr.uf ? ` do ${qr.uf}` : ""} reconhecida ✓<br />O site do governo não deixa ler pelo QR. Tire uma foto que eu leio.
-              </p>
-              <p className="mt-3 text-[14px] text-white/60">De perto, com boa luz. Cupom comprido: em partes, até 6 fotos.</p>
-            </>
+            // Nota lida pelo QR, mas a SEFAZ nao deixa o app buscar sozinho (antirrobo):
+            // a pessoa abre no Safari e o atalho "Enviar para Despensa" manda a pagina.
+            // O app fica esperando e abre a conferencia sozinho quando ela chega.
+            <div className="w-full max-w-[340px] text-left">
+              <div className="mb-3 text-center text-[13px] font-extrabold uppercase tracking-[0.1em] text-[#FF7A1A]">
+                Nota{qr.uf ? ` do ${qr.uf}` : ""} reconhecida ✓
+              </div>
+              <ol className="m-0 flex list-none flex-col gap-2 p-0 text-[15px] leading-snug">
+                {[
+                  <>Toque em <b>Abrir nota</b></>,
+                  <>Se pedir, digite o <b>código da imagem</b></>,
+                  <>Toque em <b>Compartilhar ⬆︎</b> → <b>Enviar para Despensa</b></>,
+                  <>Volte aqui: a nota abre <b>sozinha</b></>,
+                ].map((t, i) => (
+                  <li key={i} className="flex items-center gap-3 rounded-2xl bg-white/10 px-3 py-2.5">
+                    <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[#FF7A1A] text-[14px] font-extrabold text-[#1A0C02]">{i + 1}</span>
+                    <span>{t}</span>
+                  </li>
+                ))}
+              </ol>
+              <a
+                href={qr.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-4 flex h-14 items-center justify-center rounded-full bg-white text-[17px] font-extrabold text-black no-underline"
+              >
+                Abrir nota
+              </a>
+              <div className="mt-3 flex items-center justify-center gap-2 text-[13px] text-white/60">
+                <span className="h-2 w-2 animate-pulse rounded-full bg-[#4ADE80]" aria-hidden /> Esperando a nota chegar…
+              </div>
+              <Link href="/app/atalho" onClick={close} className="mt-2 block text-center text-[13px] font-bold text-white/80 underline">
+                Primeira vez? Crie o atalho (2 min)
+              </Link>
+            </div>
           ) : ultima ? (
             <p className="mt-[78vw] text-[16px] font-bold drop-shadow sm:mt-80">
               Leia a nota desta compra e eu confiro item por item
@@ -328,8 +392,12 @@ export function ReceiptModal({
               <button type="submit" className="h-14 shrink-0 rounded-full bg-brand px-5 font-extrabold text-brand-ink">Ler</button>
             </form>
           ) : (
-            <button onClick={() => camRef.current?.click()} className="flex h-14 w-full items-center justify-center gap-2 rounded-full bg-brand text-[17px] font-extrabold text-brand-ink">
-              📷 Tirar foto da nota
+            // Com o QR lido, o caminho principal e "Abrir nota"; a foto vira a alternativa.
+            <button
+              onClick={() => camRef.current?.click()}
+              className={`flex h-14 w-full items-center justify-center gap-2 rounded-full text-[17px] font-extrabold ${qr ? "bg-white/10 text-white" : "bg-brand text-brand-ink"}`}
+            >
+              📷 {qr ? "Prefiro tirar foto do cupom" : "Tirar foto da nota"}
             </button>
           )}
           <div className="mt-1 grid grid-cols-2">
