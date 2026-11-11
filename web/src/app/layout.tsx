@@ -5,6 +5,7 @@ import { AppStoreProvider } from "@/lib/store";
 import { Toast } from "@/components/ui/Toast";
 import { AutoAtualizar } from "@/components/AutoAtualizar";
 import { LimparCampo } from "@/components/ui/LimparCampo";
+import { Teclado } from "@/components/ui/Teclado";
 
 // Fonte do visual novo: geometrica e encorpada nos titulos, servida pelo proprio app.
 const fonte = Plus_Jakarta_Sans({ subsets: ["latin"], weight: ["400", "500", "600", "700", "800"], variable: "--fonte-app", display: "swap" });
@@ -40,6 +41,7 @@ export default function RootLayout({
           <Toast />
           <AutoAtualizar />
           <LimparCampo />
+          <Teclado />
         </AppStoreProvider>
       </body>
     </html>

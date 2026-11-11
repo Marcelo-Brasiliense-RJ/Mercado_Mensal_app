@@ -165,6 +165,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* No Mercado o "Adicionar ao carrinho" ja faz isso: o + so cobria os itens. */}
       {comMais && (
       <button
+        data-abas
         onClick={() => setFalar(true)}
         aria-label="Adicionar item"
         className={`fixed right-4 z-20 grid h-[52px] w-[52px] place-items-center rounded-full bg-brand text-brand-ink shadow-[0_6px_18px_var(--shadow-lg)] transition-transform active:scale-95 lg:bottom-8 lg:right-8 ${

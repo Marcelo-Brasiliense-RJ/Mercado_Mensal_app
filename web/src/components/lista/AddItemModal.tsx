@@ -9,6 +9,7 @@ import { createClient } from "@/lib/supabase/client";
 import { unitFor, findByName } from "@/lib/defaults";
 import { DestinoSwitch, type Destino } from "@/components/ui/Destino";
 import { Sugestoes } from "./Sugestoes";
+import { dinheiroCampo, mascaraDinheiro } from "@/lib/dinheiro";
 
 // Primeiro nome do usuario logado (user_metadata.name/full_name ou prefixo do
 // email), so pra personalizar o cabecalho do popup.
@@ -149,7 +150,7 @@ export function AddItemModal({
           termo={nome}
           onEscolher={(e) => {
             onNome(e.nome);
-            if (e.preco != null && !precoManual) setPreco(String(e.preco));
+            if (e.preco != null && !precoManual) setPreco(dinheiroCampo(e.preco));
             setSugerir(false);
           }}
         />
@@ -193,10 +194,10 @@ export function AddItemModal({
       <input
         value={preco}
         onChange={(e) => {
-          setPreco(e.target.value);
+          setPreco(mascaraDinheiro(e.target.value));
           setPrecoManual(true);
         }}
-        inputMode="decimal"
+        inputMode="numeric"
         placeholder="R$ 0,00"
         className={`${field} mb-5 ${emCasa ? "hidden" : ""}`}
       />

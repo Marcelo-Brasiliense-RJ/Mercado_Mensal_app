@@ -14,6 +14,7 @@ import { Sugestoes } from "./Sugestoes";
 import { SomarOuSubstituir, type Modo } from "@/components/ui/SomarOuSubstituir";
 import { produtoDoEstoque } from "@/lib/acertarEstoque";
 import { reverFoto, tirarDaFila, useDescanso, useFilaFotos, type FotoFila } from "@/lib/filaFotos";
+import { dinheiroCampo, mascaraDinheiro } from "@/lib/dinheiro";
 
 // O que volta da fila de fotos: um aviso no topo enquanto a IA trabalha e, com o
 // leitor fechado, um popup por produto reconhecido: "e isso mesmo?" -> quantidade e
@@ -71,7 +72,7 @@ function Conferir({ x, resta, onDepois }: { x: FotoFila; resta: number; onDepois
   const [unidade, setUnidade] = useState(x.unidade || jaTem?.unit || unitFor(x.nome ?? ""));
   // Etiqueta da gondola na foto vale mais que o preco da ultima compra.
   const [preco, setPreco] = useState(
-    x.preco ? String(x.preco).replace(".", ",") : jaTem?.priceLast != null ? String(jaTem.priceLast) : "",
+    dinheiroCampo(x.preco || jaTem?.priceLast),
   );
   const [busy, setBusy] = useState(false);
   const emCasa = destino === "estoque";
@@ -86,7 +87,7 @@ function Conferir({ x, resta, onDepois }: { x: FotoFila; resta: number; onDepois
     const t = findByName(n, stock);
     if (t) {
       setUnidade((u) => (x.unidade ? u : t.unit));
-      if (!preco && t.priceLast != null) setPreco(String(t.priceLast));
+      if (!preco && t.priceLast != null) setPreco(dinheiroCampo(t.priceLast));
     }
     setPasso("dados");
   }
@@ -289,8 +290,8 @@ function Conferir({ x, resta, onDepois }: { x: FotoFila; resta: number; onDepois
                 <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[18px] font-bold text-text-3">R$</span>
                 <input
                   value={preco}
-                  onChange={(e) => setPreco(e.target.value)}
-                  inputMode="decimal"
+                  onChange={(e) => setPreco(mascaraDinheiro(e.target.value))}
+                  inputMode="numeric"
                   placeholder="0,00"
                   aria-label="Preço"
                   autoFocus

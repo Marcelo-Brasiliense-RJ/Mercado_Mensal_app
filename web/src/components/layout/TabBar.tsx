@@ -25,6 +25,7 @@ export function TabBar({ className = "" }: { className?: string }) {
     : tabs;
   return (
     <nav
+      data-abas
       // Barra flutuante em pilula: a aba ativa vira uma pilula laranja.
       className={`fixed inset-x-3 bottom-[calc(10px+env(safe-area-inset-bottom))] z-20 flex h-[62px] gap-0.5 rounded-full bg-[var(--barra)] p-1.5 shadow-[0_10px_30px_var(--shadow-lg)] ${className}`}
     >

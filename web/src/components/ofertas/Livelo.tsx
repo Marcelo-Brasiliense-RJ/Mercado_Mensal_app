@@ -20,6 +20,7 @@ import {
 } from "@/lib/livelo";
 import { Foto, Selo } from "./pecas";
 import { marcarFixo, registrarCompraLivelo, salvarConfigLivelo, salvarPrecoLivelo, useLivelo } from "./useLivelo";
+import { mascaraDinheiro } from "@/lib/dinheiro";
 
 // Secao Livelo da aba Ofertas, a vista (nao escondida em configuracao): os parceiros com
 // os pontos de hoje (o coletor atualiza de 3 em 3 horas) e os fixos do mes, cada um
@@ -435,8 +436,8 @@ function FixoCard({ item, l, ofertas }: { item: string; l: LiveloT; ofertas: Ofe
               <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 font-bold text-text-3">R$</span>
               <input
                 value={preco}
-                onChange={(e) => setPreco(e.target.value)}
-                inputMode="decimal"
+                onChange={(e) => setPreco(mascaraDinheiro(e.target.value))}
+                inputMode="numeric"
                 placeholder="preço lá"
                 aria-label={`Preço de ${item} no ${nomeParceiro(l, parceiro)}`}
                 className="h-11 w-full rounded-[12px] border border-border bg-card-2 pl-10 pr-3 text-[16px] font-bold"

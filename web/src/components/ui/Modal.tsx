@@ -83,7 +83,7 @@ export function Modal({
     const onFocus = (e: FocusEvent) => {
       const el = e.target as HTMLElement | null;
       if (!el?.matches?.("input, textarea, select")) return;
-      setTimeout(() => el.scrollIntoView({ block: "nearest", behavior: "smooth" }), 320);
+      setTimeout(() => el.scrollIntoView({ block: "center", behavior: "smooth" }), 320);
     };
     document.addEventListener("focusin", onFocus);
     return () => document.removeEventListener("focusin", onFocus);

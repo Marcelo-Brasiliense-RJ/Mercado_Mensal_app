@@ -24,6 +24,7 @@ import { enfileirarFoto, marcarLeitor, useFilaFotos } from "@/lib/filaFotos";
 import { NaoComprarBotoes } from "@/components/ui/NaoComprarBotoes";
 import { Sugestoes } from "./Sugestoes";
 import { SomarOuSubstituir, type Modo } from "@/components/ui/SomarOuSubstituir";
+import { dinheiroCampo, mascaraDinheiro } from "@/lib/dinheiro";
 
 // Ler o codigo, dizer a quantidade, pronto: o item cai no carrinho.
 //
@@ -67,7 +68,7 @@ export function BarcodeModal({
     // nomeMercado devolve o proprio nome para mercado fora da lista ("Atacadão")
     const s = precoNoMercado(n, code, noMercado ? mercado : null, ofertas, vistos, nomeMercado);
     if (!s) return;
-    setPreco(String(s.preco));
+    setPreco(dinheiroCampo(s.preco));
     setOrigemPreco(s.texto);
   }
   const padrao: Destino = noMercado ? "carrinho" : destinoPadrao;
@@ -123,7 +124,7 @@ export function BarcodeModal({
         setConhecido(true);
         setNome(info.nome);
         setUnidade(info.unidade || unitFor(info.nome));
-        setPreco(info.preco != null ? String(info.preco) : "");
+        setPreco(dinheiroCampo(info.preco));
         sugerirPreco(info.nome, code);
       } else {
         // Codigo novo para esta casa: antes de pedir o nome, pergunta na base
@@ -151,7 +152,7 @@ export function BarcodeModal({
             setUnidade(d.unidade || unitFor(d.nome));
             // Preco da ultima compra desse item, se a casa ja comprou.
             const jaTem = findByName(d.nome, stock);
-            if (jaTem?.priceLast != null) setPreco(String(jaTem.priceLast));
+            if (jaTem?.priceLast != null) setPreco(dinheiroCampo(jaTem.priceLast));
             sugerirPreco(d.nome, code);
           }
         } catch {
@@ -522,10 +523,10 @@ export function BarcodeModal({
             <input
               value={preco}
               onChange={(e) => {
-                setPreco(e.target.value);
+                setPreco(mascaraDinheiro(e.target.value));
                 setOrigemPreco(null);
               }}
-              inputMode="decimal"
+              inputMode="numeric"
               placeholder="0,00"
               aria-label="Preço"
               // Nome e quantidade ja vem prontos: o teclado abre direto no unico

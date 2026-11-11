@@ -2,6 +2,7 @@
 
 import { brl } from "@/lib/format";
 import { FotoItem } from "@/components/ui/FotoItem";
+import { dinheiroCampo, mascaraDinheiro } from "@/lib/dinheiro";
 
 export type GridItem = {
   nome: string;
@@ -75,9 +76,9 @@ export function ItemGrid({
                 <>
                   <span className="text-text-3">×</span>
                   <input
-                    value={String(it.preco)}
-                    onChange={(e) => onPatch(i, "preco", e.target.value)}
-                    inputMode="decimal"
+                    value={dinheiroCampo(it.preco)}
+                    onChange={(e) => onPatch(i, "preco", mascaraDinheiro(e.target.value))}
+                    inputMode="numeric"
                     className={`${inp} w-[68px] text-right`}
                     aria-label="Preço"
                   />

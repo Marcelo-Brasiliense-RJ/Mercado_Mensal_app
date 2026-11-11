@@ -417,7 +417,7 @@ export function MercadoView() {
       {/* Rodape fixo: o total e o finalizar sempre no alcance do polegar. */}
       {trip && (
         // Barra do modo compra, flutuante no lugar das abas: voltar, total e finalizar.
-        <div className="fixed inset-x-3 bottom-[calc(10px+env(safe-area-inset-bottom))] z-20 flex h-[62px] items-center gap-2 rounded-full bg-[var(--barra)] p-1.5 pl-4 text-white shadow-[0_10px_30px_var(--shadow-lg)] lg:static lg:rounded-[18px]">
+        <div data-abas className="fixed inset-x-3 bottom-[calc(10px+env(safe-area-inset-bottom))] z-20 flex h-[62px] items-center gap-2 rounded-full bg-[var(--barra)] p-1.5 pl-4 text-white shadow-[0_10px_30px_var(--shadow-lg)] lg:static lg:rounded-[18px]">
           <Link href="/app/lista" className="shrink-0 text-[14px] font-bold text-white/70 no-underline">
             ‹ Lista
           </Link>
@@ -583,7 +583,7 @@ export function MercadoView() {
               <ul
                 className={
                   visual === "grade"
-                    ? "mt-1 grid grid-cols-4 gap-1.5 sm:grid-cols-5 lg:grid-cols-8"
+                    ? "mt-1.5 grid grid-cols-4 gap-2 sm:grid-cols-5 lg:grid-cols-8"
                     : "mt-1 divide-y divide-border overflow-hidden rounded-[14px] border border-border bg-card"
                 }
               >

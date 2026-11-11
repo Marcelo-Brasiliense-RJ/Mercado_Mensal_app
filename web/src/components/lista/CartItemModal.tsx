@@ -8,6 +8,7 @@ import { QtyStepper } from "@/components/ui/QtyStepper";
 import { brl } from "@/lib/format";
 import { useStore } from "@/lib/store";
 import type { TripItem } from "@/lib/types";
+import { dinheiroCampo, mascaraDinheiro } from "@/lib/dinheiro";
 
 // Editar ou tirar um item que ja esta no carrinho. Popup em vez de edicao na
 // propria linha: no mercado, com o celular na mao, alvo grande erra menos.
@@ -31,7 +32,7 @@ export function CartItemModal({
   if (carregado !== item.id) {
     setCarregado(item.id);
     setQtd(String(item.quantity));
-    setPreco(String(item.unit_price));
+    setPreco(dinheiroCampo(item.unit_price));
   }
 
   const q = Number(qtd.replace(",", "."));
@@ -76,8 +77,8 @@ export function CartItemModal({
       </label>
       <input
         value={preco}
-        onChange={(e) => setPreco(e.target.value)}
-        inputMode="decimal"
+        onChange={(e) => setPreco(mascaraDinheiro(e.target.value))}
+        inputMode="numeric"
         placeholder="R$ 0,00"
         className="mb-2 h-12 w-full rounded-[13px] border border-border bg-card-2 px-3.5 text-[15px]"
       />

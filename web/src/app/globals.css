@@ -132,3 +132,14 @@ input:focus, select:focus { outline: none; }
 @media (prefers-reduced-motion: reduce) {
   .gravador * { animation: none !important; transition: none !important; }
 }
+
+/* Teclado aberto (components/ui/Teclado.tsx): some o que nao serve para digitar e a
+   barra de baixo que tem campo sobe junto com o teclado. */
+html[data-teclado] [data-abas] { display: none !important; }
+@media (max-width: 1023px) {
+  html[data-teclado] .acima-teclado {
+    bottom: 0 !important;
+    transform: translateY(calc(-1 * var(--teclado, 0px)));
+    padding-bottom: 8px !important;
+  }
+}

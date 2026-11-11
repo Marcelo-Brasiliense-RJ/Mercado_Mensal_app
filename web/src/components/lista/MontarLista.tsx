@@ -182,7 +182,7 @@ export function MontarLista({ onClose }: { onClose: () => void }) {
         <div className="mt-2.5 grid grid-cols-4 gap-1.5">
           {(
             [
-              ["acabando", `Acabando${acabandoTodos.length ? ` ${acabandoTodos.length}` : ""}`],
+              ["acabando", `Repor${acabandoTodos.length ? ` ${acabandoTodos.length}` : ""}`],
               ["casa", "De casa"],
               ["oferta", "Ofertas"],
             ] as [Aba, string][]

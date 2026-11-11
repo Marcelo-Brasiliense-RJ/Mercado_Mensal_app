@@ -5,6 +5,7 @@ import { brl } from "@/lib/format";
 import { unitFor } from "@/lib/defaults";
 import { useStore } from "@/lib/store";
 import type { CompraMes } from "@/lib/economia";
+import { dinheiroCampo, mascaraDinheiro } from "@/lib/dinheiro";
 
 type Compra = CompraMes;
 
@@ -44,7 +45,7 @@ export function ComprasDoMes({
   function abrirEdicao(c: Compra) {
     setEditando(c.id);
     setQtd(String(c.qty));
-    setPreco(String(c.price));
+    setPreco(dinheiroCampo(c.price));
   }
 
   async function salvar(c: Compra) {
@@ -152,8 +153,8 @@ export function ComprasDoMes({
           />
           <input
             value={nPreco}
-            onChange={(e) => setNPreco(e.target.value)}
-            inputMode="decimal"
+            onChange={(e) => setNPreco(mascaraDinheiro(e.target.value))}
+            inputMode="numeric"
             placeholder="preço"
             aria-label="Preço por unidade"
             className={`${campo} w-24 bg-card text-right`}
@@ -191,8 +192,8 @@ export function ComprasDoMes({
                   <span className="text-[12px] text-text-3">{c.unit} ×</span>
                   <input
                     value={preco}
-                    onChange={(e) => setPreco(e.target.value)}
-                    inputMode="decimal"
+                    onChange={(e) => setPreco(mascaraDinheiro(e.target.value))}
+                    inputMode="numeric"
                     aria-label="Preço por unidade"
                     className={`${campo} w-24 text-right`}
                   />

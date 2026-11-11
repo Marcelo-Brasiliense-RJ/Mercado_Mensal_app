@@ -33,18 +33,20 @@ export function CardFalta({ nome, qtd, unidade, preco, emCasa, resto, pegando, o
         onClick={onPegar}
         disabled={pegando}
         aria-label={resto ? `Pegar o resto de ${nome}` : `Peguei ${nome}`}
-        className={`relative flex h-full w-full flex-col items-center rounded-[14px] border-2 bg-card px-1 pb-1.5 pt-2 text-center shadow-[0_1px_3px_var(--shadow)] transition-transform active:scale-95 ${
-          resto ? "border-warn bg-warn-soft" : "border-transparent"
+        className={`relative flex h-full w-full flex-col items-center gap-1 rounded-[18px] bg-card px-1.5 pb-2 pt-2.5 text-center shadow-[0_2px_10px_var(--shadow)] transition-transform active:scale-95 ${
+          resto ? "ring-1 ring-warn/50" : ""
         }`}
       >
-        <FotoItem nome={nome} className="h-11 w-11 rounded-lg" />
-        <span className="mt-1 line-clamp-2 min-h-[2.4em] w-full text-[12px] font-bold leading-[1.2]">{nome}</span>
-        <span className={`text-[11px] font-bold leading-tight ${resto ? "text-warn" : "text-text-3"}`}>
-          {resto ? `falta ${qtdTxt(qtd)}` : `${qtdTxt(qtd)} ${unidade}`}
-        </span>
-        {!resto && preco ? (
-          <span className="text-[11px] font-bold leading-tight tabular-nums text-text-2">{brl(qtd * preco)}</span>
-        ) : null}
+        <FotoItem nome={nome} className="h-12 w-12 rounded-xl" />
+        <span className="line-clamp-2 min-h-[2.4em] w-full text-[12px] font-bold leading-[1.2]">{nome}</span>
+        {resto ? (
+          <span className="rounded-full bg-warn-soft px-2 py-[1px] text-[10.5px] font-extrabold text-warn">falta {qtdTxt(qtd)}</span>
+        ) : (
+          <span className="text-[11px] font-semibold leading-tight text-text-3">
+            {qtdTxt(qtd)} {unidade}
+            {preco ? <b className="text-text-2"> · {brl(qtd * preco)}</b> : null}
+          </span>
+        )}
         {emCasa && <span className="absolute left-1 top-1 h-2.5 w-2.5 rounded-full bg-pos ring-2 ring-card" title="tem em casa" />}
         {pegando && (
           <span className="absolute inset-0 grid place-items-center rounded-[12px] bg-pos/85 text-white">
