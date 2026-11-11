@@ -208,7 +208,7 @@ export function LiveloView() {
       )}
 
       {!v.carregando && !cards.length && !buscando && (
-        <div className="rounded-[18px] border border-border bg-card p-5 text-center">
+        <div className="rounded-[24px] bg-card p-5 text-center">
           <div className="text-[32px]">😕</div>
           <div className="text-[16px] font-extrabold">As lojas não responderam agora</div>
           <p className="text-[14px] text-text-2">Toque em ↻ lá em cima daqui a pouco.</p>

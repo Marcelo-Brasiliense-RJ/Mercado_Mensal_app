@@ -176,7 +176,7 @@ export function MontarLista({ onClose }: { onClose: () => void }) {
             }}
             placeholder="Procurar ou escrever um item"
             enterKeyHint="done"
-            className="h-12 w-full rounded-2xl border-2 border-border bg-card-2 pl-12 pr-4 text-[16px] outline-none focus:border-brand"
+            className="h-12 w-full rounded-full bg-card-2 pl-12 pr-4 text-[16px] outline-none"
           />
         </label>
         <div className="mt-2.5 grid grid-cols-4 gap-1.5">
@@ -191,7 +191,7 @@ export function MontarLista({ onClose }: { onClose: () => void }) {
               key={id}
               onClick={() => setAba(id)}
               aria-pressed={aba === id}
-              className={`h-10 truncate whitespace-nowrap rounded-full px-1.5 text-[12px] font-bold ${aba === id ? "bg-brand text-brand-ink" : "bg-card-2 text-text-2"}`}
+              className={`h-10 truncate whitespace-nowrap rounded-full px-1.5 text-[12px] font-bold ${aba === id ? "bg-[var(--barra)] text-white" : "bg-card-2 text-text-2"}`}
             >
               {txt}
             </button>
@@ -236,7 +236,7 @@ export function MontarLista({ onClose }: { onClose: () => void }) {
                       setLimite(60);
                     }}
                     aria-pressed={on}
-                    className={`h-9 shrink-0 rounded-full px-3 text-[13px] font-bold ${on ? "bg-brand text-brand-ink" : "bg-card-2 text-text-2"}`}
+                    className={`h-9 shrink-0 rounded-full px-3 text-[13px] font-bold ${on ? "bg-[var(--barra)] text-white" : "bg-card-2 text-text-2"}`}
                   >
                     {c ? `${ICONE[c] ?? "🛒"} ${c}` : "Tudo"} <span className="opacity-70">{n}</span>
                   </button>
@@ -339,15 +339,15 @@ export function MontarLista({ onClose }: { onClose: () => void }) {
       <button
         onClick={() => setFalar(true)}
         aria-label="Falar a lista"
-        className="fixed bottom-[calc(92px+env(safe-area-inset-bottom))] right-4 z-10 grid h-[60px] w-[60px] place-items-center rounded-full bg-brand text-brand-ink shadow-[0_10px_26px_var(--shadow-lg)] active:scale-95"
+        className="fixed bottom-[calc(92px+env(safe-area-inset-bottom))] right-4 z-10 grid h-14 w-14 place-items-center rounded-full bg-[var(--barra)] text-white shadow-[0_10px_26px_var(--shadow-lg)] active:scale-95"
       >
-        <MicIcon size={28} />
+        <MicIcon size={26} />
       </button>
       <VoiceModal open={falar} onClose={() => setFalar(false)} tela="lista" />
       <VoiceModal open={receita} onClose={() => setReceita(false)} tela="lista" escrever />
 
-      <div className="fixed inset-x-0 bottom-0 border-t border-border bg-card px-4 pb-[max(12px,env(safe-area-inset-bottom))] pt-3">
-        <button onClick={onClose} className="h-[52px] w-full rounded-[14px] bg-brand text-[16px] font-extrabold text-brand-ink">
+      <div className="fixed inset-x-0 bottom-0 bg-gradient-to-t from-bg from-60% to-transparent px-4 pb-[max(14px,env(safe-area-inset-bottom))] pt-4">
+        <button onClick={onClose} className="h-[56px] w-full rounded-full bg-[var(--barra)] text-[16px] font-extrabold text-white">
           {adicionados ? `Pronto · ${adicionados} ${adicionados > 1 ? "itens" : "item"} na lista` : "Pronto"}
         </button>
       </div>
@@ -388,9 +388,9 @@ function Ladrilho({
       onClick={onClick}
       disabled={ocupado}
       aria-pressed={on}
-      className={`relative flex flex-1 flex-col items-center gap-1 overflow-hidden border-2 bg-card px-1.5 pt-2 text-center transition-transform active:scale-95 disabled:opacity-60 ${
-        on ? "border-pos bg-pos-soft" : "border-border"
-      } ${qtd ? "rounded-t-2xl border-b-0 pb-1" : "rounded-2xl pb-2"}`}
+      className={`relative flex flex-1 flex-col items-center gap-1 overflow-hidden bg-card px-1.5 pt-2 text-center transition-transform active:scale-95 disabled:opacity-60 ${
+        on ? "ring-2 ring-inset ring-text" : ""
+      } ${qtd ? "rounded-t-[20px] pb-1" : "rounded-[20px] pb-2"}`}
     >
       {etiqueta && (
         <span className="absolute inset-x-0 top-0 truncate px-1 text-[10px] font-extrabold leading-4 text-white" style={{ background: faixa }}>
@@ -410,23 +410,23 @@ function Ladrilho({
           )}
         </span>
       ) : (
-        <span className={`text-[11px] font-bold ${on ? "text-pos" : alerta ? "text-neg" : "text-text-2"}`}>{sub}</span>
+        <span className={`text-[11px] font-bold ${alerta ? "text-neg" : "text-text-2"}`}>{sub}</span>
       )}
       {on && (
-        <span className="absolute right-1 top-1 grid h-6 w-6 place-items-center rounded-full bg-pos text-[13px] font-extrabold text-white">
+        <span className="absolute right-1.5 top-1.5 grid h-6 w-6 place-items-center rounded-full bg-text text-[13px] font-extrabold text-bg">
           ✓
         </span>
       )}
     </button>
     {qtd && (
-      <div className="flex items-center justify-between rounded-b-2xl border-2 border-t-0 border-pos bg-pos-soft px-1 pb-1.5">
-        <button onClick={() => qtd.mudar(-1)} aria-label="Menos" className="grid h-9 w-9 place-items-center rounded-full bg-card text-[18px] font-extrabold text-pos">
+      <div className="flex items-center justify-between rounded-b-[20px] bg-card px-1.5 pb-1.5 shadow-[inset_2px_0_0_var(--text),inset_-2px_0_0_var(--text),inset_0_-2px_0_var(--text)]">
+        <button onClick={() => qtd.mudar(-1)} aria-label="Menos" className="grid h-9 w-9 place-items-center rounded-full bg-card-2 text-[18px] font-extrabold text-text">
           −
         </button>
-        <span className="text-[14px] font-extrabold tabular-nums text-pos">
+        <span className="text-[14px] font-extrabold tabular-nums text-text">
           {num(qtd.valor)} <span className="text-[11px]">{qtd.unidade}</span>
         </span>
-        <button onClick={() => qtd.mudar(1)} aria-label="Mais" className="grid h-9 w-9 place-items-center rounded-full bg-card text-[18px] font-extrabold text-pos">
+        <button onClick={() => qtd.mudar(1)} aria-label="Mais" className="grid h-9 w-9 place-items-center rounded-full bg-card-2 text-[18px] font-extrabold text-text">
           +
         </button>
       </div>

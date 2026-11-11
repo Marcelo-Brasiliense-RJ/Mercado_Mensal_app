@@ -113,15 +113,19 @@ export function LinhaCarrinho({
   const parcial = !!pego && pego.faltaQtd > 0;
   const diff = pego?.diffPreco != null && Math.abs(pego.diffPreco) >= 0.01 ? pego.diffPreco : null;
   return (
-    <li className={`flex min-h-[52px] items-center gap-1.5 px-2 py-1 ${parcial ? "bg-warn-soft/60" : ""}`}>
-      <button onClick={onEditar} className="flex min-w-0 flex-1 items-center gap-2 text-left">
-        <span
-          className={`grid h-8 w-8 shrink-0 place-items-center rounded-full text-white ${
-            fora ? "bg-text-3" : parcial ? "bg-warn" : "bg-pos"
-          }`}
-          aria-label={fora ? "fora da lista" : parcial ? "pegou menos que a lista" : "da lista"}
-        >
-          {fora ? <span className="text-[17px] font-extrabold leading-none">+</span> : <CheckIcon size={16} />}
+    <li className={`flex min-h-[60px] items-center gap-2 py-2 pl-3.5 pr-2.5 ${parcial ? "bg-warn-soft/60" : ""}`}>
+      <button onClick={onEditar} className="flex min-w-0 flex-1 items-center gap-2.5 text-left">
+        {/* Redesenho: a foto do produto, com um selinho do estado no canto. */}
+        <span className="relative shrink-0">
+          <FotoItem nome={t.name} className="h-11 w-11 rounded-xl" />
+          <span
+            className={`absolute -bottom-1 -right-1 grid h-5 w-5 place-items-center rounded-full text-white ring-2 ring-card ${
+              fora ? "bg-text-3" : parcial ? "bg-warn" : "bg-pos"
+            }`}
+            aria-label={fora ? "fora da lista" : parcial ? "pegou menos que a lista" : "da lista"}
+          >
+            {fora ? <span className="text-[13px] font-extrabold leading-none">+</span> : <CheckIcon size={11} />}
+          </span>
         </span>
         <span className="min-w-0">
           <span className="block truncate text-[15px] font-bold leading-tight">{t.name}</span>
@@ -144,12 +148,12 @@ export function LinhaCarrinho({
           </span>
         </span>
       </button>
-      <div className="flex shrink-0 items-center rounded-[10px] border border-border bg-card">
+      <div className="flex h-9 shrink-0 items-center rounded-full bg-card-2">
         <button
           onClick={() => onQtd(+(t.quantity - passo).toFixed(3))}
           disabled={busy}
           aria-label={`Menos ${t.name}`}
-          className="grid h-9 w-7 place-items-center text-[18px] font-bold text-text-2 disabled:opacity-40"
+          className="grid h-9 w-8 place-items-center text-[18px] font-bold text-text disabled:opacity-40"
         >
           −
         </button>
@@ -158,7 +162,7 @@ export function LinhaCarrinho({
           onClick={() => onQtd(+(t.quantity + passo).toFixed(3))}
           disabled={busy}
           aria-label={`Mais ${t.name}`}
-          className="grid h-9 w-7 place-items-center text-[18px] font-bold text-brand disabled:opacity-40"
+          className="grid h-9 w-8 place-items-center text-[18px] font-bold text-text disabled:opacity-40"
         >
           +
         </button>

@@ -72,7 +72,7 @@ export function LiveloSecao({ ofertas, sempreAberto = false }: { ofertas: Oferta
         type="button"
         onClick={alternar}
         aria-expanded={aberto}
-        className="flex items-center gap-3 rounded-[18px] border border-border bg-card px-3.5 py-3 text-left"
+        className="flex items-center gap-3 rounded-[24px] bg-card px-3.5 py-3 text-left"
       >
         <span className="text-[24px]" aria-hidden>💗</span>
         <span className="min-w-0 flex-1">
@@ -148,7 +148,7 @@ function DaLista({ l, ofertas }: { l: LiveloT; ofertas: Oferta[] }) {
   const ganha = linhas.filter((x) => x.c.vence === "livelo").length;
 
   return (
-    <div className="rounded-[18px] border border-border bg-card p-3">
+    <div className="rounded-[24px] bg-card p-3">
       <div className="text-[15px] font-extrabold">🛒 Carrefour pela Livelo · da sua lista</div>
       {!linhas.length ? (
         <p className="mt-1 text-[13px] text-text-2">

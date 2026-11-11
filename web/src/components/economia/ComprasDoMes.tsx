@@ -94,7 +94,7 @@ export function ComprasDoMes({
   }
 
   return (
-    <div className="rounded-[20px] border border-border bg-card p-[18px] shadow-[0_2px_10px_var(--shadow)] lg:p-[22px]">
+    <div className="rounded-[24px] bg-card p-[18px] shadow-[0_2px_10px_var(--shadow)] lg:p-[22px]">
       <button
         type="button"
         onClick={() => setAberto((v) => !v)}

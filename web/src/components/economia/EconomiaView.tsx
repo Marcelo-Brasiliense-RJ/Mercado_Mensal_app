@@ -157,7 +157,7 @@ export function EconomiaView() {
         {d.atual && (
           <button
             onClick={() => openReceipt()}
-            className="flex items-center gap-3 rounded-[16px] border border-border bg-card px-4 py-3 text-left"
+            className="flex items-center gap-3 rounded-[24px] bg-card px-4 py-3 text-left"
           >
             <span className="text-[22px]" aria-hidden>🧾</span>
             <span className="min-w-0 flex-1">

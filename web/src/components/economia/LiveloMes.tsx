@@ -12,7 +12,7 @@ export function LiveloMes() {
   if (!l?.configurado) return null;
   const valor = l.mes.pontos * l.valor_ponto;
   return (
-    <div className="rounded-[18px] border border-border bg-card p-4">
+    <div className="rounded-[24px] bg-card p-4">
       <div className="flex items-center gap-3">
         <span className="text-[26px]" aria-hidden>💗</span>
         <div className="min-w-0 flex-1">
