@@ -600,7 +600,9 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   // Sincronia da familia (ver SINCRONIZAR_MS): so com a tela visivel e longe de uma
   // escrita deste aparelho, para nao atropelar o que acabou de ser posto na mao.
   const dataRef = useRef(data);
-  dataRef.current = data;
+  useEffect(() => {
+    dataRef.current = data;
+  }, [data]);
   useEffect(() => {
     if (!dataReady) return;
     let rodando = false;

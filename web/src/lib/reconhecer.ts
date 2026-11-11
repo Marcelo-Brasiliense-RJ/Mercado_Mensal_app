@@ -2,7 +2,7 @@
 
 // Foto do produto -> nome (e codigo de barras, se aparecer). A foto e reduzida no
 // celular antes de subir (1024 px, JPEG): sobe rapido no 4G e cabe na cota da IA.
-export type Reconhecido = { nome: string; marca: string; tamanho: string; codigo: string };
+export type Reconhecido = { nome: string; marca: string; tamanho: string; codigo: string; preco?: number };
 
 export async function reduzir(arquivo: File, lado = 1024): Promise<string> {
   const img = await createImageBitmap(arquivo);
@@ -35,7 +35,7 @@ export async function reconhecerImagem(
     if (d.erro === "limite") return { limite: Math.max(5, d.espera ?? 30) };
     if (!d.ok) return undefined;
     if (!d.encontrado && !d.codigo) return null;
-    return { nome: d.nome ?? "", marca: d.marca ?? "", tamanho: d.tamanho ?? "", codigo: d.codigo ?? "" };
+    return { nome: d.nome ?? "", marca: d.marca ?? "", tamanho: d.tamanho ?? "", codigo: d.codigo ?? "", preco: d.preco || undefined };
   } catch {
     return undefined;
   }

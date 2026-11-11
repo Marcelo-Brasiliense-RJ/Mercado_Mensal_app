@@ -19,7 +19,7 @@ export type Etapas = {
 };
 
 export type Resultado =
-  | { ok: true; nome: string; marca: string; codigo: string; unidade?: string; foto: string | null; fonte: "codigo" | "ia" }
+  | { ok: true; nome: string; marca: string; codigo: string; unidade?: string; foto: string | null; fonte: "codigo" | "ia"; preco?: number }
   | { ok: false; motivo: "sem_ia" | "ia_falhou" | "nao_reconheceu"; codigo: string }
   // chaves no limite: a fila espera `espera` segundos e tenta de novo (a foto nao falhou)
   | { ok: false; motivo: "limite"; espera: number; codigo: string };
@@ -53,9 +53,9 @@ export async function reconhecerEmEtapas(e: Etapas): Promise<Resultado> {
     const codigo = local || r.codigo;
     if (r.codigo && r.codigo !== local) {
       const b = await e.produto(r.codigo).catch(() => null);
-      if (b?.nome) return daBase(b, r.codigo, "ia", r.marca);
+      if (b?.nome) return { ...daBase(b, r.codigo, "ia", r.marca), ...(r.preco ? { preco: r.preco } : {}) };
     }
-    if (r.nome) return { ok: true, nome: r.nome, marca: r.marca, codigo, foto: null, fonte: "ia" };
+    if (r.nome) return { ok: true, nome: r.nome, marca: r.marca, codigo, foto: null, fonte: "ia", ...(r.preco ? { preco: r.preco } : {}) };
   }
 
   return {

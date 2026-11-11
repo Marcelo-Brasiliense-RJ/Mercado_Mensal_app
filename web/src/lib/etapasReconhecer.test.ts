@@ -81,4 +81,19 @@ describe("reconhecerEmEtapas", () => {
     expect(ia).toHaveBeenCalledTimes(1); // nao gasta a forte
     expect(r).toEqual({ ok: false, motivo: "limite", espera: 23, codigo: "" });
   });
+
+  it("preco lido na etiqueta da gondola vem junto do nome", async () => {
+    const r = await reconhecerEmEtapas(etapas({ ia: async () => ({ ...vex, preco: 12.9 }) }));
+    expect(r).toMatchObject({ ok: true, nome: vex.nome, preco: 12.9 });
+  });
+
+  it("codigo da IA achado na base mantem o preco da etiqueta", async () => {
+    const r = await reconhecerEmEtapas(
+      etapas({
+        ia: async () => ({ ...vex, codigo: "7891000315507", preco: 8.5 }),
+        produto: async () => ({ nome: "Leite Ninho 380g" }),
+      }),
+    );
+    expect(r).toMatchObject({ ok: true, nome: "Leite Ninho 380g", preco: 8.5 });
+  });
 });

@@ -150,15 +150,13 @@ export function VoiceModal({
   const [marcas, setMarcas] = useState<Marca[] | null>(null); // null = buscando
   const [outraMarca, setOutraMarca] = useState("");
   const [escrito, setEscrito] = useState(""); // caminho digitado, mesmo entendimento da voz
-  const [escrevendo, setEscrevendo] = useState(false);
+  const [escrevendoAgora, setEscrevendo] = useState(false);
+  const escrevendo = escrevendoAgora || escrever; // atalho "Receita" abre ja no texto
   const [prateleira, setPrateleira] = useState(false);
   const [codigo, setCodigo] = useState(false);
   const fotoRef = useRef<HTMLInputElement>(null);
   // Tela que vai junto para a IA desempatar ("arroz" sozinho no Estoque e estoque).
   // Modo atualizar ligado pelo botao: a IA fica sabendo que numero sem verbo e o que TEM.
-  useEffect(() => {
-    if (open && escrever) setEscrevendo(true);
-  }, [open, escrever]);
   const telaIA = atualizando
     ? "atualizar"
     : telaAgora === "estoque" ? "estoque" : telaAgora === "lista" ? "lista" : telaAgora === "auto" ? "auto" : "mercado";

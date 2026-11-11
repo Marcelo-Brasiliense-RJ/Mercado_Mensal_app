@@ -15,7 +15,10 @@ const PERGUNTA =
   "escrito na FRENTE da embalagem e diga qual é. nome: como está no rótulo, em português, " +
   "com tipo, marca, variante e tamanho (ex.: 'Detergente Líquido Ypê Neutro 500ml'). " +
   "codigo: os números do código de barras se estiverem legíveis na foto, senão vazio. " +
-  "Se der para ler só parte, dê o melhor palpite. Nome vazio só se não for produto de mercado.";
+  "Se der para ler só parte, dê o melhor palpite. Nome vazio só se não for produto de mercado. " +
+  "preco: se aparecer na foto a ETIQUETA de preço da gôndola (ou adesivo de preço) deste produto, o preço " +
+  "de UMA unidade em reais como número (ex.: 21.9); o preço de oferta/clube se houver os dois; " +
+  "ignore o preço por kg/L da etiqueta. Sem etiqueta legível, 0.";
 const ESQUEMA = {
   type: "OBJECT",
   properties: {
@@ -23,6 +26,7 @@ const ESQUEMA = {
     marca: { type: "STRING" },
     tamanho: { type: "STRING" },
     codigo: { type: "STRING" },
+    preco: { type: "NUMBER" },
   },
   required: ["nome", "marca", "tamanho", "codigo"],
 };
@@ -69,7 +73,8 @@ export async function POST(req: Request) {
   );
   if (res.ok) {
     try {
-      const d = JSON.parse(res.texto) as { nome?: string; marca?: string; tamanho?: string; codigo?: string };
+      const d = JSON.parse(res.texto) as { nome?: string; marca?: string; tamanho?: string; codigo?: string; preco?: number };
+      const preco = Number(d.preco);
       const codigo = (d.codigo ?? "").replace(/\D/g, "");
       return NextResponse.json({
         ok: true,
@@ -78,6 +83,8 @@ export async function POST(req: Request) {
         marca: (d.marca ?? "").trim(),
         tamanho: (d.tamanho ?? "").trim(),
         codigo: codigo.length >= 8 ? codigo : "",
+        // etiqueta da gondola: preco de uma unidade (0 = nao tinha etiqueta legivel)
+        preco: Number.isFinite(preco) && preco > 0 && preco < 10000 ? Math.round(preco * 100) / 100 : 0,
       });
     } catch {
       /* resposta quebrada: cai no ia_falhou */

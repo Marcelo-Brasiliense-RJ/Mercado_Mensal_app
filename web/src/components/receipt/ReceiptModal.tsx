@@ -11,7 +11,10 @@ import { invokeNfce } from "@/lib/nfce";
 import { ItemGrid, type GridItem } from "./ItemGrid";
 
 type Item = GridItem;
-type Phase = "capture" | "scanning" | "processing" | "review" | "error";
+type Phase = "capture" | "scanning" | "fotos" | "processing" | "review" | "error";
+
+// Cupom de compra do mes e comprido: ate 6 fotos, de cima para baixo.
+const MAX_FOTOS = 6;
 
 // Reduz a foto antes de mandar (payload menor, leitura mais rapida). Cai no
 // FileReader se createImageBitmap nao existir.
@@ -58,6 +61,7 @@ export function ReceiptModal({
   const [emitente, setEmitente] = useState("");
   const [totalNota, setTotalNota] = useState(0);
   const [confere, setConfere] = useState(true);
+  const [fotos, setFotos] = useState<string[]>([]);
 
   function close() {
     onClose();
@@ -69,6 +73,7 @@ export function ReceiptModal({
     setEmitente("");
     setTotalNota(0);
     setConfere(true);
+    setFotos([]);
   }
 
   // Caminho principal: QR do cupom -> Edge Function nfce-consulta -> itens da SEFAZ.
@@ -96,20 +101,27 @@ export function ReceiptModal({
     setPhase("review");
   }
 
-  // Fallback: foto da nota -> OCR via n8n (rota /api/receipt-ocr).
+  // Foto da nota (qualquer estado): junta as fotos do cupom e manda tudo de uma vez
+  // para /api/receipt-ocr (Gemini). Com a chave impressa no cupom, nota repetida e barrada.
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
+    const arquivos = [...(e.target.files ?? [])];
     e.target.value = "";
-    if (!file) return;
+    if (!arquivos.length) return;
+    const novas = await Promise.all(arquivos.map((f) => fileToDataUrl(f).catch(() => "")));
+    setFotos((l) => [...l, ...novas.filter(Boolean)].slice(0, MAX_FOTOS));
+    setPhase("fotos");
+  }
+
+  async function lerFotos() {
+    if (!fotos.length) return;
     setSource("ocr");
     setChave("");
     setPhase("processing");
     try {
-      const image = await fileToDataUrl(file);
       const r = await fetch("/api/receipt-ocr", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ image }),
+        body: JSON.stringify({ images: fotos }),
       });
       const data = await r.json().catch(() => null);
       const lidos = data?.ok && Array.isArray(data.itens) ? (data.itens as Item[]) : [];
@@ -127,7 +139,10 @@ export function ReceiptModal({
           duvida: !!it.duvida,
         })),
       );
-      setConfere(true);
+      setChave(typeof data.chave === "string" ? data.chave : "");
+      setEmitente(typeof data.emitente === "string" ? data.emitente : "");
+      setTotalNota(typeof data.total === "number" ? data.total : 0);
+      setConfere(data.confere !== false);
       setPhase("review");
     } catch {
       setPhase("error");
@@ -158,7 +173,7 @@ export function ReceiptModal({
     try {
       const res = await confirmReceipt(
         clean,
-        source === "qr" && chave ? { chave, emitente, total: totalNota } : undefined,
+        chave ? { chave, emitente, total: totalNota } : undefined,
       );
       if (res && res.ok === false) {
         if (res.erro === "ja_importada") {
@@ -213,14 +228,14 @@ export function ReceiptModal({
               <span className="min-w-0 flex-1">
                 <span className="block text-[15px] font-extrabold">Foto da nota fiscal</span>
                 <span className="block text-[13px] leading-snug text-text-2">
-                  Sem QR à mão? A gente lê os itens pela foto.
+                  Qualquer estado. Cupom comprido? Tire em partes, eu junto.
                 </span>
               </span>
               <ChevronRight size={20} className="shrink-0 text-text-3" />
               <input
                 type="file"
                 accept="image/*"
-                capture="environment"
+                multiple
                 onChange={onFile}
                 className="hidden"
               />
@@ -246,6 +261,48 @@ export function ReceiptModal({
         </>
       )}
 
+      {phase === "fotos" && (
+        <>
+          <div className="mb-1 text-[20px] font-extrabold">
+            {fotos.length} {fotos.length === 1 ? "foto" : "fotos"} do cupom
+          </div>
+          <p className="mb-3 text-[13px] leading-snug text-text-2">
+            Cupom comprido? Tire a parte de baixo também (pode repetir um pedaço, eu não conto duas vezes).
+          </p>
+          <div className="mb-4 flex gap-2 overflow-x-auto pb-1">
+            {fotos.map((f, i) => (
+              <div key={i} className="relative shrink-0">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={f} alt={`Parte ${i + 1} do cupom`} className="h-28 w-20 rounded-lg border border-border object-cover" />
+                <span className="absolute left-1 top-1 rounded bg-black/70 px-1.5 text-[11px] font-bold text-white">{i + 1}</span>
+                <button
+                  onClick={() => setFotos((l) => l.filter((_, j) => j !== i))}
+                  aria-label={`Tirar foto ${i + 1}`}
+                  className="absolute -right-1.5 -top-1.5 grid h-6 w-6 place-items-center rounded-full bg-card text-[13px] font-bold shadow"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+          <div data-rodape className="flex gap-3">
+            {fotos.length < MAX_FOTOS && (
+              <label className="flex h-[50px] flex-1 cursor-pointer items-center justify-center rounded-[14px] border border-border bg-card text-[15px] font-bold">
+                + Mais uma parte
+                <input type="file" accept="image/*" capture="environment" onChange={onFile} className="hidden" />
+              </label>
+            )}
+            <button
+              onClick={lerFotos}
+              disabled={!fotos.length}
+              className="h-[50px] flex-[1.4] rounded-[14px] bg-brand text-[15px] font-bold text-brand-ink disabled:opacity-50"
+            >
+              Ler nota
+            </button>
+          </div>
+        </>
+      )}
+
       {phase === "scanning" && (
         <>
           <div className="mb-3 text-[18px] font-extrabold">Aponte para o QR code</div>
@@ -266,7 +323,9 @@ export function ReceiptModal({
           </div>
           <div className="mb-1 text-[18px] font-extrabold">Lendo sua nota fiscal...</div>
           <div className="text-[13px] text-text-2">
-            {source === "qr" ? "Consultando a SEFAZ e identificando itens" : "Identificando itens e preços"}
+            {source === "qr"
+              ? "Consultando a SEFAZ e identificando itens"
+              : `Lendo item por item${fotos.length > 1 ? ` nas ${fotos.length} fotos` : ""}. Cupom grande leva até 1 minuto.`}
           </div>
         </div>
       )}
