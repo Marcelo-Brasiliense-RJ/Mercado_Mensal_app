@@ -17,13 +17,16 @@ export function TabBar({ className = "" }: { className?: string }) {
   const path = usePathname();
   // Modo mercado ligado (interruptor na Lista): a aba do carrinho aparece depois da Lista.
   const modoMercado = useModoMercado();
+  // Dentro do Mercado a tela e so da compra: a barra dele (Voltar, total, Finalizar)
+  // ocupa o lugar das abas, como num modo compra.
+  if (path.startsWith("/app/mercado")) return null;
   const lista = modoMercado
     ? [tabs[0], tabs[1], { href: "/app/mercado", label: "Mercado", Icon: CartIcon }, ...tabs.slice(2)]
     : tabs;
   return (
     <nav
       // Barra flutuante em pilula: a aba ativa vira uma pilula laranja.
-      className={`fixed inset-x-3 bottom-[calc(10px+env(safe-area-inset-bottom))] z-20 flex h-[66px] gap-1 rounded-full bg-[var(--barra)] p-1.5 shadow-[0_10px_30px_var(--shadow-lg)] ${className}`}
+      className={`fixed inset-x-3 bottom-[calc(10px+env(safe-area-inset-bottom))] z-20 flex h-[62px] gap-0.5 rounded-full bg-[var(--barra)] p-1.5 shadow-[0_10px_30px_var(--shadow-lg)] ${className}`}
     >
       {lista.map(({ href, label, Icon }) => {
         const active = path.startsWith(href);
@@ -44,9 +47,9 @@ export function TabBar({ className = "" }: { className?: string }) {
           >
             {/* key: ao trocar de aba, o icone da aba nova "salta" uma vez */}
             <span key={String(active)} className={active ? "ic-pop" : ""}>
-              <Icon size={21} />
+              <Icon size={20} />
             </span>
-            <span className="truncate text-[10.5px] font-bold">{label}</span>
+            <span className="max-w-full truncate px-0.5 text-[10px] font-bold leading-tight">{label}</span>
           </Link>
         );
       })}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { brl } from "@/lib/format";
 import { useStore } from "@/lib/store";
 import type { ShopItem, TripItem } from "@/lib/types";
@@ -254,11 +255,11 @@ export function MercadoView() {
 
       {/* Um botao so para por no carrinho; tocar mostra as formas (foto, codigo, falar,
           digitar). Fechado ocupa uma linha: os itens ficam com a tela. */}
-      <div className="overflow-hidden rounded-[16px] border-2 border-brand bg-card">
+      <div className="overflow-hidden rounded-[22px] border-2 border-brand bg-card">
         <button
           onClick={() => setAdd(!add)}
           aria-expanded={add}
-          className="flex h-[50px] w-full items-center justify-center gap-2 text-[16px] font-extrabold text-brand"
+          className="flex h-11 w-full items-center justify-center gap-2 whitespace-nowrap text-[15px] font-extrabold text-brand"
         >
           <CartIcon size={20} />
           Adicionar ao carrinho
@@ -301,14 +302,14 @@ export function MercadoView() {
             role="tab"
             aria-selected={aba === "carrinho"}
             onClick={() => trocarAba("carrinho")}
-            className={`flex h-[52px] items-center justify-center gap-2 rounded-[14px] text-[16px] font-extrabold transition-colors ${
+            className={`flex h-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-full text-[15px] font-extrabold transition-colors ${
               aba === "carrinho" ? "bg-pos text-white shadow-[0_4px_12px_var(--shadow)]" : "border-2 border-border bg-card text-text-2"
             }`}
           >
             🛒 Carrinho
             <span
               key={carrinho.length}
-              className={`ic-pop min-w-[30px] rounded-full px-2 py-0.5 text-[15px] tabular-nums ${aba === "carrinho" ? "bg-black/15" : "bg-pos-soft text-pos"}`}
+              className={`ic-pop min-w-[26px] rounded-full px-1.5 py-0.5 text-[13px] tabular-nums ${aba === "carrinho" ? "bg-black/15" : "bg-pos-soft text-pos"}`}
             >
               {carrinho.length}
             </span>
@@ -317,14 +318,14 @@ export function MercadoView() {
             role="tab"
             aria-selected={aba === "falta"}
             onClick={() => trocarAba("falta")}
-            className={`flex h-[52px] items-center justify-center gap-2 rounded-[14px] text-[16px] font-extrabold transition-colors ${
+            className={`flex h-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-full text-[15px] font-extrabold transition-colors ${
               aba === "falta" ? "bg-brand text-brand-ink shadow-[0_4px_12px_var(--shadow)]" : "border-2 border-border bg-card text-text-2"
             }`}
           >
             ⏳ Falta
             <span
               key={faltamN}
-              className={`ic-pop min-w-[30px] rounded-full px-2 py-0.5 text-[15px] tabular-nums ${aba === "falta" ? "bg-black/15" : "bg-brand-soft text-brand"}`}
+              className={`ic-pop min-w-[26px] rounded-full px-1.5 py-0.5 text-[13px] tabular-nums ${aba === "falta" ? "bg-black/15" : "bg-brand-soft text-brand"}`}
             >
               {faltamN}
             </span>
@@ -415,17 +416,21 @@ export function MercadoView() {
 
       {/* Rodape fixo: o total e o finalizar sempre no alcance do polegar. */}
       {trip && (
-        <div className="fixed inset-x-0 bottom-[calc(var(--tabbar-h)+env(safe-area-inset-bottom))] z-20 flex items-center gap-3 border-t border-border bg-card px-4 py-2.5 shadow-[0_-4px_16px_var(--shadow)] lg:static lg:rounded-[18px] lg:border lg:shadow-none">
-          <div className="min-w-0 flex-1">
-            <div className="text-[11px] font-bold uppercase tracking-wide text-text-3">
+        // Barra do modo compra, flutuante no lugar das abas: voltar, total e finalizar.
+        <div className="fixed inset-x-3 bottom-[calc(10px+env(safe-area-inset-bottom))] z-20 flex h-[62px] items-center gap-2 rounded-full bg-[var(--barra)] p-1.5 pl-4 text-white shadow-[0_10px_30px_var(--shadow-lg)] lg:static lg:rounded-[18px]">
+          <Link href="/app/lista" className="shrink-0 text-[14px] font-bold text-white/70 no-underline">
+            ‹ Lista
+          </Link>
+          <div className="min-w-0 flex-1 text-right">
+            <div className="truncate text-[10px] font-bold uppercase tracking-wide text-white/60">
               {faltamN ? `Faltam ${faltamN}` : r.totalLista ? "Lista completa ✓" : "No carrinho"}
             </div>
-            <div className="text-[22px] font-extrabold leading-none tabular-nums text-brand">{brl(total)}</div>
+            <div className="truncate text-[18px] font-extrabold leading-tight tabular-nums">{brl(total)}</div>
           </div>
           <button
             onClick={() => setRevisar(true)}
             disabled={busy === "fim" || carrinho.length === 0}
-            className="mr-[68px] h-12 shrink-0 rounded-[14px] bg-brand px-5 text-[15px] font-bold text-brand-ink disabled:opacity-50 lg:mr-0"
+            className="h-full shrink-0 whitespace-nowrap rounded-full bg-[var(--barra-ativa)] px-5 text-[15px] font-extrabold text-[var(--barra-ativa-ink)] disabled:opacity-50"
           >
             Finalizar ✓
           </button>

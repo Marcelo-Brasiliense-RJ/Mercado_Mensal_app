@@ -7,7 +7,6 @@ import { usePathname } from "next/navigation";
 import { Sidebar } from "./Sidebar";
 import { TabBar } from "./TabBar";
 import { TopBar } from "./TopBar";
-import { ThemeToggle } from "@/theme/ThemeToggle";
 import { ReceiptModal } from "@/components/receipt/ReceiptModal";
 import { AddItemIcon, PinIcon } from "@/components/ui/icons";
 import { atualizarLugar, useLugar } from "@/lib/lugar";
@@ -70,6 +69,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // Mercado tambem tem a barra do total no rodape.
   const noModoMercado = path.startsWith("/app/mercado");
   const naLista = path.startsWith("/app/lista") || noModoMercado;
+  // O + so onde se poe item: Estoque e Lista. Em Ofertas, Economia e Ajustes ele so
+  // cobria o conteudo; no Mercado o "Adicionar ao carrinho" ja faz isso.
+  const comMais = path.startsWith("/app/estoque") || path.startsWith("/app/lista");
   useEffect(() => {
     document.documentElement.style.setProperty(
       "--acima-fab",
@@ -137,7 +139,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   <span className="absolute right-1.5 top-1.5 h-2 w-2 animate-pulse rounded-full bg-pos ring-2 ring-card" aria-hidden />
                 )}
               </button>
-              <ThemeToggle />
             </div>
           }
         />
@@ -161,17 +162,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <VoiceModal open={falar} onClose={() => setFalar(false)} tela={noModoMercado ? "mercado" : "auto"} />
       {/* Botao "+" flutuante, em todas as telas: abre o adicionar (falar, foto, codigo,
           escrever). Na Lista sobe um pouco para nao cobrir o total do rodape. */}
+      {/* No Mercado o "Adicionar ao carrinho" ja faz isso: o + so cobria os itens. */}
+      {comMais && (
       <button
         onClick={() => setFalar(true)}
         aria-label="Adicionar item"
-        className={`fixed right-4 z-20 grid h-[60px] w-[60px] place-items-center rounded-full bg-brand text-brand-ink shadow-[0_8px_22px_rgba(193,95,60,.45)] ring-4 ring-bg transition-transform active:scale-95 lg:bottom-8 lg:right-8 ${
+        className={`fixed right-4 z-20 grid h-[52px] w-[52px] place-items-center rounded-full bg-brand text-brand-ink shadow-[0_6px_18px_var(--shadow-lg)] transition-transform active:scale-95 lg:bottom-8 lg:right-8 ${
           naLista ? "bottom-[calc(env(safe-area-inset-bottom)+var(--tabbar-h)+60px)]" : "bottom-[calc(env(safe-area-inset-bottom)+var(--tabbar-h)+10px)]"
         }`}
       >
         <span className="ic-mexe">
-          <AddItemIcon size={28} />
+          <AddItemIcon size={24} />
         </span>
       </button>
+      )}
     </div>
   );
 }

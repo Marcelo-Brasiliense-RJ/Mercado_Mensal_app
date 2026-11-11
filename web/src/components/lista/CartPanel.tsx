@@ -121,7 +121,7 @@ export function CartPanel({ onScan }: { onScan?: () => void }) {
     <QualMercado />
     <div className="overflow-hidden rounded-[22px] border-2 border-brand bg-card shadow-[0_4px_16px_var(--shadow)]">
       {/* Topo do modo mercado: onde esta e quanto ja deu, grande, para bater o olho no corredor. */}
-      <div className="bg-brand px-[18px] pb-4 pt-3.5 text-brand-ink">
+      <div className="bg-brand px-4 pb-3 pt-3 text-brand-ink">
         <div className="flex items-center justify-between gap-3">
           <div className="text-[15px] font-extrabold">
             🛒 {noMercado && mercado ? `No ${nomeMercado(mercado)}` : "No mercado"}
@@ -130,23 +130,23 @@ export function CartPanel({ onScan }: { onScan?: () => void }) {
             {trip.items.length} {trip.items.length === 1 ? "item" : "itens"}
           </div>
         </div>
-        <div className="mt-1 text-[42px] font-extrabold leading-none tracking-[-0.02em] tabular-nums">{brl(trip.total)}</div>
+        <div className="mt-0.5 text-[32px] font-extrabold leading-none tracking-[-0.02em] tabular-nums">{brl(trip.total)}</div>
         {budget.total > 0 && (
-          <div className="mt-1.5 text-[13px] font-bold opacity-90">
+          <div className="mt-1 truncate text-[12px] font-bold opacity-90">
             {budget.total - budget.spent - trip.total >= 0
               ? `Ainda cabem ${brl(budget.total - budget.spent - trip.total)} no orçamento do mês`
               : `Passa ${brl(-(budget.total - budget.spent - trip.total))} do orçamento do mês`}
           </div>
         )}
       </div>
-      <div className="p-[18px] pt-3.5">
+      <div className="p-3 pt-2.5">
       {trip.items.length === 0 ? (
         <p className="text-[14px] leading-relaxed text-text-2">
           Toque no <b>+</b> (canto de baixo) para tirar foto, ler o código ou falar o que pegou. O total sobe aqui na hora.
         </p>
       ) : (
-        <ul className="space-y-2">
-          <li className="text-[12px] font-bold uppercase tracking-wide text-text-3">No carrinho</li>
+        <ul className="divide-y divide-border">
+          <li className="pb-1.5 text-[12px] font-bold uppercase tracking-wide text-text-3">No carrinho</li>
           {trip.items.map((it) => {
             const esp = estimado(it.name);
             const diff = esp != null ? it.unit_price - esp : null;
@@ -157,48 +157,29 @@ export function CartPanel({ onScan }: { onScan?: () => void }) {
               <button
                 type="button"
                 onClick={() => setEditar(it)}
-                className="flex w-full items-center gap-3 rounded-[14px] border border-border bg-card-2 p-3 text-left"
+                className="flex min-h-[48px] w-full items-center gap-2 py-1.5 text-left"
               >
               <div className="min-w-0 flex-1">
-                <div className="font-bold">{it.name}</div>
-                <div className="text-[13px] text-text-3">
+                <div className="truncate text-[15px] font-bold">{it.name}</div>
+                <div className="truncate text-[12px] text-text-3">
                   {it.quantity} {it.unit} · {brl(it.unit_price)}
+                  {/* Comparativo: pesquisado (lista) x pagando (carrinho), so quando mudou */}
+                  {diff !== null && Math.abs(diff) > 0.005 && (
+                    <b className={diff > 0 ? "text-neg" : "text-pos"}>
+                      {" "}· {diff > 0 ? `+${brl(diff)}` : brl(diff)} vs lista
+                    </b>
+                  )}
                 </div>
-                {/* Comparativo: pesquisado (lista) x pagando (carrinho) */}
-                {diff !== null && (
-                  <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[12px] font-bold">
-                    <span className="text-text-3">
-                      Pesquisado {brl(esp!)}
-                    </span>
-                    <span
-                      className={`rounded-full px-2 py-[2px] ${
-                        diff > 0.005
-                          ? "bg-neg-soft text-neg"
-                          : diff < -0.005
-                            ? "bg-pos-soft text-pos"
-                            : "bg-card text-text-3"
-                      }`}
-                    >
-                      {diff > 0.005
-                        ? `+${brl(diff)} mais caro`
-                        : diff < -0.005
-                          ? `${brl(diff)} mais barato`
-                          : "no preço"}
-                    </span>
-                  </div>
-                )}
               </div>
               {it.above_par && (
                 <span className="shrink-0 rounded-full bg-pos-soft px-2.5 py-[3px] text-[12px] font-bold text-pos">
                   já tinha
                 </span>
               )}
-              <span className="shrink-0 text-[16px] font-extrabold">
+              <span className="shrink-0 text-[15px] font-extrabold tabular-nums">
                 {brl(it.quantity * it.unit_price)}
               </span>
-              <span className="shrink-0 text-[13px] font-bold text-brand">
-                Editar
-              </span>
+              <span className="shrink-0 text-[18px] font-bold text-text-3" aria-hidden>›</span>
               </button>
             </li>
             );
@@ -211,15 +192,15 @@ export function CartPanel({ onScan }: { onScan?: () => void }) {
           type="button"
           onClick={desistir}
           disabled={busy}
-          className="h-[50px] flex-1 rounded-[14px] border border-border bg-card text-[15px] font-bold text-text-2 disabled:opacity-50"
+          className="h-12 flex-1 whitespace-nowrap rounded-full border border-border bg-card px-3 text-[14px] font-bold text-text-2 disabled:opacity-50"
         >
-          Cancelar compra
+          Cancelar
         </button>
         <button
           type="button"
           onClick={finalizar}
           disabled={busy || trip.items.length === 0}
-          className="h-[50px] flex-[2] rounded-[14px] bg-brand text-[15px] font-bold text-brand-ink disabled:opacity-60"
+          className="h-12 flex-[2] whitespace-nowrap rounded-full bg-brand px-3 text-[15px] font-bold text-brand-ink disabled:opacity-60"
         >
           {busy ? "Finalizando…" : "Finalizar compra"}
         </button>

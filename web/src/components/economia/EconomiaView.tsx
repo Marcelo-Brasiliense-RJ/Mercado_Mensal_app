@@ -267,7 +267,7 @@ function Numero({ rotulo, valor }: { rotulo: string; valor: string }) {
   return (
     <div className="rounded-xl bg-card-2 px-2.5 py-2">
       <div className="text-[11px] font-bold leading-tight text-text-3">{rotulo}</div>
-      <div className="mt-0.5 text-[15px] font-extrabold tabular-nums">{valor}</div>
+      <div className="mt-0.5 truncate text-[14px] font-extrabold tracking-[-0.01em] tabular-nums">{valor}</div>
     </div>
   );
 }

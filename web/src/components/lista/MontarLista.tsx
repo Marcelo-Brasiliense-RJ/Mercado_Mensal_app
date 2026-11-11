@@ -179,23 +179,30 @@ export function MontarLista({ onClose }: { onClose: () => void }) {
             className="h-12 w-full rounded-2xl border-2 border-border bg-card-2 pl-12 pr-4 text-[16px] outline-none focus:border-brand"
           />
         </label>
-        <div className="mt-2.5 grid grid-cols-3 gap-1.5">
+        <div className="mt-2.5 grid grid-cols-4 gap-1.5">
           {(
             [
-              ["acabando", `🔴 Acabando${acabandoTodos.length ? ` (${acabandoTodos.length})` : ""}`],
-              ["casa", "🏠 Tudo de casa"],
-              ["oferta", "🏷 Em oferta"],
+              ["acabando", `Acabando${acabandoTodos.length ? ` ${acabandoTodos.length}` : ""}`],
+              ["casa", "De casa"],
+              ["oferta", "Ofertas"],
             ] as [Aba, string][]
           ).map(([id, txt]) => (
             <button
               key={id}
               onClick={() => setAba(id)}
               aria-pressed={aba === id}
-              className={`h-10 rounded-xl text-[13px] font-bold ${aba === id ? "bg-brand text-brand-ink" : "bg-card-2 text-text-2"}`}
+              className={`h-10 truncate whitespace-nowrap rounded-full px-1.5 text-[12px] font-bold ${aba === id ? "bg-brand text-brand-ink" : "bg-card-2 text-text-2"}`}
             >
               {txt}
             </button>
           ))}
+          {/* Receita vira lista: aqui na fileira, nao flutuando por cima dos produtos. */}
+          <button
+            onClick={() => setReceita(true)}
+            className="h-10 truncate whitespace-nowrap rounded-full bg-card-2 px-1.5 text-[12px] font-bold text-text-2"
+          >
+            Receita
+          </button>
         </div>
         {aba === "oferta" && (
           <div className="-mx-4 mt-2.5 flex flex-col gap-1.5">
@@ -337,14 +344,6 @@ export function MontarLista({ onClose }: { onClose: () => void }) {
         <MicIcon size={28} />
       </button>
       <VoiceModal open={falar} onClose={() => setFalar(false)} tela="lista" />
-      {/* Receita vira lista: cola a receita (ou "receita de lasanha pra 6") e a IA tira os ingredientes. */}
-      <button
-        onClick={() => setReceita(true)}
-        aria-label="Receita vira lista"
-        className="fixed bottom-[calc(162px+env(safe-area-inset-bottom))] right-4 z-10 flex h-11 items-center gap-1.5 rounded-full border border-border bg-card px-4 text-[13px] font-extrabold shadow-[0_6px_18px_var(--shadow-lg)] active:scale-95"
-      >
-        <span aria-hidden>🍝</span> Receita
-      </button>
       <VoiceModal open={receita} onClose={() => setReceita(false)} tela="lista" escrever />
 
       <div className="fixed inset-x-0 bottom-0 border-t border-border bg-card px-4 pb-[max(12px,env(safe-area-inset-bottom))] pt-3">

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useListaOfertas } from "@/components/ofertas/useOfertas";
-import { corMercado, maisBarataPara, nomeMercado, type Oferta } from "@/lib/ofertas";
+import { maisBarataPara, nomeMercado, type Oferta } from "@/lib/ofertas";
 import { categoriaDoItem, iconeDe, useCategorias } from "./useCategorias";
 import { repetidos } from "@/lib/parecidos";
 import { Modal } from "@/components/ui/Modal";
@@ -22,7 +22,9 @@ import { PrimeirosPassos } from "./PrimeirosPassos";
 import { ConfirmarExclusao } from "./ConfirmarExclusao";
 import { FotoItem } from "@/components/ui/FotoItem";
 
-// Despensa em cards, dois por linha.
+// Despensa em linhas densas, uma por item (regra do dono: a compra do mes tem 50 a
+// 100 itens, e a tela tem que mostrar muitos de uma vez). Antes eram cards de duas
+// colunas com 4 selos e 3 botoes cada: 4 itens por tela.
 //
 // O que havia antes era uma lista com barra de progresso, porcentagem, valor em
 // reais e seta em cada linha: um relatorio. Quem chega do mercado com sacola na
@@ -373,8 +375,8 @@ export function StockView() {
                   {itens.every((i) => selected.has(i.id)) ? `Desmarcar ${cat}` : `Marcar todos de ${cat}`}
                 </button>
               )}
-              {/* Dois cards por linha no celular: cabe o dobro de despensa num olhar. */}
-              <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4 lg:gap-3.5">
+              {/* Uma linha por item: muitos itens por tela. */}
+              <div className="divide-y divide-border overflow-hidden rounded-[18px] border border-border bg-card lg:grid lg:grid-cols-2 lg:divide-y-0">
                 {itens.map((i) => (
                   <Card
                     key={i.id}
@@ -385,7 +387,6 @@ export function StockView() {
                     onAbrir={() => onItem(i)}
                     onUsei={() => usei(i)}
                     onMais={() => mais(i)}
-                    onExcluir={() => setExcluir([i])}
                     oferta={estadoDe(i) !== "tem" ? maisBarataPara(ofertas, i.name) : null}
                     noCarrinho={naLista.has(i.name.trim().toLowerCase())}
                   />
@@ -529,7 +530,6 @@ function Card({
   onAbrir,
   onUsei,
   onMais,
-  onExcluir,
   oferta,
   noCarrinho,
 }: {
@@ -540,90 +540,56 @@ function Card({
   onAbrir: () => void;
   onUsei: () => void;
   onMais: () => void;
-  onExcluir: () => void;
   oferta?: Oferta | null;
   noCarrinho?: boolean;
 }) {
   const estado = estadoDe(item);
   const cor = CORES[estado];
   const acabou = estado === "acabou";
+  const passo = fmtQtd(stepFor(item.unit));
 
   return (
-    <div
-      className={`relative overflow-hidden rounded-[18px] border bg-card shadow-[0_1px_3px_var(--shadow)] ${
-        selected ? "border-brand ring-2 ring-brand" : "border-border"
-      }`}
-    >
-      {/* Faixa de cor no topo: diz o estado antes de qualquer leitura. */}
-      <div className={`h-1.5 w-full ${cor.faixa}`} />
-
-      <button onClick={onAbrir} className="block w-full p-3 text-left">
-        {selMode && (
-          <span className="absolute right-2.5 top-3.5">
-            <SelDot on={selected} />
-          </span>
-        )}
-        <div className="mb-2 flex items-start justify-between gap-1.5">
-          <span className="flex flex-wrap gap-1">
-            <span className={`rounded-full px-2 py-[2px] text-[10px] font-extrabold uppercase ${cor.selo}`}>
-              {cor.texto}
-            </span>
-            {noCarrinho && (
-              <span className="rounded-full bg-brand-soft px-2 py-[2px] text-[10px] font-extrabold uppercase text-brand">📝 Na lista</span>
+    <div className={`relative flex min-h-[56px] items-center gap-2.5 pl-3 pr-1.5 ${selected ? "bg-brand-soft" : ""}`}>
+      {/* Filete de cor na esquerda: o estado antes de qualquer leitura. */}
+      <span className={`absolute inset-y-2 left-0 w-1 rounded-r-full ${cor.faixa}`} aria-hidden />
+      <button onClick={onAbrir} className="flex min-w-0 flex-1 items-center gap-2.5 py-2 text-left">
+        {selMode ? <SelDot on={selected} /> : <FotoItem nome={item.name} className="h-9 w-9 shrink-0 rounded-lg" />}
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[15px] font-bold leading-tight">{item.name}</span>
+          <span className="block truncate text-[12px] leading-tight text-text-3">
+            <b className={cor.selo.split(" ").find((c) => c.startsWith("text-"))}>{cor.texto}</b>
+            {noCarrinho && " · na lista"}
+            {oferta && (
+              <span title={`Em oferta no ${nomeMercado(oferta.mercado)}`}>
+                {" "}· 🏷 {nomeMercado(oferta.mercado)} {brl(oferta.preco_por)}
+              </span>
             )}
           </span>
-          {/* Foto do produto (pelo nome): reconhecer de relance sem ler */}
-          {!selMode && <FotoItem nome={item.name} className="-mr-1 -mt-1 h-11 w-11 rounded-lg" />}
-        </div>
-        {/* Nome em duas linhas no maximo: produto de mercado tem nome comprido e
-            cortar no meio da palavra deixa indecifravel. */}
-        <div className="line-clamp-2 text-[15px] font-extrabold leading-tight">
-          {item.name}
-        </div>
-        <div className="mt-1.5 text-[24px] font-extrabold leading-none">
-          {fmtQtd(item.current)}
-          <span className="ml-1 text-[13px] font-bold text-text-3">{item.unit}</span>
-        </div>
-        {/* Acabando e em oferta: ja diz onde repor mais barato. */}
-        {oferta && (
-          <div
-            className="mt-2 inline-flex max-w-full rounded-md px-2 py-0.5 text-[11px] font-bold text-white"
-            style={{ background: corMercado(oferta.mercado) }}
-            title={`Em oferta no ${nomeMercado(oferta.mercado)}`}
-          >
-            <span className="truncate">
-              🏷 {nomeMercado(oferta.mercado)} · {brl(oferta.preco_por)}
-            </span>
-          </div>
-        )}
+        </span>
       </button>
-
       {!selMode && (
-        // Tres toques sem popup: tirar, somar e mandar para a lista. O passo e o da
-        // unidade (1 un, 0,5 kg), o mesmo do "Usei" de antes.
-        <div className="grid grid-cols-3 border-t border-border">
+        // Tirar e somar sem popup, no passo da unidade (1 un, 0,5 kg). Excluir fica no
+        // detalhe do item: era um botao vermelho em cada card.
+        <div className="flex shrink-0 items-center">
           <button
             onClick={onUsei}
             disabled={ocupado || acabou}
-            aria-label={`Usei ${fmtQtd(stepFor(item.unit))} ${item.unit} de ${item.name}`}
-            className="h-12 border-r border-border text-[17px] font-extrabold text-text-2 disabled:opacity-30"
+            aria-label={`Usei ${passo} ${item.unit} de ${item.name}`}
+            className="grid h-10 w-10 place-items-center rounded-full text-[20px] font-bold text-text-2 disabled:opacity-25"
           >
-            −{fmtQtd(stepFor(item.unit))}
+            −
           </button>
+          <span className="min-w-[46px] text-center text-[15px] font-extrabold tabular-nums leading-none">
+            {fmtQtd(item.current)}
+            <span className="block text-[10px] font-bold text-text-3">{item.unit}</span>
+          </span>
           <button
             onClick={onMais}
             disabled={ocupado}
-            aria-label={`Chegou mais ${fmtQtd(stepFor(item.unit))} ${item.unit} de ${item.name}`}
-            className="h-12 border-r border-border text-[17px] font-extrabold text-pos disabled:opacity-30"
+            aria-label={`Chegou mais ${passo} ${item.unit} de ${item.name}`}
+            className="grid h-10 w-10 place-items-center rounded-full text-[20px] font-bold text-pos disabled:opacity-25"
           >
-            +{fmtQtd(stepFor(item.unit))}
-          </button>
-          <button
-            onClick={onExcluir}
-            disabled={ocupado}
-            className="h-12 text-[13px] font-bold text-neg disabled:opacity-40"
-          >
-            Excluir
+            +
           </button>
         </div>
       )}

@@ -180,6 +180,8 @@ export function FamiliaView() {
           </div>
           <Interruptor ligado={modoMercado} onChange={setModoMercado} rotulo="Modo mercado" />
         </div>
+        {/* Tema: saiu do topo de todas as telas (era um icone a mais em cada uma). */}
+        <TemaEscuro cls={cardCls} />
         {/* Avisos no celular */}
         <AvisoCelular />
 
@@ -336,6 +338,19 @@ export function FamiliaView() {
 
       {mercadosAberto && <MeusMercadosModal onClose={() => setMercadosAberto(false)} />}
       <BudgetModal open={orcamentoAberto} onClose={() => setOrcamentoAberto(false)} />
+    </div>
+  );
+}
+
+function TemaEscuro({ cls }: { cls: string }) {
+  const { isDark, toggle } = useTheme();
+  return (
+    <div className={`${cls} flex items-center gap-3`}>
+      <div className="min-w-0 flex-1">
+        <div className="text-[16px] font-extrabold">🌙 Tema escuro</div>
+        <div className="text-[13px] text-text-2">Fundo escuro, melhor à noite.</div>
+      </div>
+      <Interruptor ligado={isDark} onChange={() => toggle()} rotulo="Tema escuro" />
     </div>
   );
 }
