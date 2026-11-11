@@ -4,7 +4,7 @@ import { brl } from "@/lib/format";
 import { stepFor } from "@/lib/defaults";
 import type { ShopItem, TripItem } from "@/lib/types";
 import type { LinhaPego } from "@/lib/modoMercado";
-import { CartIcon, CheckIcon } from "@/components/ui/icons";
+import { CheckIcon } from "@/components/ui/icons";
 import { FotoItem } from "@/components/ui/FotoItem";
 
 // Linhas do modo mercado, DENSAS de proposito: compra do mes tem 50, 70, 100 itens, e
@@ -60,30 +60,32 @@ export function CardFalta({ nome, qtd, unidade, preco, emCasa, resto, pegando, o
 
 // Lista: uma linha de ~48px por produto, nome inteiro legivel. Tocar na linha = peguei.
 export function LinhaFaltaCompacta({ nome, qtd, unidade, preco, emCasa, resto, pegando, onPegar }: Falta) {
+  // Redesenho "modo correria": linha alta (64 px), foto grande, nome legivel com o
+  // celular em movimento e um circulo grande na zona do polegar. Tocar na linha = peguei.
   return (
     <li className={`transition-all duration-300 ${pegando ? "opacity-0" : "opacity-100"}`}>
       <button
         onClick={onPegar}
         disabled={pegando}
         aria-label={resto ? `Pegar o resto de ${nome}` : `Peguei ${nome}`}
-        className={`relative flex min-h-[48px] w-full items-center gap-2.5 px-2.5 py-1 text-left active:bg-card-2 ${resto ? "bg-warn-soft" : ""}`}
+        className={`relative flex min-h-[64px] w-full items-center gap-3 px-3.5 py-2 text-left active:bg-card-2 ${resto ? "bg-warn-soft" : ""}`}
       >
-        <FotoItem nome={nome} className="h-9 w-9 rounded-md" />
+        <FotoItem nome={nome} className="h-[52px] w-[52px] shrink-0 rounded-[14px]" />
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-[15px] font-bold leading-tight">
-            {emCasa && <span className="mr-1 inline-block h-2 w-2 rounded-full bg-pos align-middle" title="tem em casa" />}
-            {nome}
-          </span>
-          <span className={`block text-[12px] font-bold leading-tight ${resto ? "text-warn" : "text-text-3"}`}>
+          <span className="block truncate text-[17px] font-extrabold leading-tight">{nome}</span>
+          <span className={`block truncate text-[13px] leading-tight ${resto ? "font-bold text-warn" : "text-text-3"}`}>
             {resto ? `pegou menos · falta ${qtdTxt(qtd)} ${unidade}` : `${qtdTxt(qtd)} ${unidade}`}
-            {!resto && preco ? ` · ${brl(qtd * preco)}` : ""}
+            {!resto && preco ? ` · ~${brl(preco)}${qtd > 1 ? " cada" : ""}` : ""}
+            {emCasa && !resto ? " · tem em casa" : ""}
           </span>
         </span>
         <span
-          className={`grid h-9 w-9 shrink-0 place-items-center rounded-full ${resto ? "bg-warn text-warn-ink" : "bg-brand text-brand-ink"}`}
+          className={`grid h-12 w-12 shrink-0 place-items-center rounded-full ${
+            pegando ? "bg-pos text-white" : resto ? "border-[2.5px] border-warn text-warn" : "border-[2.5px] border-border"
+          }`}
           aria-hidden
         >
-          {pegando ? <CheckIcon size={18} /> : <CartIcon size={17} />}
+          {pegando ? <CheckIcon size={22} /> : null}
         </span>
       </button>
     </li>
