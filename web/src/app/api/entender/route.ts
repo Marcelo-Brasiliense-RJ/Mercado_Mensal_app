@@ -33,7 +33,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, erro: r.erro }, { status: r.erro === "ia_indisponivel" ? 503 : 502 });
   }
 
-  const texto = typeof b.texto === "string" ? b.texto.trim().slice(0, 4000) : "";
+  const texto = typeof b.texto === "string" ? b.texto.trim().slice(0, 6000) : "";
   if (!texto) return NextResponse.json({ ok: false, erro: "sem_texto" }, { status: 400 });
   const e = await entenderTexto(texto, tela);
   return NextResponse.json({ ok: true, texto, intencao: e.intencao, itens: e.itens, por: e.por });

@@ -31,6 +31,7 @@ export function MontarLista({ onClose }: { onClose: () => void }) {
   const [busca, setBusca] = useState("");
   const [adicionados, setAdicionados] = useState(0);
   const [falar, setFalar] = useState(false);
+  const [receita, setReceita] = useState(false);
   // Em oferta sao milhares: filtra por mercado e por corredor, e mostra aos poucos.
   const [mercadoF, setMercadoF] = useState<string | null>(null);
   const [catF, setCatF] = useState<string | null>(null);
@@ -336,6 +337,15 @@ export function MontarLista({ onClose }: { onClose: () => void }) {
         <MicIcon size={28} />
       </button>
       <VoiceModal open={falar} onClose={() => setFalar(false)} tela="lista" />
+      {/* Receita vira lista: cola a receita (ou "receita de lasanha pra 6") e a IA tira os ingredientes. */}
+      <button
+        onClick={() => setReceita(true)}
+        aria-label="Receita vira lista"
+        className="fixed bottom-[calc(162px+env(safe-area-inset-bottom))] right-4 z-10 flex h-11 items-center gap-1.5 rounded-full border border-border bg-card px-4 text-[13px] font-extrabold shadow-[0_6px_18px_var(--shadow-lg)] active:scale-95"
+      >
+        <span aria-hidden>🍝</span> Receita
+      </button>
+      <VoiceModal open={receita} onClose={() => setReceita(false)} tela="lista" escrever />
 
       <div className="fixed inset-x-0 bottom-0 border-t border-border bg-card px-4 pb-[max(12px,env(safe-area-inset-bottom))] pt-3">
         <button onClick={onClose} className="h-[52px] w-full rounded-[14px] bg-brand text-[16px] font-extrabold text-brand-ink">

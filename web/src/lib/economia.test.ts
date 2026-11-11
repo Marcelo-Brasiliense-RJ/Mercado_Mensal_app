@@ -44,3 +44,24 @@ describe("economia do mes", () => {
     expect(somarMes("2026-01-01", -1)).toBe("2025-12-01");
   });
 });
+
+describe("numerosDoMes", () => {
+  it("idas = dias com compra; media por ida e % contra o mes anterior", async () => {
+    const { numerosDoMes } = await import("./economia");
+    const c = (at: string, total: number) => ({ id: at + total, name: "x", qty: 1, unit: "un", price: total, total, at });
+    const n = numerosDoMes({
+      mes: "2026-11-01",
+      gasto: 300,
+      compras: [c("2026-11-02T10:00:00Z", 100), c("2026-11-02T18:00:00Z", 50), c("2026-11-09T10:00:00Z", 150)],
+      meses: [
+        { mes: "2026-09-01", gasto: 200, orcamento: null },
+        { mes: "2026-10-01", gasto: 400, orcamento: null },
+        { mes: "2026-11-01", gasto: 300, orcamento: null },
+      ],
+    });
+    expect(n.idas).toBe(2);
+    expect(n.porIda).toBe(150);
+    expect(n.mediaMensal).toBe(300);
+    expect(n.pctAnterior).toBe(-25);
+  });
+});

@@ -4,6 +4,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -175,6 +176,58 @@ type Store = Data & {
   showToast: (msg: string, opts?: { desfazer?: boolean | (() => Promise<void>) }) => void;
 };
 
+// Uma leitura completa da casa. null = erro (rede ou sessao renovando): quem chama
+// mantem o que tinha em vez de mostrar lista vazia.
+async function buscarTudo(): Promise<Data | null> {
+  try {
+    const supabase = createClient();
+    const [stockR, listR, ecoR, tripR] = await Promise.all([
+      supabase.rpc("mercado_stock_web"),
+      supabase.rpc("mercado_list_web"),
+      supabase.rpc("mercado_economia_web"),
+      supabase.rpc("mercado_trip_web"),
+    ]);
+    if (stockR.error || listR.error) return null;
+    const eco = (ecoR.data ?? {}) as {
+      budget?: { total: number; spent: number };
+      months?: MonthPoint[];
+      savings?: SavingRow[];
+    };
+    return {
+      stock: (stockR.data as StockItem[] | null) ?? [],
+      shopping: (listR.data as ShopItem[] | null) ?? [],
+      budget: eco.budget ?? { total: 0, spent: 0 },
+      months: eco.months ?? [],
+      savings: eco.savings ?? [],
+      trip: (tripR.data as Trip | null) ?? null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+// Lista dividida com a familia: o que outra pessoa pos aparece sozinho (a cada 30 s
+// com o app aberto, e ao voltar para ele) e vem um aviso "Na lista agora: cafe, pao".
+// ponytail: leitura periodica pelas RPCs de sempre. O upgrade e o Realtime do
+// Supabase, que pede policy/publication nova no banco (migration aplicada a mao).
+const SINCRONIZAR_MS = 30_000;
+const chave = (n: string) => n.trim().toLowerCase();
+
+export function novosNaLista(antes: ShopItem[], depois: ShopItem[]): string[] {
+  const tinha = new Set(antes.filter((i) => i.status === "pending").map((i) => chave(i.name)));
+  const vistos = new Set<string>();
+  return depois
+    .filter((i) => i.status === "pending" && !tinha.has(chave(i.name)))
+    .map((i) => i.name.trim())
+    .filter((n) => (vistos.has(chave(n)) ? false : (vistos.add(chave(n)), true)));
+}
+
+export function avisoNovos(nomes: string[]): string {
+  const mostra = nomes.slice(0, 3).join(", ");
+  const resto = nomes.length - 3;
+  return `👨‍👩‍👧 Na lista agora: ${mostra}${resto > 0 ? ` e mais ${resto}` : ""}`;
+}
+
 const Ctx = createContext<Store | null>(null);
 
 export function useStore(): Store {
@@ -196,40 +249,20 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   const openReceipt = useCallback(() => setReceiptOpen(true), []);
   const closeReceipt = useCallback(() => setReceiptOpen(false), []);
 
+  const ultimaRecarga = useRef(0); // escrita do proprio aparelho recarrega: a sincronia espera
   const reloadData = useCallback(async (): Promise<void> => {
+    ultimaRecarga.current = Date.now();
     setDataLoading(true);
     try {
       // Erro do banco (ex.: sessao ainda renovando logo apos o app recarregar) volta
       // como data null, e isso virava "lista vazia". Nao apaga o que tinha: tenta de novo.
       for (let tentativa = 0; tentativa < 4; tentativa++) {
         if (tentativa) await new Promise((r) => setTimeout(r, 1500 * tentativa));
-        try {
-          const supabase = createClient();
-          const [stockR, listR, ecoR, tripR] = await Promise.all([
-            supabase.rpc("mercado_stock_web"),
-            supabase.rpc("mercado_list_web"),
-            supabase.rpc("mercado_economia_web"),
-            supabase.rpc("mercado_trip_web"),
-          ]);
-          if (stockR.error || listR.error) continue;
-          const eco = (ecoR.data ?? {}) as {
-            budget?: { total: number; spent: number };
-            months?: MonthPoint[];
-            savings?: SavingRow[];
-          };
-          setData({
-            stock: (stockR.data as StockItem[] | null) ?? [],
-            shopping: (listR.data as ShopItem[] | null) ?? [],
-            budget: eco.budget ?? { total: 0, spent: 0 },
-            months: eco.months ?? [],
-            savings: eco.savings ?? [],
-            trip: (tripR.data as Trip | null) ?? null,
-          });
-          setDataReady(true);
-          return;
-        } catch {
-          // Falha de rede: mantem o que tinha e tenta de novo.
-        }
+        const d = await buscarTudo();
+        if (!d) continue;
+        setData(d);
+        setDataReady(true);
+        return;
       }
     } finally {
       setDataLoading(false);
@@ -563,6 +596,36 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       setToastDesfazer(false);
     }, opts?.desfazer ? 6000 : 2200);
   }, []);
+
+  // Sincronia da familia (ver SINCRONIZAR_MS): so com a tela visivel e longe de uma
+  // escrita deste aparelho, para nao atropelar o que acabou de ser posto na mao.
+  const dataRef = useRef(data);
+  dataRef.current = data;
+  useEffect(() => {
+    if (!dataReady) return;
+    let rodando = false;
+    async function sincronizar() {
+      if (rodando || document.visibilityState !== "visible") return;
+      if (Date.now() - ultimaRecarga.current < 5000) return;
+      rodando = true;
+      const antes = dataRef.current;
+      const d = await buscarTudo();
+      rodando = false;
+      if (!d || Date.now() - ultimaRecarga.current < 5000) return;
+      setData(d);
+      const novos = novosNaLista(antes.shopping, d.shopping);
+      if (novos.length) showToast(avisoNovos(novos));
+    }
+    const aoVoltar = () => {
+      if (document.visibilityState === "visible") void sincronizar();
+    };
+    const id = setInterval(sincronizar, SINCRONIZAR_MS);
+    document.addEventListener("visibilitychange", aoVoltar);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", aoVoltar);
+    };
+  }, [dataReady, showToast]);
 
   // Volta a ultima escrita da casa (0023). ponytail: desfaz o ultimo evento da familia,
   // nao "o meu": se outra pessoa escreveu nesses 6 s, desfaz o dela. Raro com o aviso curto;

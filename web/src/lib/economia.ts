@@ -114,3 +114,18 @@ export function somarMes(mes: string, n: number): string {
   const d = new Date(Number(mes.slice(0, 4)), Number(mes.slice(5, 7)) - 1 + n, 1);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
 }
+
+// "Seus gastos" em numeros: quantas idas ao mercado, quanto por ida e a media dos
+// meses com compra. Ida = dia com compra (duas notas no mesmo dia contam uma ida).
+export function numerosDoMes(d: Pick<MesEconomia, "gasto" | "compras" | "meses" | "mes">) {
+  const idas = new Set(d.compras.map((c) => c.at.slice(0, 10))).size;
+  const anteriores = d.meses.filter((m) => m.mes < d.mes && Number(m.gasto) > 0);
+  const ant = d.meses.filter((m) => m.mes < d.mes).at(-1);
+  const pctAnterior = ant && Number(ant.gasto) > 0 ? ((d.gasto - Number(ant.gasto)) / Number(ant.gasto)) * 100 : null;
+  return {
+    idas,
+    porIda: idas ? d.gasto / idas : 0,
+    mediaMensal: anteriores.length ? anteriores.reduce((t, m) => t + Number(m.gasto), 0) / anteriores.length : null,
+    pctAnterior,
+  };
+}

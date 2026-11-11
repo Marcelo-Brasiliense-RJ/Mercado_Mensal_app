@@ -102,10 +102,12 @@ export function VoiceModal({
   open,
   onClose,
   tela = "mercado",
+  escrever = false,
 }: {
   open: boolean;
   onClose: () => void;
   tela?: Tela;
+  escrever?: boolean; // abre direto no campo de texto (atalho "Receita")
 }) {
   const { addShopItem, addTripItem, addStock, removeItems, showToast, stock, shopping } =
     useStore();
@@ -154,6 +156,9 @@ export function VoiceModal({
   const fotoRef = useRef<HTMLInputElement>(null);
   // Tela que vai junto para a IA desempatar ("arroz" sozinho no Estoque e estoque).
   // Modo atualizar ligado pelo botao: a IA fica sabendo que numero sem verbo e o que TEM.
+  useEffect(() => {
+    if (open && escrever) setEscrevendo(true);
+  }, [open, escrever]);
   const telaIA = atualizando
     ? "atualizar"
     : telaAgora === "estoque" ? "estoque" : telaAgora === "lista" ? "lista" : telaAgora === "auto" ? "auto" : "mercado";
@@ -1025,8 +1030,8 @@ export function VoiceModal({
                     autoFocus
                     value={escrito}
                     onChange={(e) => setEscrito(e.target.value)}
-                    rows={3}
-                    placeholder="Escreva como falaria: tenho 5 kg de arroz, preciso de café, não comprar leite esse mês"
+                    rows={4}
+                    placeholder="Escreva como falaria: tenho 5 kg de arroz, preciso de café, não comprar leite. Ou cole uma receita (ou só “receita de lasanha pra 6”) e eu monto a lista."
                     className="w-full rounded-[13px] border border-border bg-card-2 p-3 text-[15px] leading-snug"
                   />
                   <button

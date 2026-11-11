@@ -17,6 +17,7 @@ import {
   porCategoria,
   ritmo,
   somarMes,
+  numerosDoMes,
   type MesEconomia,
 } from "@/lib/economia";
 import { BudgetModal } from "./BudgetModal";
@@ -191,6 +192,7 @@ function Resumo({
   const passou = orc != null && d.gasto > orc;
   const r = d.atual ? ritmo(d.gasto, orc) : null;
   const dif = anterior && anterior.gasto > 0 ? d.gasto - anterior.gasto : null;
+  const n = numerosDoMes(d);
 
   return (
     <div className={card}>
@@ -222,6 +224,16 @@ function Resumo({
       {dif != null && Math.abs(dif) >= 1 && (
         <div className="mt-3 rounded-xl bg-card-2 px-3 py-2 text-[13px] font-bold">
           {dif < 0 ? "👍" : "👀"} {brl(Math.abs(dif))} {dif < 0 ? "a menos" : "a mais"} que em {nomeMes(anterior!.mes)}
+          {n.pctAnterior != null && ` (${n.pctAnterior > 0 ? "+" : "−"}${Math.abs(n.pctAnterior).toFixed(0)}%)`}
+        </div>
+      )}
+
+      {/* Seus gastos em tres numeros, numa linha so: nao empurra o resto da tela. */}
+      {n.idas > 0 && (
+        <div className="mt-3 grid grid-cols-3 gap-2">
+          <Numero rotulo="Idas ao mercado" valor={`${n.idas}×`} />
+          <Numero rotulo="Média por ida" valor={brl(n.porIda)} />
+          <Numero rotulo="Média mensal" valor={n.mediaMensal != null ? brl(n.mediaMensal) : "—"} />
         </div>
       )}
 
@@ -230,6 +242,15 @@ function Resumo({
           {orc ? "Mudar orçamento" : "Definir orçamento"}
         </button>
       )}
+    </div>
+  );
+}
+
+function Numero({ rotulo, valor }: { rotulo: string; valor: string }) {
+  return (
+    <div className="rounded-xl bg-card-2 px-2.5 py-2">
+      <div className="text-[11px] font-bold leading-tight text-text-3">{rotulo}</div>
+      <div className="mt-0.5 text-[15px] font-extrabold tabular-nums">{valor}</div>
     </div>
   );
 }

@@ -1,21 +1,25 @@
 @import "tailwindcss";
 
 :root {
-  --desk:#E7DFD5; --bg:#F4EEE7; --card:#FFFFFF; --card-2:#F3EDE6;
-  --text:#241E1A; --text-2:#5E534B; --text-3:#766A61; --border:#EAE1D8;
-  --brand:#C15F3C; --brand-ink:#FFF8F4; --brand-soft:#F6E7E2;
+  /* Visual novo: fundo grafite, destaque laranja vivo, cantos bem redondos.
+     No claro o laranja escurece (#C2410C) para passar no contraste como texto sobre
+     branco; no escuro ele aparece inteiro (#FF7A1A). */
+  --desk:#ECE8E4; --bg:#F7F5F2; --card:#FFFFFF; --card-2:#F1EDE8;
+  --text:#17130F; --text-2:#4D4640; --text-3:#6B635C; --border:#E6E0D9;
+  --brand:#C2410C; --brand-ink:#FFFFFF; --brand-soft:#FDEBDF;
   --pos:#17935B; --pos-ink:#0A1710; --pos-soft:#E2F1E9;
-  --warn:#C57814; --warn-ink:#3A2400; --warn-soft:#FBEAD2;
+  --warn:#B86E0E; --warn-ink:#3A2400; --warn-soft:#FBEAD2;
   --neg:#D6453F; --neg-ink:#FFF1F0; --neg-soft:#FBE6E4;
-  --shadow:rgba(74,48,28,0.10); --shadow-lg:rgba(74,48,28,0.18);
+  --shadow:rgba(23,19,15,0.08); --shadow-lg:rgba(23,19,15,0.16);
 }
 [data-theme="dark"] {
-  --desk:#0C0908; --bg:#161210; --card:#211B17; --card-2:#2A231D;
-  --text:#F3EBE3; --text-2:#C8BDB3; --text-3:#9E9288; --border:#33291F;
-  --brand:#CD7A5C; --brand-ink:#2A130B; --brand-soft:#2C1A13;
-  --pos:#37B37F; --pos-ink:#08140E; --pos-soft:#17281F;
-  --warn:#E7A33C; --warn-ink:#2E1C00; --warn-soft:#352814;
-  --neg:#E8706A; --neg-ink:#2A0E0C; --neg-soft:#361F1D;
+  --desk:#060606; --bg:#0E0E0F; --card:#18181A; --card-2:#232326;
+  --text:#F5F4F2; --text-2:#C6C3BF; --text-3:#97938E; --border:#2C2C30;
+  --brand:#FF7A1A; --brand-ink:#1A0C02; --brand-soft:#2E1A0C;
+  --pos:#4ADE80; --pos-ink:#06140B; --pos-soft:#14261A;
+  --warn:#F5B544; --warn-ink:#2E1C00; --warn-soft:#352814;
+  --neg:#F87171; --neg-ink:#2A0E0C; --neg-soft:#361F1D;
+  --shadow:rgba(0,0,0,0.35); --shadow-lg:rgba(0,0,0,0.5);
 }
 
 @theme inline {
