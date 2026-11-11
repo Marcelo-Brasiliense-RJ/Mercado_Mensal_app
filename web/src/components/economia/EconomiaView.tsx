@@ -22,6 +22,7 @@ import {
 } from "@/lib/economia";
 import { BudgetModal } from "./BudgetModal";
 import { ComprasDoMes } from "./ComprasDoMes";
+import { useStore } from "@/lib/store";
 
 // Economia: o fechamento do mes, em frases curtas. A compra da casa e mensal, entao a
 // tela e um mes por vez (setas para voltar), e cada bloco responde uma pergunta so:
@@ -40,6 +41,7 @@ async function buscarMes(m: string | null): Promise<Estado> {
 }
 
 export function EconomiaView() {
+  const { openReceipt } = useStore();
   const ofertas = useListaOfertas();
   const [mes, setMes] = useState<string | null>(null); // null = mes corrente
   const [estado, setEstado] = useState<Estado>({ fase: "carregando" });
@@ -150,6 +152,21 @@ export function EconomiaView() {
         )}
 
         <MesAMes meses={d.meses} atual={d.mes} onEscolher={(m) => setMes(m)} />
+
+        {/* Nota pela foto: no celular o leitor da nota so existia no menu do desktop. */}
+        {d.atual && (
+          <button
+            onClick={openReceipt}
+            className="flex items-center gap-3 rounded-[16px] border border-border bg-card px-4 py-3 text-left"
+          >
+            <span className="text-[22px]" aria-hidden>🧾</span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[15px] font-extrabold">Ler nota fiscal</span>
+              <span className="block text-[12px] text-text-2">Foto do cupom: os itens e preços entram sozinhos</span>
+            </span>
+            <span className="text-[18px] font-bold text-text-3" aria-hidden>›</span>
+          </button>
+        )}
 
         {!futuro && (
           <ComprasDoMes
