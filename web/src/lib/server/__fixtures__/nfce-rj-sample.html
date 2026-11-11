@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<!-- Recorte REAL de uma NFC-e do RJ (consultadfe.fazenda.rj.gov.br). Casas Guanabara,
+     06/07/2026. Mantidas as 8 primeiras linhas verbatim (markup igual ao real) para
+     validar os seletores; o bloco de totais foi recalculado para o subconjunto
+     (Valor a pagar = soma das 8 linhas = 173,78) e a "Qtd. total de itens" foi
+     deixada como 117 de proposito, para provar que o parser pega o .totalNumb.txtMax
+     (valor a pagar) e NAO o primeiro .totalNumb (a contagem). Fidelidade total contra
+     as 117 linhas acontece no E2E do deploy. -->
+<html lang="pt-br"><head><meta charset="UTF-8"><title>DANFE NFC-e</title></head><body>
+<div id="conteudo">
+<div class="txtCenter">
+<div class="txtTopo" id="u20">CASAS GUANABARA COMESTIVEIS LTDA-FL19</div>
+<div class="text">CNPJ: 33.130.543/0055-75</div>
+</div>
+<table data-filter="true" id="tabResult" cellspacing="0" cellpadding="0" align="center" border="0">
+<tbody>
+<tr id="Item + 1">
+<td valign="top"><span class="txtTit">SALSICHA HOT DOG PERDIGAO RESF kg</span><span class="RCod">(Codigo: 536318)</span>
+<br>
+<span class="Rqtd"><strong>Qtde.:</strong>0,988</span><span class="RUN"><strong>UN: </strong>KG</span><span class="RvlUnit"><strong>Vl. Unit.:</strong>&nbsp;9,98</span></td><td class="txtTit noWrap" valign="top" align="right">Vl. Total<br><span class="valor">9,86</span></td>
+</tr>
+<tr id="Item + 2">
+<td valign="top"><span class="txtTit">BISTECA SUI SADIA IQF 800g</span><span class="RCod">(Codigo: 1820034)</span>
+<br>
+<span class="Rqtd"><strong>Qtde.:</strong>2</span><span class="RUN"><strong>UN: </strong>G</span><span class="RvlUnit"><strong>Vl. Unit.:</strong>&nbsp;11,98</span></td><td class="txtTit noWrap" valign="top" align="right">Vl. Total<br><span class="valor">23,96</span></td>
+</tr>
+<tr id="Item + 3">
+<td valign="top"><span class="txtTit">BROCOLIS LAR CONG 1,1kg</span><span class="RCod">(Codigo: 1533484)</span>
+<br>
+<span class="Rqtd"><strong>Qtde.:</strong>2</span><span class="RUN"><strong>UN: </strong>KG</span><span class="RvlUnit"><strong>Vl. Unit.:</strong>&nbsp;13,98</span></td><td class="txtTit noWrap" valign="top" align="right">Vl. Total<br><span class="valor">27,96</span></td>
+</tr>
+<tr id="Item + 4">
+<td valign="top"><span class="txtTit">KANI KAMA COSTA SUL CONG 200g</span><span class="RCod">(Codigo: 297493)</span>
+<br>
+<span class="Rqtd"><strong>Qtde.:</strong>1</span><span class="RUN"><strong>UN: </strong>G</span><span class="RvlUnit"><strong>Vl. Unit.:</strong>&nbsp;8,98</span></td><td class="txtTit noWrap" valign="top" align="right">Vl. Total<br><span class="valor">8,98</span></td>
+</tr>
+<tr id="Item + 5">
+<td valign="top"><span class="txtTit">MORANGO EASYCHEF 100NAT CG 1,01kg</span><span class="RCod">(Codigo: 2064574)</span>
+<br>
+<span class="Rqtd"><strong>Qtde.:</strong>1</span><span class="RUN"><strong>UN: </strong>KG</span><span class="RvlUnit"><strong>Vl. Unit.:</strong>&nbsp;15,98</span></td><td class="txtTit noWrap" valign="top" align="right">Vl. Total<br><span class="valor">15,98</span></td>
+</tr>
+<tr id="Item + 6">
+<td valign="top"><span class="txtTit">BATATA EASYCHEF TRAD CONG 2kg</span><span class="RCod">(Codigo: 1665369)</span>
+<br>
+<span class="Rqtd"><strong>Qtde.:</strong>1</span><span class="RUN"><strong>UN: </strong>KG</span><span class="RvlUnit"><strong>Vl. Unit.:</strong>&nbsp;17,75</span></td><td class="txtTit noWrap" valign="top" align="right">Vl. Total<br><span class="valor">17,75</span></td>
+</tr>
+<tr id="Item + 7">
+<td valign="top"><span class="txtTit">FILE DE PANGA B PESCA SP SE 800g</span><span class="RCod">(Codigo: 961066)</span>
+<br>
+<span class="Rqtd"><strong>Qtde.:</strong>3</span><span class="RUN"><strong>UN: </strong>G</span><span class="RvlUnit"><strong>Vl. Unit.:</strong>&nbsp;19,98</span></td><td class="txtTit noWrap" valign="top" align="right">Vl. Total<br><span class="valor">59,94</span></td>
+</tr>
+<tr id="Item + 8">
+<td valign="top"><span class="txtTit">WAFFLE WAAW ASSADO E CONG 210g</span><span class="RCod">(Codigo: 1895940)</span>
+<br>
+<span class="Rqtd"><strong>Qtde.:</strong>1</span><span class="RUN"><strong>UN: </strong>G</span><span class="RvlUnit"><strong>Vl. Unit.:</strong>&nbsp;9,35</span></td><td class="txtTit noWrap" valign="top" align="right">Vl. Total<br><span class="valor">9,35</span></td>
+</tr>
+</tbody>
+</table>
+<div class="txtRight" id="totalNota">
+<div id="linhaTotal"><label>Qtd. total de itens:</label><span class="totalNumb">117</span></div>
+<div id="linhaTotal"><label>Valor total R$:</label><span class="totalNumb">173,78</span></div>
+<div id="linhaTotal"><label>Descontos R$:</label><span class="totalNumb">0,00</span></div>
+<div class="linhaShade" id="linhaTotal"><label>Valor a pagar R$:</label><span class="totalNumb txtMax">173,78</span></div>
+</div>
+<div class="txtCenter" id="infos">
+<span class="chave">3326 0733 1305 4300 5575 6504 1000 0663 9110 0286 2300</span>
+</div>
+</div>
+</body></html>

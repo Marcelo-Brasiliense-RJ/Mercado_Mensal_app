@@ -65,7 +65,21 @@ export function toReviewRows(resp: NfceResp): ReviewRow[] {
   }));
 }
 
+// Rota do proprio app primeiro (com o intermediario de IP brasileiro, se houver);
+// a Edge Function antiga fica de reserva.
 export async function invokeNfce(qrUrl: string): Promise<NfceResp> {
+  try {
+    const r = await fetch("/api/nfce", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ qr_url: qrUrl }),
+    });
+    const d = (await r.json().catch(() => null)) as NfceResp | null;
+    if (d?.ok) return d;
+    if (d && !d.ok && d.erro === "sefaz_bloqueou") return d;
+  } catch {
+    /* sem rede ou rota: tenta a Edge Function */
+  }
   const supabase = createClient();
   const { data, error } = await supabase.functions.invoke("nfce-consulta", {
     body: { qr_url: qrUrl },

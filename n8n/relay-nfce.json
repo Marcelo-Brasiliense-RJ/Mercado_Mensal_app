@@ -1,0 +1,93 @@
+{
+  "name": "Mercado_app — Intermediario NFC-e (QR do RJ)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "nfce-relay",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "webhookId": "nfce-relay"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.headers['x-relay-secret'] }}",
+              "rightValue": "TROQUE-PELO-SEGREDO-LONGO",
+              "operator": { "type": "string", "operation": "equals" }
+            },
+            {
+              "leftValue": "={{ /^https?:\\/\\/([a-z0-9-]+\\.)*fazenda\\.[a-z]{2}\\.gov\\.br\\//i.test($json.body.url) }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "true", "singleValue": true }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "Segredo e endereco ok?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [220, 0]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.body.url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [{ "name": "User-Agent", "value": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)" }]
+        },
+        "options": {
+          "response": { "response": { "responseFormat": "text", "outputPropertyName": "html" } },
+          "timeout": 12000
+        }
+      },
+      "name": "Buscar pagina da SEFAZ",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, -80]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { html: $json.html } }}",
+        "options": {}
+      },
+      "name": "Devolver HTML",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [660, -80]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { erro: 'nao_autorizado' } }}",
+        "options": { "responseCode": 401 }
+      },
+      "name": "Recusar",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [440, 120]
+    }
+  ],
+  "connections": {
+    "Webhook": { "main": [[{ "node": "Segredo e endereco ok?", "type": "main", "index": 0 }]] },
+    "Segredo e endereco ok?": {
+      "main": [
+        [{ "node": "Buscar pagina da SEFAZ", "type": "main", "index": 0 }],
+        [{ "node": "Recusar", "type": "main", "index": 0 }]
+      ]
+    },
+    "Buscar pagina da SEFAZ": { "main": [[{ "node": "Devolver HTML", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" }
+}
