@@ -286,21 +286,17 @@ export function StockView() {
           </div>
         )}
         {faltando.length > 0 && (
-          <div className="flex items-center gap-3 rounded-[18px] border-[1.5px] border-warn bg-warn-soft p-3.5">
-            <div className="min-w-0 flex-1">
-              <div className="text-[22px] font-extrabold leading-none text-warn">
-                {faltando.length} {faltando.length === 1 ? "item" : "itens"}
-              </div>
-              <div className="mt-1 text-[13px] font-bold text-text-2">
-                acabando{acabando.length > faltando.length ? ", fora da lista" : " ou já acabou"}
-              </div>
-            </div>
+          <div className="flex items-center gap-3 rounded-full bg-card py-1.5 pl-4 pr-1.5">
+            <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-neg" aria-hidden />
+            <span className="min-w-0 flex-1 truncate text-[14px] font-bold">
+              {faltando.length} acabando{acabando.length > faltando.length ? " fora da lista" : ""}
+            </span>
             <button
               onClick={reporTudo}
               disabled={busy}
-              className="h-[46px] shrink-0 rounded-[13px] bg-warn px-4 text-[14px] font-bold text-white disabled:opacity-50"
+              className="h-10 shrink-0 rounded-full bg-[var(--barra)] px-4 text-[14px] font-bold text-white disabled:opacity-50"
             >
-              Mandar pra lista
+              Pôr na lista
             </button>
           </div>
         )}
@@ -311,8 +307,8 @@ export function StockView() {
             {stock.length >= 8 && <div className="min-w-0 flex-1 lg:hidden">{search}</div>}
             <button
               onClick={() => (selMode ? exitSel() : setSelMode(true))}
-              className={`h-[44px] shrink-0 rounded-[12px] border px-4 text-[14px] font-bold ${
-                selMode ? "border-brand bg-brand text-brand-ink" : "border-border bg-card text-text-2"
+              className={`h-[44px] shrink-0 rounded-full px-4 text-[14px] font-bold ${
+                selMode ? "bg-[var(--barra)] text-white" : "bg-card text-text-2"
               } ${stock.length >= 8 ? "" : "ml-auto"}`}
             >
               {selMode ? "Cancelar" : "Selecionar"}
@@ -359,6 +355,7 @@ export function StockView() {
               // Buscando, tudo aberto: o item procurado nao pode ficar escondido.
               aberto={!!q || aberto(cat)}
               onAlternar={() => alternar(cat)}
+              colado
             >
               {selMode && (
                 <button
@@ -376,7 +373,7 @@ export function StockView() {
                 </button>
               )}
               {/* Uma linha por item: muitos itens por tela. */}
-              <div className="divide-y divide-border overflow-hidden rounded-[18px] border border-border bg-card lg:grid lg:grid-cols-2 lg:divide-y-0">
+              <div className="divide-y divide-border lg:grid lg:grid-cols-2 lg:divide-y-0">
                 {itens.map((i) => (
                   <Card
                     key={i.id}
@@ -549,14 +546,14 @@ function Card({
   const passo = fmtQtd(stepFor(item.unit));
 
   return (
-    <div className={`relative flex min-h-[56px] items-center gap-2.5 pl-3 pr-1.5 ${selected ? "bg-brand-soft" : ""}`}>
-      {/* Filete de cor na esquerda: o estado antes de qualquer leitura. */}
-      <span className={`absolute inset-y-2 left-0 w-1 rounded-r-full ${cor.faixa}`} aria-hidden />
+    <div className={`relative flex min-h-[60px] items-center gap-2.5 pl-3.5 pr-2 ${selected ? "bg-brand-soft" : ""}`}>
       <button onClick={onAbrir} className="flex min-w-0 flex-1 items-center gap-2.5 py-2 text-left">
-        {selMode ? <SelDot on={selected} /> : <FotoItem nome={item.name} className="h-9 w-9 shrink-0 rounded-lg" />}
+        {selMode ? <SelDot on={selected} /> : <FotoItem nome={item.name} className="h-11 w-11 shrink-0 rounded-xl" />}
         <span className="min-w-0 flex-1">
           <span className="block truncate text-[15px] font-bold leading-tight">{item.name}</span>
           <span className="block truncate text-[12px] leading-tight text-text-3">
+            {/* Estado uma vez so: ponto colorido + palavra (o filete de cor saiu). */}
+            <span className={`mr-1 inline-block h-[7px] w-[7px] rounded-full align-middle ${cor.faixa}`} aria-hidden />
             <b className={cor.selo.split(" ").find((c) => c.startsWith("text-"))}>{cor.texto}</b>
             {noCarrinho && " · na lista"}
             {oferta && (
@@ -570,16 +567,16 @@ function Card({
       {!selMode && (
         // Tirar e somar sem popup, no passo da unidade (1 un, 0,5 kg). Excluir fica no
         // detalhe do item: era um botao vermelho em cada card.
-        <div className="flex shrink-0 items-center">
+        <div className="flex h-10 shrink-0 items-center rounded-full bg-card-2">
           <button
             onClick={onUsei}
             disabled={ocupado || acabou}
             aria-label={`Usei ${passo} ${item.unit} de ${item.name}`}
-            className="grid h-10 w-10 place-items-center rounded-full text-[20px] font-bold text-text-2 disabled:opacity-25"
+            className="grid h-10 w-10 place-items-center rounded-full text-[20px] font-bold text-text disabled:opacity-25"
           >
             −
           </button>
-          <span className="min-w-[46px] text-center text-[15px] font-extrabold tabular-nums leading-none">
+          <span className="min-w-[44px] text-center text-[15px] font-extrabold tabular-nums leading-none">
             {fmtQtd(item.current)}
             <span className="block text-[10px] font-bold text-text-3">{item.unit}</span>
           </span>
@@ -587,7 +584,7 @@ function Card({
             onClick={onMais}
             disabled={ocupado}
             aria-label={`Chegou mais ${passo} ${item.unit} de ${item.name}`}
-            className="grid h-10 w-10 place-items-center rounded-full text-[20px] font-bold text-pos disabled:opacity-25"
+            className="grid h-10 w-10 place-items-center rounded-full text-[20px] font-bold text-text disabled:opacity-25"
           >
             +
           </button>

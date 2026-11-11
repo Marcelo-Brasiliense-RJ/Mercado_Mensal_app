@@ -51,7 +51,7 @@ export function PrimeirosPassos({ onFalar, onDigitar }: { onFalar: () => void; o
   if (ofertas.fase === "carregando" || !dataReady || push == null) return null;
 
   const btn = "h-9 shrink-0 rounded-xl bg-brand px-3.5 text-[13px] font-bold text-brand-ink disabled:opacity-50";
-  const btn2 = "h-9 shrink-0 rounded-xl border-2 border-brand px-3 text-[13px] font-bold text-brand";
+  const btn2 = "h-9 shrink-0 rounded-xl bg-card-2 px-3 text-[13px] font-bold text-text";
   const itens: Item[] = [];
 
   if (ofertas.fase === "ok" && !ofertas.dados.meus_mercados?.length)
@@ -161,7 +161,7 @@ export function PrimeirosPassos({ onFalar, onDigitar }: { onFalar: () => void; o
   }
 
   return (
-    <div className="rounded-2xl border border-brand/40 bg-brand-soft px-3.5 py-2.5">
+    <div className="rounded-[24px] bg-card px-3.5 py-2.5">
       <button type="button" onClick={alternar} aria-expanded={!fechado} className="flex min-h-9 w-full items-center justify-between gap-3 text-left">
         <div className="text-[15px] font-extrabold">⚙️ Falta configurar</div>
         <div className="flex items-center gap-2">
