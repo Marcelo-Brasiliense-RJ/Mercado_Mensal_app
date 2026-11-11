@@ -152,3 +152,4 @@ html[data-teclado] [data-abas] { display: none !important; }
   background: var(--card); color: var(--text);
 }
 [data-theme="dark"] .cartao-escuro { --card:#232326; --card-2:#2E2E32; }
+@keyframes encolher { from { transform: scaleX(1); } to { transform: scaleX(0); } }

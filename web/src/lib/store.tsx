@@ -13,6 +13,7 @@ import type { StockItem, ShopItem, SavingRow, MonthPoint, Trip } from "./types";
 import { createClient } from "./supabase/client";
 import { aprenderMercado, mercadoAtual } from "./lugar";
 import { registrarPreco } from "./precosVistos";
+import { avisarFamilia } from "./avisarFamilia";
 
 // Estado das telas do app. Os dados vem do Supabase (RPCs _web, leitura por
 // familia). As acoes de edicao (marcar comprado, adicionar item, orcamento) sao
@@ -323,19 +324,26 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   const zerarStock = useCallback(
     async (ids: string[]) => {
       const r = await callRpc("mercado_stock_zerar_web", { p_ids: ids });
-      if (r.ok) await reloadData();
+      if (r.ok) {
+        avisarFamilia({ tipo: "acabou", nomes: data.stock.filter((i) => ids.includes(i.id)).map((i) => i.name) });
+        await reloadData();
+      }
       return r;
     },
-    [reloadData],
+    [reloadData, data.stock],
   );
 
   const baixaStock = useCallback(
     async (id: string, qty: number) => {
       const r = await callRpc("mercado_stock_baixa_web", { p_id: id, p_qty: qty });
-      if (r.ok) await reloadData();
+      if (r.ok) {
+        const it = data.stock.find((i) => i.id === id);
+        if (it && it.current - qty <= 0) avisarFamilia({ tipo: "acabou", nomes: [it.name] });
+        await reloadData();
+      }
       return r;
     },
-    [reloadData],
+    [reloadData, data.stock],
   );
 
   const addStock = useCallback(
@@ -385,6 +393,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
     async (ids: string[]) => {
       const r = await callRpc("mercado_stock_to_list_web", { p_ids: ids });
       if (r.ok) {
+        avisarFamilia({ tipo: "lista", nomes: data.stock.filter((i) => ids.includes(i.id)).map((i) => i.name) });
         naListaLocal(
           data.stock
             .filter((i) => ids.includes(i.id))
@@ -407,6 +416,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   const startTrip = useCallback(async () => {
     const r = await callRpc("mercado_trip_start_web");
     if (r.ok) {
+      avisarFamilia({ tipo: "mercado", nomes: [] }, true);
       await reloadTrip();
       void aprenderMercado(); // abriu a compra aqui: provavel mercado (so grava com GPS bom)
     }
@@ -576,11 +586,15 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   );
 
   const finalizeTrip = useCallback(async () => {
+    const antes = data.trip;
     const r = await callRpc("mercado_trip_finalize_web");
     // recarrega estoque/lista/economia repostos + limpa o carrinho
-    if (r.ok) await reloadData();
+    if (r.ok) {
+      avisarFamilia({ tipo: "compra", nomes: [], total: antes?.total, itens: antes?.items.length }, true);
+      await reloadData();
+    }
     return r;
-  }, [reloadData]);
+  }, [reloadData, data.trip]);
 
   const removeTripItem = useCallback(
     async (id: string) => {
@@ -668,6 +682,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
         p_price: item.estimated_price,
       });
       if (r.ok) {
+        avisarFamilia({ tipo: "lista", nomes: [item.name] });
         naListaLocal([item]);
         void reloadData();
       }
@@ -702,6 +717,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
         p_price: item.priceLast,
       });
       if (r.ok) {
+        avisarFamilia({ tipo: "lista", nomes: [item.name] });
         naListaLocal([{ name: item.name, desired_quantity: Math.max(1, Math.round(item.normal - item.current)), unit: item.unit, estimated_price: item.priceLast }]);
         void reloadData();
       }
@@ -726,12 +742,13 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
     async (ids: string[]) => {
       const r = await callRpc("mercado_list_remove_web", { p_ids: ids });
       if (r.ok) {
+        avisarFamilia({ tipo: "tirou", nomes: data.shopping.filter((i) => ids.includes(i.id) && i.status === "pending").map((i) => i.name) });
         listaStatusLocal(ids, "removed");
         void reloadData();
       }
       return r;
     },
-    [reloadData, listaStatusLocal],
+    [reloadData, listaStatusLocal, data.shopping],
   );
 
   // Ate a 0021 isto so mexia no estado em memoria: o orcamento sumia no reload.
