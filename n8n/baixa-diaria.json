@@ -1,0 +1,71 @@
+{
+  "name": "Mercado_app — 2. Baixa diária do estoque",
+  "nodes": [
+    {
+      "id": "b1",
+      "name": "Todo dia 4h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "triggerAtHour": 4
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "b2",
+      "name": "Baixar estoque (RPC)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://eqguqkojztovfoafjqji.supabase.co/rest/v1/rpc/mercado_daily_depletion",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{}",
+        "options": {}
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Supabase (service_role)"
+        }
+      },
+      "notes": "Desconta consumo_mensal/30 de cada produto. Devolve quantos produtos baixou. NAO ligar retry: rodar duas vezes no dia baixa em dobro."
+    }
+  ],
+  "connections": {
+    "Todo dia 4h": {
+      "main": [
+        [
+          {
+            "node": "Baixar estoque (RPC)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Sao_Paulo",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "active": false
+}

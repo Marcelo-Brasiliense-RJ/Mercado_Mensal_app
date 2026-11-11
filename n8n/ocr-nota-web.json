@@ -1,0 +1,219 @@
+{
+  "name": "Mercado_app — 3. Ler nota por foto (app web)",
+  "nodes": [
+    {
+      "id": "o1",
+      "name": "Receber foto",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "mercado-nota-ocr",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "mercado-nota-ocr",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Segredo OCR nota (x-receipt-secret)"
+        }
+      },
+      "notes": "O app (rota /api/receipt-ocr) manda { image: dataURL } com o header x-receipt-secret."
+    },
+    {
+      "id": "o3",
+      "name": "Ler nota (Groq)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'meta-llama/llama-4-scout-17b-16e-instruct', temperature: 0, response_format: { type: 'json_object' }, messages: [{ role: 'user', content: [{ type: 'text', text: \"Voce recebe a foto de uma nota fiscal de supermercado do Brasil. Extraia os itens comprados. Responda SOMENTE um objeto JSON no formato {\\\"itens\\\":[{\\\"nome\\\":\\\"\\\",\\\"marca\\\":\\\"\\\",\\\"qtd\\\":1,\\\"preco\\\":0,\\\"unidade\\\":\\\"un\\\",\\\"duvida\\\":false}],\\\"total\\\":0}. Regras: nome = nome generico do produto em minusculas, sem marca (ex: arroz, leite, sabao em po); marca = marca separada em minusculas, ou \\\"\\\" se nao houver; cada item aparece como DESCRICAO seguida de QTD x PRECO_UNITARIO (ex: 2 X 7,19 = qtd 2 e preco 7.19); qtd = numero ANTES do x (1 se nao houver x) e NUNCA use o preco como qtd; preco = valor unitario APOS o x, com ponto decimal; unidade = quase sempre \\\"un\\\", \\\"kg\\\" so para granel por peso e \\\"l\\\" so para liquido a granel; NUNCA use peso ou volume do rotulo (800g, 500ml, 2l) como unidade nem como qtd; duvida = true quando a linha estiver ilegivel ou voce nao tiver certeza do nome, qtd ou preco; total = valor total pago da nota (0 se nao aparecer). Ignore descontos, subtotais, impostos e linhas que nao sejam produtos. Nao invente itens.\" }, { type: 'image_url', image_url: { url: $('Receber foto').first().json.body.image } }] }] }) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Groq Transcricao 1"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "o4",
+      "name": "Ler nota (Groq 2)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        520,
+        160
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'meta-llama/llama-4-scout-17b-16e-instruct', temperature: 0, response_format: { type: 'json_object' }, messages: [{ role: 'user', content: [{ type: 'text', text: \"Voce recebe a foto de uma nota fiscal de supermercado do Brasil. Extraia os itens comprados. Responda SOMENTE um objeto JSON no formato {\\\"itens\\\":[{\\\"nome\\\":\\\"\\\",\\\"marca\\\":\\\"\\\",\\\"qtd\\\":1,\\\"preco\\\":0,\\\"unidade\\\":\\\"un\\\",\\\"duvida\\\":false}],\\\"total\\\":0}. Regras: nome = nome generico do produto em minusculas, sem marca (ex: arroz, leite, sabao em po); marca = marca separada em minusculas, ou \\\"\\\" se nao houver; cada item aparece como DESCRICAO seguida de QTD x PRECO_UNITARIO (ex: 2 X 7,19 = qtd 2 e preco 7.19); qtd = numero ANTES do x (1 se nao houver x) e NUNCA use o preco como qtd; preco = valor unitario APOS o x, com ponto decimal; unidade = quase sempre \\\"un\\\", \\\"kg\\\" so para granel por peso e \\\"l\\\" so para liquido a granel; NUNCA use peso ou volume do rotulo (800g, 500ml, 2l) como unidade nem como qtd; duvida = true quando a linha estiver ilegivel ou voce nao tiver certeza do nome, qtd ou preco; total = valor total pago da nota (0 se nao aparecer). Ignore descontos, subtotais, impostos e linhas que nao sejam produtos. Nao invente itens.\" }, { type: 'image_url', image_url: { url: $('Receber foto').first().json.body.image } }] }] }) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Groq Transcricao 2"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "o5",
+      "name": "Ler nota (Groq 3)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        780,
+        320
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'meta-llama/llama-4-scout-17b-16e-instruct', temperature: 0, response_format: { type: 'json_object' }, messages: [{ role: 'user', content: [{ type: 'text', text: \"Voce recebe a foto de uma nota fiscal de supermercado do Brasil. Extraia os itens comprados. Responda SOMENTE um objeto JSON no formato {\\\"itens\\\":[{\\\"nome\\\":\\\"\\\",\\\"marca\\\":\\\"\\\",\\\"qtd\\\":1,\\\"preco\\\":0,\\\"unidade\\\":\\\"un\\\",\\\"duvida\\\":false}],\\\"total\\\":0}. Regras: nome = nome generico do produto em minusculas, sem marca (ex: arroz, leite, sabao em po); marca = marca separada em minusculas, ou \\\"\\\" se nao houver; cada item aparece como DESCRICAO seguida de QTD x PRECO_UNITARIO (ex: 2 X 7,19 = qtd 2 e preco 7.19); qtd = numero ANTES do x (1 se nao houver x) e NUNCA use o preco como qtd; preco = valor unitario APOS o x, com ponto decimal; unidade = quase sempre \\\"un\\\", \\\"kg\\\" so para granel por peso e \\\"l\\\" so para liquido a granel; NUNCA use peso ou volume do rotulo (800g, 500ml, 2l) como unidade nem como qtd; duvida = true quando a linha estiver ilegivel ou voce nao tiver certeza do nome, qtd ou preco; total = valor total pago da nota (0 se nao aparecer). Ignore descontos, subtotais, impostos e linhas que nao sejam produtos. Nao invente itens.\" }, { type: 'image_url', image_url: { url: $('Receber foto').first().json.body.image } }] }] }) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Groq Transcricao 3"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "o6",
+      "name": "Responder itens",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1100,
+        -100
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ (() => { let p = {}; try { p = JSON.parse($json.choices[0].message.content) } catch (e) { p = {} } const itens = Array.isArray(p.itens) ? p.itens : (Array.isArray(p.items) ? p.items : []); return JSON.stringify({ ok: itens.length > 0, itens, total: Number(p.total) || 0 }) })() }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "o7",
+      "name": "Responder erro",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1100,
+        400
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, erro: \"ocr_falhou\", itens: [], total: 0 }) }}",
+        "options": {
+          "responseCode": 502
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Receber foto": {
+      "main": [
+        [
+          {
+            "node": "Ler nota (Groq)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ler nota (Groq)": {
+      "main": [
+        [
+          {
+            "node": "Responder itens",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ler nota (Groq 2)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ler nota (Groq 2)": {
+      "main": [
+        [
+          {
+            "node": "Responder itens",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ler nota (Groq 3)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ler nota (Groq 3)": {
+      "main": [
+        [
+          {
+            "node": "Responder itens",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder erro",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Sao_Paulo",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "active": false
+}
