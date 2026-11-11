@@ -89,7 +89,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="h-dvh overflow-hidden bg-bg lg:flex">
       <div className="hidden lg:flex">
-        <Sidebar onRegistrar={openReceipt} />
+        <Sidebar onRegistrar={() => openReceipt()} />
       </div>
 
       <div className="flex h-dvh min-w-0 flex-col lg:flex-1">

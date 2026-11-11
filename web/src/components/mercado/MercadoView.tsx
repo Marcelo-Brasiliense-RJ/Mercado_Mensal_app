@@ -32,6 +32,7 @@ import { DigitarCarrinho } from "./DigitarCarrinho";
 import { PainelGasto } from "./PainelGasto";
 import { CardFalta, LinhaCarrinho, LinhaFaltaCompacta, LinhaTroca } from "./LinhasMercado";
 import { RevisarFim } from "./RevisarFim";
+import { guardarUltimaCompra } from "@/lib/conferencia";
 
 type Aba = "falta" | "carrinho";
 
@@ -57,6 +58,7 @@ export function MercadoView() {
     removeTripItem,
     removeItems,
     showToast,
+    openReceipt,
   } = useStore();
   const { noMercado, mercado } = useLugar();
   const cats = useCategorias();
@@ -191,6 +193,7 @@ export function MercadoView() {
     // lista o de nome igual, entao estes saem da lista aqui.
     const trocados = r.paraLimpar;
     setBusy("fim");
+    const retrato = trip.items.map((t) => ({ name: t.name, quantity: Number(t.quantity), unit: t.unit, unit_price: Number(t.unit_price) }));
     const x = await finalizeTrip();
     // Os da lista trocados por outra marca saem dela: o que foi pego ja repos o estoque.
     if (x.ok && trocados.length) await removeItems(trocados);
@@ -198,6 +201,9 @@ export function MercadoView() {
     if (x.ok) {
       limparTrocas();
       setRevisar(false);
+      // Fecha o ciclo: pede a nota (sem obrigar) para conferir carrinho x caixa.
+      guardarUltimaCompra(retrato);
+      openReceipt(true);
     }
     showToast(x.ok ? "Compra finalizada, estoque reposto 🎉" : x.erro);
   }

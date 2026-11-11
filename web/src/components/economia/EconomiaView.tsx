@@ -156,7 +156,7 @@ export function EconomiaView() {
         {/* Nota pela foto: no celular o leitor da nota so existia no menu do desktop. */}
         {d.atual && (
           <button
-            onClick={openReceipt}
+            onClick={() => openReceipt()}
             className="flex items-center gap-3 rounded-[16px] border border-border bg-card px-4 py-3 text-left"
           >
             <span className="text-[22px]" aria-hidden>🧾</span>

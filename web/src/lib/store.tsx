@@ -165,7 +165,9 @@ type Store = Data & {
   updateCompra: (id: string, patch: { qty?: number; price?: number }) => Promise<RpcResult>;
   deleteCompra: (id: string) => Promise<RpcResult>;
   addCompra: (c: { name: string; qty: number; price: number; unit: string }) => Promise<RpcResult>;
-  openReceipt: () => void;
+  // Com o carrinho que acabou de fechar: a leitura da nota vira conferencia.
+  openReceipt: (conferir?: boolean) => void;
+  conferirNota: boolean;
   closeReceipt: () => void;
   confirmReceipt: (
     items: { nome: string; marca?: string; qtd: number; preco: number; unidade: string }[],
@@ -246,7 +248,11 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   const toastT = useRef<ReturnType<typeof setTimeout> | null>(null);
   const desfazerProprio = useRef<(() => Promise<void>) | null>(null);
 
-  const openReceipt = useCallback(() => setReceiptOpen(true), []);
+  const [conferirNota, setConferirNota] = useState(false);
+  const openReceipt = useCallback((conferir?: boolean) => {
+    setConferirNota(!!conferir);
+    setReceiptOpen(true);
+  }, []);
   const closeReceipt = useCallback(() => setReceiptOpen(false), []);
 
   const ultimaRecarga = useRef(0); // escrita do proprio aparelho recarrega: a sincronia espera
@@ -816,6 +822,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       receiptOpen,
       openReceipt,
       closeReceipt,
+      conferirNota,
       reloadData,
       zerarStock,
       baixaStock,
@@ -858,6 +865,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       toastDesfazer,
       desfazer,
       receiptOpen,
+      conferirNota,
       openReceipt,
       closeReceipt,
       reloadData,

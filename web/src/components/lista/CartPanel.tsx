@@ -9,6 +9,7 @@ import type { TripItem } from "@/lib/types";
 import { atualizarLugar, useLugar } from "@/lib/lugar";
 import { nomeMercado } from "@/lib/ofertas";
 import { QualMercado } from "./QualMercado";
+import { guardarUltimaCompra } from "@/lib/conferencia";
 
 // Painel do modo "No mercado". Ate a 0026 a compra so podia ser aberta e
 // alimentada pelo Telegram, e o painel era inalcancavel sem o bot. Agora o ciclo
@@ -22,6 +23,7 @@ export function CartPanel({ onScan }: { onScan?: () => void }) {
     cancelTrip,
     finalizeTrip,
     showToast,
+    openReceipt,
   } = useStore();
   const [busy, setBusy] = useState(false);
   const { noMercado, mercado } = useLugar();
@@ -111,8 +113,14 @@ export function CartPanel({ onScan }: { onScan?: () => void }) {
 
   async function finalizar() {
     setBusy(true);
+    const retrato = (trip?.items ?? []).map((t) => ({ name: t.name, quantity: Number(t.quantity), unit: t.unit, unit_price: Number(t.unit_price) }));
     const r = await finalizeTrip();
     setBusy(false);
+    if (r.ok) {
+      // Fecha o ciclo: pede a nota (sem obrigar) para conferir carrinho x caixa.
+      guardarUltimaCompra(retrato);
+      openReceipt(true);
+    }
     showToast(r.ok ? "Compra finalizada, estoque reposto" : r.erro);
   }
 

@@ -8,9 +8,13 @@ import { BOT_HANDLE, BOT_URL } from "@/lib/config";
 import { QrScanner } from "./QrScanner";
 import { chaveDoQr, invokeNfce, ufDaChave } from "@/lib/nfce";
 import { ItemGrid, type GridItem } from "./ItemGrid";
+import { Conferencia } from "./Conferencia";
+import { conferir, esquecerUltimaCompra, lerUltimaCompra, type Conferencia as Conf, type ItemNota } from "@/lib/conferencia";
+import { createClient } from "@/lib/supabase/client";
+import type { CompraMes } from "@/lib/economia";
 
 type Item = GridItem;
-type Phase = "capture" | "scanning" | "fotos" | "processing" | "review" | "error";
+type Phase = "capture" | "scanning" | "fotos" | "processing" | "review" | "conferencia" | "error";
 
 // Cupom de compra do mes e comprido: ate 6 fotos, de cima para baixo.
 const MAX_FOTOS = 6;
@@ -46,7 +50,11 @@ export function ReceiptModal({
   open: boolean;
   onClose: () => void;
 }) {
-  const { confirmReceipt, showToast } = useStore();
+  const { confirmReceipt, showToast, updateCompra, reloadData } = useStore();
+  // Carrinho que acabou de fechar (guardado ao finalizar): com ele, a nota vira
+  // conferencia carrinho x nota em vez da revisao simples.
+  const [conf, setConf] = useState<Conf | null>(null);
+  const ultima = open ? lerUltimaCompra() : null;
   // QR da nota (qualquer estado): tenta a SEFAZ e, se ela barrar (a do RJ barra
   // servidor), guarda a chave e pede a foto. qr = o que o QR/link trouxe.
   const [qr, setQr] = useState<{ url: string; chave: string; uf: string } | null>(null);
@@ -79,6 +87,7 @@ export function ReceiptModal({
     setQr(null);
     setColando(false);
     setLink("");
+    setConf(null);
   }
 
   // QR ou link da nota: tenta a SEFAZ (itens prontos, sem foto). A do RJ barra acesso de
@@ -113,9 +122,52 @@ export function ReceiptModal({
     setEmitente(resp.emitente);
     setTotalNota(resp.total_nota);
     setConfere(resp.total_confere);
-    setPhase("review");
+    irParaRevisao(resp.itens.map((it) => ({ nome: it.nome || "", marca: it.marca || "", qtd: Number(it.qtd) || 1, preco: Number(it.preco) || 0, unidade: it.unidade || "un" })), resp.total_nota);
   }, []);
   const semCamera = useCallback(() => {}, []);
+
+  // Com a ultima compra guardada: conferencia. Sem: revisao para gravar na despensa.
+  function irParaRevisao(nota: ItemNota[], total: number) {
+    const u = lerUltimaCompra();
+    if (u) {
+      setConf(conferir(u.itens, nota, total));
+      setPhase("conferencia");
+    } else setPhase("review");
+  }
+
+  // Fecha o ciclo: o esquecido entra na despensa (e a nota fica registrada pela chave),
+  // e o valor cobrado corrige o anotado nas compras de hoje.
+  async function aplicarConferencia(esquecidos: ItemNota[], corrigir: boolean) {
+    if (!conf) return;
+    setSaving(true);
+    let feitos = 0;
+    if (esquecidos.length) {
+      const res = await confirmReceipt(
+        esquecidos.map((n) => ({ nome: n.nome, marca: n.marca, qtd: n.qtd, preco: n.preco, unidade: n.unidade })),
+        chave ? { chave, emitente, total: conf.totalNota } : undefined,
+      );
+      if (res.ok === false && res.erro === "ja_importada") showToast("Essa nota já tinha sido registrada.");
+      else if (res.ok !== false) feitos += esquecidos.length;
+    }
+    if (corrigir && conf.diferentes.length) {
+      const { data } = await createClient().rpc("mercado_economia_mes_web", { p_mes: null });
+      const compras = ((data as { compras?: CompraMes[] } | null)?.compras ?? []).slice();
+      for (const d of conf.diferentes) {
+        const i = compras.findIndex(
+          (c) => c.name.trim().toLowerCase() === d.c.name.trim().toLowerCase() && Math.abs(Number(c.price) - d.c.unit_price) < 0.01,
+        );
+        if (i < 0) continue;
+        const [c] = compras.splice(i, 1);
+        const r = await updateCompra(c.id, { price: d.n.preco, qty: d.n.qtd });
+        if (r.ok) feitos++;
+      }
+      await reloadData();
+    }
+    esquecerUltimaCompra();
+    setSaving(false);
+    showToast(feitos ? `✓ ${feitos} ${feitos > 1 ? "ajustes" : "ajuste"} pela nota` : "Nada para ajustar");
+    close();
+  }
 
   // Foto da nota (qualquer estado): junta as fotos do cupom e manda tudo de uma vez
   // para /api/receipt-ocr (Gemini). Com a chave impressa no cupom, nota repetida e barrada.
@@ -158,7 +210,7 @@ export function ReceiptModal({
       setEmitente(typeof data.emitente === "string" ? data.emitente : "");
       setTotalNota(typeof data.total === "number" ? data.total : 0);
       setConfere(data.confere !== false);
-      setPhase("review");
+      irParaRevisao(lidos.map((it) => ({ nome: it.nome || "", marca: it.marca || "", qtd: Number(it.qtd) || 1, preco: Number(it.preco) || 0, unidade: it.unidade || "un" })), typeof data.total === "number" ? data.total : 0);
     } catch {
       setPhase("error");
     }
@@ -225,7 +277,7 @@ export function ReceiptModal({
           <button onClick={close} aria-label="Fechar" className="grid h-12 w-12 place-items-center rounded-full bg-white/15 text-[20px] backdrop-blur">
             ✕
           </button>
-          <span className="rounded-full bg-white/15 px-4 py-2 text-[15px] font-bold backdrop-blur">Nota fiscal</span>
+          <span className="rounded-full bg-white/15 px-4 py-2 text-[15px] font-bold backdrop-blur">{ultima ? "Conferir com a nota" : "Nota fiscal"}</span>
           <span className="w-12" />
         </div>
 
@@ -240,6 +292,14 @@ export function ReceiptModal({
               </p>
               <p className="mt-3 text-[14px] text-white/60">De perto, com boa luz. Cupom comprido: em partes, até 6 fotos.</p>
             </>
+          ) : ultima ? (
+            <p className="mt-[78vw] text-[16px] font-bold drop-shadow sm:mt-80">
+              Leia a nota desta compra e eu confiro item por item
+              <span className="block text-[14px] font-normal text-white/70">o que você esqueceu de anotar e onde o preço mudou</span>
+              <button onClick={() => { esquecerUltimaCompra(); close(); }} className="mt-3 h-10 rounded-full bg-white/15 px-4 text-[14px] font-bold">
+                Agora não
+              </button>
+            </p>
           ) : (
             <p className="mt-[78vw] text-[17px] font-bold drop-shadow sm:mt-80">
               Aponte para o QR code da nota
@@ -340,6 +400,10 @@ export function ReceiptModal({
               : `Lendo item por item${fotos.length > 1 ? ` nas ${fotos.length} fotos` : ""}. Cupom grande leva até 1 minuto.`}
           </div>
         </div>
+      )}
+
+      {phase === "conferencia" && conf && (
+        <Conferencia conf={conf} busy={saving} onAplicar={(e, c) => void aplicarConferencia(e, c)} onFechar={close} />
       )}
 
       {phase === "review" && (
