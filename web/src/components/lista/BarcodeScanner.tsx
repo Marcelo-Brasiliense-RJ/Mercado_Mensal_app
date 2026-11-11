@@ -75,14 +75,14 @@ export function BarcodeScanner({
   function tirarFoto() {
     const v = videoRef.current;
     if (!v || !v.videoWidth || !onFoto) return;
-    // 1024 px: sobe rapido no 4G e e o que a IA de um produto precisa.
-    const k = Math.min(1, 1024 / Math.max(v.videoWidth, v.videoHeight));
+    // 800 px: sobe rapido no 4G e basta para a IA ler o rotulo de um produto.
+    const k = Math.min(1, 800 / Math.max(v.videoWidth, v.videoHeight));
     const c = document.createElement("canvas");
     c.width = Math.round(v.videoWidth * k);
     c.height = Math.round(v.videoHeight * k);
     c.getContext("2d")!.drawImage(v, 0, 0, c.width, c.height);
     navigator.vibrate?.(30);
-    onFoto(c.toDataURL("image/jpeg", 0.8));
+    onFoto(c.toDataURL("image/jpeg", 0.75));
   }
   const zoomRef = useRef<1 | 2>(1);
   const [zoomOptico, setZoomOptico] = useState(false);

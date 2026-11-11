@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizaCupom, totalConfere } from "./cupom";
+import { juntarPartes, normalizaCupom, totalConfere } from "./cupom";
 
 describe("cupom pela foto", () => {
   it("normaliza o que a IA devolve", () => {
@@ -29,5 +29,19 @@ describe("cupom pela foto", () => {
     expect(totalConfere({ itens, total: 20.5 })).toBe(true);
     expect(totalConfere({ itens, total: 30 })).toBe(false);
     expect(totalConfere({ itens, total: 0 })).toBe(true);
+  });
+});
+
+describe("cupom em partes lidas em paralelo", () => {
+  const it2 = (nome: string, preco: number) => ({ nome, marca: "", qtd: 1, unidade: "un", preco, duvida: false });
+  it("tira o item repetido na emenda e pega total e chave do pe", () => {
+    const r = juntarPartes([
+      { itens: [it2("arroz", 25), it2("feijao", 8), it2("cafe", 18)], total: 0, emitente: "Mercado X", chave: "" },
+      { itens: [it2("feijao", 8), it2("cafe", 18), it2("leite", 5)], total: 56, emitente: "", chave: "1".repeat(44) },
+    ]);
+    expect(r.itens.map((i) => i.nome)).toEqual(["arroz", "feijao", "cafe", "leite"]);
+    expect(r.total).toBe(56);
+    expect(r.emitente).toBe("Mercado X");
+    expect(r.chave).toHaveLength(44);
   });
 });

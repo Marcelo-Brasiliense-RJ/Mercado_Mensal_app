@@ -84,7 +84,44 @@ export function totalConfere(c: Pick<Cupom, "itens" | "total">): boolean {
   return Math.abs(soma - c.total) <= Math.max(1, c.total * 0.02);
 }
 
+// Partes do mesmo cupom lidas em paralelo: junta na ordem e tira o item repetido na
+// emenda (o fim de uma foto aparece no comeco da proxima). Total, emitente e chave: o
+// primeiro que aparecer, de baixo para cima no total e na chave (ficam no pe do cupom).
+export function juntarPartes(partes: Cupom[]): Cupom {
+  const igual = (a: ItemCupom, b: ItemCupom) => a.nome === b.nome && a.preco === b.preco && a.qtd === b.qtd;
+  const itens: ItemCupom[] = [];
+  for (const p of partes) {
+    // pula do comeco desta parte o que repete o fim da anterior (ate 4 linhas)
+    let pular = 0;
+    const fim = itens.slice(-4);
+    for (let k = Math.min(4, p.itens.length, fim.length); k > 0; k--) {
+      if (p.itens.slice(0, k).every((it, i) => igual(it, fim[fim.length - k + i]))) {
+        pular = k;
+        break;
+      }
+    }
+    itens.push(...p.itens.slice(pular));
+  }
+  const ultimo = <T,>(f: (c: Cupom) => T) => [...partes].reverse().map(f).find(Boolean) ?? f(partes[0]);
+  return {
+    itens,
+    total: ultimo((c) => c.total) || 0,
+    emitente: partes.map((c) => c.emitente).find(Boolean) ?? "",
+    chave: ultimo((c) => c.chave) || "",
+  };
+}
+
 export async function lerCupom(fotos: string[]): Promise<({ ok: true } & Cupom) | Exclude<RespostaGemini, { ok: true }>> {
+  // Varias fotos: uma chamada por foto, todas ao mesmo tempo (bem mais rapido que uma
+  // chamada com todas). Se alguma falhar, cai na leitura unica de sempre.
+  if (fotos.length > 1) {
+    const partes = await Promise.all(fotos.map((f) => lerUma([f])));
+    if (partes.every((p) => p.ok)) return { ok: true, ...juntarPartes(partes.map((p) => p as { ok: true } & Cupom)) };
+  }
+  return lerUma(fotos);
+}
+
+async function lerUma(fotos: string[]): Promise<({ ok: true } & Cupom) | Exclude<RespostaGemini, { ok: true }>> {
   const partes = fotos
     .map((f) => f.match(/^data:(image\/[a-z]+);base64,(.+)$/))
     .filter((m): m is RegExpMatchArray => !!m)

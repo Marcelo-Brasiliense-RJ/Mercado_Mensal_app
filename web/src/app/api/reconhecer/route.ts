@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { chavesGemini, gemini } from "@/lib/server/gemini";
+import { chavesGemini, gemini, type RespostaGemini } from "@/lib/server/gemini";
 
 // "Não consegui ler o código": a foto do produto vai para o Gemini, que devolve o nome
 // como no rotulo (e o codigo de barras, se aparecer na foto). Fica no servidor para a
@@ -57,8 +57,7 @@ export async function POST(req: Request) {
 
   if (!chavesGemini().length) return NextResponse.json({ ok: false, erro: "ia_indisponivel" }, { status: 503 });
 
-  const res = await gemini(
-    {
+  const corpo = {
       contents: [
         {
           parts: [
@@ -68,9 +67,18 @@ export async function POST(req: Request) {
         },
       ],
       generationConfig: { responseMimeType: "application/json", responseSchema: ESQUEMA, temperature: 0 },
-    },
-    Boolean(nao) || forte,
-  );
+    };
+  // Rapido: dois modelos "lite" ao mesmo tempo, vale o primeiro que trouxer nome (no
+  // mercado cada segundo conta). Os dois falharam: o caminho de sempre, todos em fila.
+  const temNome = (r: RespostaGemini) => r.ok && /"nome"\s*:\s*"[^"]+"/.test(r.texto);
+  const rapido = Boolean(nao) || forte
+    ? null
+    : await Promise.any(
+        ["gemini-3.5-flash-lite", "gemini-flash-lite-latest"].map((mod) =>
+          gemini(corpo, false, 12000, 12000, [mod]).then((r) => (temNome(r) ? r : Promise.reject(r))),
+        ),
+      ).catch(() => null);
+  const res = rapido ?? (await gemini(corpo, Boolean(nao) || forte));
   if (res.ok) {
     try {
       const d = JSON.parse(res.texto) as { nome?: string; marca?: string; tamanho?: string; codigo?: string; preco?: number };
