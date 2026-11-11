@@ -344,6 +344,15 @@ export function ReceiptModal({
     );
   }
 
+  // Conferencia em tela cheia (desenho no Claude Design: "Despensa — Carrinho × nota").
+  if (open && phase === "conferencia" && conf) {
+    return (
+      <div className="fixed inset-0 z-40 overflow-y-auto overscroll-contain bg-bg text-text">
+        <Conferencia conf={conf} busy={saving} mercado={emitente} onAplicar={(e, c) => void aplicarConferencia(e, c)} onFechar={close} />
+      </div>
+    );
+  }
+
   return (
     <Modal open={open} onClose={close}>
       {phase === "fotos" && (
@@ -400,10 +409,6 @@ export function ReceiptModal({
               : `Lendo item por item${fotos.length > 1 ? ` nas ${fotos.length} fotos` : ""}. Cupom grande leva até 1 minuto.`}
           </div>
         </div>
-      )}
-
-      {phase === "conferencia" && conf && (
-        <Conferencia conf={conf} busy={saving} onAplicar={(e, c) => void aplicarConferencia(e, c)} onFechar={close} />
       )}
 
       {phase === "review" && (
