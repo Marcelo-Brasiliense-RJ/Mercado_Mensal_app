@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useSyncExternalStore } from "react";
+import { useModoMercado } from "./modoMercado";
 
 // Onde a pessoa esta: dentro de um mercado onde ja comprou, ou nao.
 //
@@ -219,7 +220,10 @@ export function useLugar() {
     // e a cada 2 min com o app aberto: entrar na loja com o app na mao
     setInterval(() => document.visibilityState === "visible" && atualizarLugar(), 120000);
   }, []);
-  return e;
+  // Estar perto de um mercado (GPS) so vale com o modo mercado LIGADO: sem ele, a voz,
+  // a foto e o codigo nao podem ir para o carrinho sozinhos.
+  const modo = useModoMercado();
+  return modo ? e : { ...e, noMercado: false };
 }
 
 // Ajustes: os mercados que o app aprendeu neste aparelho, e esquecer um (ex.: errou o nome).

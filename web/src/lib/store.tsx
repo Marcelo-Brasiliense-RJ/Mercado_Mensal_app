@@ -1,5 +1,6 @@
 "use client";
 
+import { useModoMercado } from "./modoMercado";
 import {
   createContext,
   useCallback,
@@ -824,9 +825,14 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
     [data.savings],
   );
 
+  // Compra aberta so "existe" para as telas com o modo mercado LIGADO (pedido do dono:
+  // "parece que o modo mercado esta ativo a todo momento"). Uma compra vazia esquecida
+  // aberta no banco nao pode deixar a Lista com cara de mercado.
+  const modoMercado = useModoMercado();
   const value = useMemo<Store>(
     () => ({
       ...data,
+      trip: modoMercado ? data.trip : null,
       savingsTotal,
       dataLoading,
       dataReady,
@@ -914,6 +920,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       addCompra,
       confirmReceipt,
       showToast,
+      modoMercado,
     ],
   );
 

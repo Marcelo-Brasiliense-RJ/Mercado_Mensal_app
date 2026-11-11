@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { brl } from "@/lib/format";
 import { useStore } from "@/lib/store";
 import type { ShopItem, TripItem } from "@/lib/types";
@@ -44,6 +45,7 @@ type Aba = "falta" | "carrinho";
 // Logica pura em lib/modoMercado.ts.
 export function MercadoView() {
   const ligado = useModoMercado();
+  const router = useRouter();
   const {
     trip,
     shopping,
@@ -185,6 +187,11 @@ export function MercadoView() {
     if (!x.ok) showToast(x.erro);
   }
 
+  function sairDoMercado() {
+    setModoMercado(false);
+    router.push("/app/lista");
+  }
+
   async function finalizar() {
     if (!trip) return;
     // Cobertos por produto de outro nome (troca ou nome do rotulo): o banco so baixa da
@@ -202,6 +209,8 @@ export function MercadoView() {
       // Fecha o ciclo: pede a nota (sem obrigar) para conferir carrinho x caixa.
       guardarUltimaCompra(retrato);
       openReceipt(true);
+      // Compra fechada = saiu do mercado: o modo desliga e volta para a Lista.
+      sairDoMercado();
     }
     showToast(x.ok ? "Compra finalizada, estoque reposto 🎉" : x.erro);
   }
@@ -211,7 +220,10 @@ export function MercadoView() {
     setBusy("fim");
     const x = await cancelTrip();
     setBusy(null);
-    if (x.ok) limparTrocas();
+    if (x.ok) {
+      limparTrocas();
+      sairDoMercado();
+    }
     showToast(x.ok ? "Compra cancelada" : x.erro);
   }
 
