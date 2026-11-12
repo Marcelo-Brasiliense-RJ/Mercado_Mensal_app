@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { contarComoNoCupom, juntarComEmendas, totalConfere, type Cupom } from "@/lib/cupomPartes";
 import { brl } from "@/lib/format";
 import { CameraCupom } from "./CameraCupom";
@@ -134,7 +134,12 @@ export function NotaEmPartes({
   // Foto que falhou nao trava: as que leram ja dao para conferir (print do dono: a 1 leu
   // 45 de 46 com o TOTAL e a 2 falhou; o botao Conferir ficava desligado).
   const todasLidas = !faltaFoto && !lendo && okPartes.length > 0;
-  const junta = okPartes.length ? juntarComEmendas(okPartes.map((p) => p.cupom!)) : null;
+  // Juntar e o quebra-cabeca das fotos (pode levar ~1 s no celular com 15 fotos): so
+  // refaz quando uma foto muda, nao a cada segundo do relogio "lendo... N s".
+  const junta = useMemo(() => {
+    const oks = partes.filter((p) => p.estado === "ok");
+    return oks.length ? juntarComEmendas(oks.map((p) => p.cupom!)) : null;
+  }, [partes]);
   const cupom = junta?.cupom ?? null;
   const qtd = cupom?.qtdItens ?? 0;
   const lidos = cupom ? contarComoNoCupom(cupom.itens) : 0;
@@ -171,7 +176,7 @@ export function NotaEmPartes({
       instrucao = <>Do <b>nome do mercado</b> até o <b>TOTAL</b>. Se as letras ficarem pequenas, use 2 fotos.</>;
     } else if (proxima === 1) {
       tituloAgora = "Fotografe o cupom";
-      instrucao = <>Abra a <b>câmera</b> e fotografe o cupom <b>de perto</b>, em partes, de cima até o <b>TOTAL</b>. Você toca no botão em cada parte.</>;
+      instrucao = <>Abra a <b>câmera</b> e fotografe o cupom <b>de perto</b>, em partes, de cima até o <b>TOTAL</b>. Na dúvida, tire foto a mais: pode repetir pedaço, eu junto <b>sem duplicar</b>.</>;
     } else {
       tituloAgora = `Foto ${proxima}: metade de baixo`;
       instrucao = <>Do <b>meio</b> até o <b>TOTAL</b> e o QR. <b>Repita umas 3 linhas</b> do fim da foto {proxima - 1}: é assim que eu confiro se não pulou nada.</>;

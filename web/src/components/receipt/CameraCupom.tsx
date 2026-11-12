@@ -131,7 +131,7 @@ export function CameraCupom({
     ? "✓ Chegou ao TOTAL. Toque em Pronto."
     : n === 1
       ? "Parte 1: o TOPO do cupom, bem de perto (letras grandes). Toque no botão."
-      : `Parte ${n}: desça e encaixe as linhas de cima. Toque no botão.`;
+      : `Parte ${n}: desça e encaixe as linhas de cima. Foto a mais não atrapalha.`;
   const corDica = dica === "bom" ? "bg-pos text-white" : "bg-white/15 text-white";
 
   return (

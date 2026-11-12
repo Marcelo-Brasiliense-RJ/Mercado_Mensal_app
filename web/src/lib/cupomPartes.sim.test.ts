@@ -48,3 +48,56 @@ it("cupom grande em 9 fotos: a juncao chega na Qtde. do rodape", () => {
   expect(exatos, res.join(" ")).toBeGreaterThanOrEqual(24);
   expect(soma / 30).toBeLessThanOrEqual(0.5);
 });
+
+// Como o dono faz na pratica (2026-11-12): "fiquei com medo de nao aparecer, fui tirando
+// fotos dos pormenores": alem das fotos em sequencia, fotos de DETALHE de pedacos ja
+// fotografados (curtas, repetidas, fora de ordem), no meio das outras.
+function comDetalhes(seed: number, extras: number, nLinhas = 80, nFotos = 9) {
+  const base = simular(seed, nLinhas, nFotos);
+  const r = rng(seed * 7 + 3);
+  const n = base.verdade.length;
+  const partes = [...base.partes];
+  for (let k = 0; k < extras; k++) {
+    const tam = 4 + Math.floor(r() * 12);
+    const ini = Math.floor(r() * (n - tam));
+    const itens = base.verdade.slice(ini, ini + tam).flatMap((it) => {
+      const x = r();
+      if (x < 0.03) return [];
+      if (x < 0.06) return [{ ...it, preco: Math.round((it.preco + 1) * 100) / 100 }];
+      return [it];
+    });
+    // entra numa posicao qualquer (antes da ultima, que traz o rodape)
+    partes.splice(Math.floor(r() * (partes.length - 1)), 0, { itens, total: 0, emitente: "", chave: "", qtdItens: 0 });
+  }
+  return { ...base, partes };
+}
+
+it("fotos de detalhe a mais, repetidas e fora de ordem, nao duplicam itens", () => {
+  let soma = 0, exatos = 0;
+  const res: string[] = [];
+  for (let s = 1; s <= 30; s++) {
+    const { qtd, partes } = comDetalhes(s, 5);
+    const lidos = contarComoNoCupom(juntarComEmendas(partes).cupom.itens);
+    soma += Math.abs(lidos - qtd);
+    if (lidos === qtd) exatos++;
+    res.push(`${lidos}/${qtd}`);
+  }
+  console.log("DETALHES exatos", exatos, "/30 | erro medio", (soma / 30).toFixed(2), "|", res.join(" "));
+  expect(exatos, res.join(" ")).toBeGreaterThanOrEqual(22);
+  expect(soma / 30).toBeLessThanOrEqual(1);
+});
+
+it("pior caso: cupom de 110 linhas, 9 fotos + 6 de detalhe, rapido", () => {
+  let exatos = 0, soma = 0, pior = 0;
+  for (let s = 1; s <= 10; s++) {
+    const { qtd, partes } = comDetalhes(s, 6, 110, 9);
+    const t = performance.now();
+    const lidos = contarComoNoCupom(juntarComEmendas(partes).cupom.itens);
+    pior = Math.max(pior, performance.now() - t);
+    soma += Math.abs(lidos - qtd);
+    if (lidos === qtd) exatos++;
+  }
+  console.log("PIOR exatos", exatos, "/10 | erro medio", (soma / 10).toFixed(2), "| ms", pior.toFixed(0));
+  expect(exatos).toBeGreaterThanOrEqual(7);
+  expect(pior).toBeLessThan(1500);
+});

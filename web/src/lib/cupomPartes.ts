@@ -119,8 +119,8 @@ export function totalConfere(c: Pick<Cupom, "itens" | "total">): boolean {
 // ali provavelmente ficou um pedaco do cupom de fora.
 const raizNome = (n: string) => n.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z]/g, "").slice(0, 3);
 
-export function alinhar(a: ItemCupom[], b: ItemCupom[]): { itens: ItemCupom[]; encaixou: boolean } {
-  if (!a.length || !b.length) return { itens: [...a, ...b], encaixou: false };
+export function alinhar(a: ItemCupom[], b: ItemCupom[]): { itens: ItemCupom[]; encaixou: boolean; iguais: number } {
+  if (!a.length || !b.length) return { itens: [...a, ...b], encaixou: false, iguais: 0 };
   const mesma = (x: ItemCupom, y: ItemCupom) => Math.abs(x.preco - y.preco) < 0.005 && Math.abs(x.qtd - y.qtd) < 0.001;
   const pontos = (x: ItemCupom, y: ItemCupom) => (mesma(x, y) ? (raizNome(x.nome) === raizNome(y.nome) ? 4 : 3) : raizNome(x.nome) === raizNome(y.nome) ? -1 : -3);
   const GAP = -2;
@@ -177,7 +177,7 @@ export function alinhar(a: ItemCupom[], b: ItemCupom[]): { itens: ItemCupom[]; e
   // so encaixa com 2+ linhas iguais (1 so pode ser coincidencia de preco), ou 1 so se for
   // a mesma linha, nome incluido, na ponta (o fim de uma foto no comeco da outra)
   const umaNaPonta = iguais === 1 && pares.length === 1 && raizNome(a[pares[0][0]]?.nome ?? "") === raizNome(b[pares[0][1]]?.nome ?? "-");
-  if (iguais < 2 && !umaNaPonta) return { itens: [...a, ...b], encaixou: false };
+  if (iguais < 2 && !umaNaPonta) return { itens: [...a, ...b], encaixou: false, iguais };
   pares.reverse();
   const a0 = i, b0 = j; // inicio do trecho em comum
   // No trecho em comum, linha que so uma foto tem: se a outra tem a MESMA linha logo ali
@@ -204,22 +204,32 @@ export function alinhar(a: ItemCupom[], b: ItemCupom[]): { itens: ItemCupom[]; e
     ...a.slice(bi), // o que vem depois (so uma das duas tem)
     ...b.slice(bj),
   ];
-  return { itens: out, encaixou: true };
+  return { itens: out, encaixou: true, iguais };
 }
 
 export function juntarComEmendas(partes: Cupom[]): { cupom: Cupom; semEmenda: number[] } {
-  let itens: ItemCupom[] = [];
-  const semEmenda: number[] = [];
-  partes.forEach((p, idx) => {
-    if (!p.itens.length) return;
-    if (!itens.length) {
-      itens = [...p.itens];
-      return;
-    }
-    const r = alinhar(itens, p.itens);
-    if (!r.encaixou && idx > 0) semEmenda.push(idx);
-    itens = r.itens;
-  });
+  // QUEBRA-CABECA, sem depender da ordem das fotos (dono: "fiquei com medo de nao
+  // aparecer e fui tirando fotos dos pormenores": fotos de detalhe repetidas, fora de
+  // ordem, no meio das outras). Junta primeiro o par de pedacos que mais se encaixa (mais
+  // linhas iguais), e repete ate nenhum par encaixar. O que sobrar solto fica na ordem em
+  // que foi fotografado, e ali e um buraco de verdade.
+  let pedacos = partes.map((p, ordem) => ({ itens: p.itens, ordem })).filter((p) => p.itens.length);
+  for (;;) {
+    let melhor: { i: number; j: number; itens: ItemCupom[]; iguais: number } | null = null;
+    for (let i = 0; i < pedacos.length; i++)
+      for (let j = i + 1; j < pedacos.length; j++) {
+        const [x, y] = pedacos[i].ordem < pedacos[j].ordem ? [pedacos[i], pedacos[j]] : [pedacos[j], pedacos[i]];
+        const r = alinhar(x.itens, y.itens);
+        if (r.encaixou && (!melhor || r.iguais > melhor.iguais)) melhor = { i, j, itens: r.itens, iguais: r.iguais };
+      }
+    if (!melhor) break;
+    const { i, j, itens: juntos } = melhor;
+    const ordem = Math.min(pedacos[i].ordem, pedacos[j].ordem);
+    pedacos = pedacos.filter((_, k) => k !== i && k !== j).concat({ itens: juntos, ordem });
+  }
+  pedacos.sort((a, b) => a.ordem - b.ordem);
+  const itens = pedacos.flatMap((p) => p.itens);
+  const semEmenda = pedacos.slice(1).map((p) => p.ordem);
 
   const ultimo = <T,>(f: (c: Cupom) => T) => [...partes].reverse().map(f).find(Boolean) ?? f(partes[0]);
   const cupom: Cupom = {
