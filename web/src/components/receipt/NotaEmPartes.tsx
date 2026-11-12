@@ -114,12 +114,15 @@ export function NotaEmPartes({
   // Uma camera so: a do app (o dono tirou a opcao "camera do celular"). Refazer uma foto
   // ou o pedaco do meio tambem passa por ela e fecha depois de UMA foto. A do celular so
   // entra se a do app nao abrir (permissao negada).
-  const umaFotoRef = useRef(false);
+  // Refazendo UMA foto (tirar de novo / pedaco do meio): a camera nao diz "chegou ao
+  // TOTAL" e fecha depois dela. Antes o botao de foto ficava desligado quando outra foto
+  // ja tinha o TOTAL e o "Tirar de novo" abria uma camera sem botao (print do dono).
+  const [umaFoto, setUmaFoto] = useState(false);
   function abrir(galeria = false, destino: { trocar?: number; antesDe?: number } = {}) {
     destinoRef.current = destino;
     if (galeria) return galRef.current?.click();
     if (semCamera) return camRef.current?.click();
-    umaFotoRef.current = destino.trocar != null || destino.antesDe != null;
+    setUmaFoto(destino.trocar != null || destino.antesDe != null);
     setCamera(true);
   }
 
@@ -128,7 +131,9 @@ export function NotaEmPartes({
   const proxima = partes.length + 1;
   const okPartes = partes.filter((p) => p.estado === "ok");
   const comErro = partes.filter((p) => p.estado === "erro");
-  const todasLidas = !faltaFoto && !lendo && !comErro.length && okPartes.length > 0;
+  // Foto que falhou nao trava: as que leram ja dao para conferir (print do dono: a 1 leu
+  // 45 de 46 com o TOTAL e a 2 falhou; o botao Conferir ficava desligado).
+  const todasLidas = !faltaFoto && !lendo && okPartes.length > 0;
   const junta = okPartes.length ? juntarComEmendas(okPartes.map((p) => p.cupom!)) : null;
   const cupom = junta?.cupom ?? null;
   const qtd = cupom?.qtdItens ?? 0;
@@ -167,9 +172,9 @@ export function NotaEmPartes({
   } else if (lendo) {
     tituloAgora = "Lendo as fotos…";
     instrucao = <>Leva alguns segundos por foto.</>;
-  } else if (comErro.length) {
+  } else if (comErro.length && !(todasLidas && qtd > 0 && lidos === qtd)) {
     tituloAgora = "Uma foto não deu para ler";
-    instrucao = <>Toque em <b>Tirar de novo</b> na foto marcada, mais de perto e com luz.</>;
+    instrucao = <>Toque em <b>Tirar de novo</b> na foto marcada, ou <b>Tirar fora</b> se as outras já pegaram tudo.</>;
   } else if (bate) {
     tituloAgora = `✓ ${qtd} de ${qtd} itens`;
     instrucao = <>Prova real ok: li todos os itens que o cupom diz. Toque em <b>Conferir itens</b>.</>;
@@ -177,7 +182,7 @@ export function NotaEmPartes({
     tituloAgora = `${lidos - qtd} ${lidos - qtd === 1 ? "item" : "itens"} a mais`;
     instrucao = <>Alguma linha entrou repetida ou uma quantidade foi lida a mais. Confira na próxima tela.</>;
   } else {
-    tituloAgora = qtd ? `Faltam ${qtd - lidos} itens` : "Confira o que faltou";
+    tituloAgora = qtd ? (qtd - lidos === 1 ? "Falta 1 item" : `Faltam ${qtd - lidos} itens`) : "Confira o que faltou";
     instrucao = <>Veja abaixo <b>onde faltou</b> e toque no botão.</>;
   }
 
@@ -195,11 +200,11 @@ export function NotaEmPartes({
             itens: p.cupom ? contarComoNoCupom(p.cupom.itens) : 0,
             temTotal: !!p.cupom && (p.cupom.total > 0 || p.cupom.qtdItens > 0),
           }))}
-          fim={fimNaCamera}
+          fim={fimNaCamera && !umaFoto}
           onFoto={(f) => {
             adicionar([f]);
-            if (umaFotoRef.current) {
-              umaFotoRef.current = false;
+            if (umaFoto) {
+              setUmaFoto(false);
               setCamera(false);
             }
           }}
@@ -307,9 +312,17 @@ export function NotaEmPartes({
                 )}
                 {p.estado === "ok" && <span className="text-pos">✓ {contarComoNoCupom(p.cupom!.itens)} itens</span>}
                 {p.estado === "erro" && (
-                  <button type="button" onClick={() => abrir(false, { trocar: p.id })} className="text-neg underline">
-                    Tirar de novo
-                  </button>
+                  <span className="flex flex-col gap-0.5">
+                    <button type="button" onClick={() => abrir(false, { trocar: p.id })} className="text-neg underline">
+                      Tirar de novo
+                    </button>
+                    <button type="button" onClick={() => {
+                        setPartes((l) => l.filter((x) => x.id !== p.id));
+                        setAlvo((a) => Math.max(1, Math.min(a, partes.length - 1))); // nao pede outra no lugar
+                      }} className="text-text-3 underline">
+                      Tirar fora
+                    </button>
+                  </span>
                 )}
               </div>
             </li>

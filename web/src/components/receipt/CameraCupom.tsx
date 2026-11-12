@@ -191,9 +191,8 @@ export function CameraCupom({
           <span className="w-[88px] text-[12px] font-bold text-white/60">{partes.length ? `${partes.length} ${partes.length === 1 ? "parte" : "partes"}` : "Toque para tirar"}</span>
           <button
             onClick={tirar}
-            disabled={fim}
             aria-label="Tirar foto"
-            className="grid h-[72px] w-[72px] place-items-center rounded-full border-[4px] border-white disabled:opacity-30"
+            className="grid h-[72px] w-[72px] place-items-center rounded-full border-[4px] border-white"
           >
             <span className="h-[56px] w-[56px] rounded-full bg-white" />
           </button>
