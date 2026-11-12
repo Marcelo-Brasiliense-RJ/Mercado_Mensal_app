@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { contarComoNoCupom, juntarComEmendas, totalConfere, type Cupom } from "@/lib/cupomPartes";
 import { brl } from "@/lib/format";
+import { CameraCupom } from "./CameraCupom";
 
 // Nota fiscal em fotos, com o app guiando. Desenho atual (pedido do dono, 2026-11-12,
 // depois de testar com 3 partes + rodape: demorou e "na segunda ja dava pra ver tudo"):
@@ -33,6 +34,9 @@ export function NotaEmPartes({
   const [partes, setPartes] = useState<Parte[]>([]);
   const [alvo, setAlvo] = useState(2); // quantas fotos o plano pede (1 = cupom pequeno)
   const [agora, setAgora] = useState(() => Date.now());
+  // Camera do app (guia o enquadramento e separa as partes); a do celular fica de reserva.
+  const [camera, setCamera] = useState(false);
+  const [semCamera, setSemCamera] = useState(false);
   const camRef = useRef<HTMLInputElement>(null);
   const galRef = useRef<HTMLInputElement>(null);
   // trocar: refaz uma foto; antesDe: poe uma foto nova antes desta (o pedaco que faltou)
@@ -80,10 +84,16 @@ export function NotaEmPartes({
     atualizar(id, { estado: "erro", erro });
   }
 
-  async function chegou(arquivos: File[]) {
+  async function chegou(arquivos: File[], galeria = false) {
     if (!arquivos.length) return;
     const fotos = (await Promise.all(arquivos.map((f) => lerArquivo(f).catch(() => "")))).filter(Boolean);
     if (!fotos.length) return;
+    // Da galeria, de uma vez: as fotos escolhidas SAO o plano (1 foto = cupom pequeno).
+    if (galeria && !partes.length && destinoRef.current.trocar == null) setAlvo(fotos.length);
+    adicionar(fotos);
+  }
+
+  function adicionar(fotos: string[]) {
     const { trocar, antesDe } = destinoRef.current;
     destinoRef.current = {};
     if (trocar != null) {
@@ -125,7 +135,7 @@ export function NotaEmPartes({
   const inputs = (
     <>
       <input ref={camRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => { const f = [...(e.target.files ?? [])]; e.target.value = ""; void chegou(f); }} />
-      <input ref={galRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => { const f = [...(e.target.files ?? [])]; e.target.value = ""; void chegou(f); }} />
+      <input ref={galRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => { const f = [...(e.target.files ?? [])]; e.target.value = ""; void chegou(f, true); }} />
     </>
   );
 
@@ -137,8 +147,8 @@ export function NotaEmPartes({
       tituloAgora = "1 foto do cupom inteiro";
       instrucao = <>Do <b>nome do mercado</b> até o <b>TOTAL</b>. Se as letras ficarem pequenas, use 2 fotos.</>;
     } else if (proxima === 1) {
-      tituloAgora = "Foto 1: metade de cima";
-      instrucao = <>Do <b>topo</b> (nome do mercado) até mais ou menos o <b>meio</b> dos itens. Bem de perto.</>;
+      tituloAgora = "Fotografe o cupom";
+      instrucao = <>Abra a <b>câmera do app</b>: ela mostra a moldura, avisa se dá para ler, tira a foto sozinha e diz quando chegou ao <b>TOTAL</b>. Cupom grande vira partes sozinho.</>;
     } else {
       tituloAgora = `Foto ${proxima}: metade de baixo`;
       instrucao = <>Do <b>meio</b> até o <b>TOTAL</b> e o QR. <b>Repita umas 3 linhas</b> do fim da foto {proxima - 1}: é assim que eu confiro se não pulou nada.</>;
@@ -159,9 +169,40 @@ export function NotaEmPartes({
 
   const relogio = (p: Parte) => Math.max(0, Math.round((agora - p.desde) / 1000));
 
+  const fimNaCamera = partes.some((p) => p.estado === "ok" && (p.cupom!.total > 0 || p.cupom!.qtdItens > 0));
+
   return (
     <div>
+      {camera && (
+        <CameraCupom
+          partes={partes.map((p) => ({
+            foto: p.foto,
+            estado: p.estado,
+            itens: p.cupom ? contarComoNoCupom(p.cupom.itens) : 0,
+            temTotal: !!p.cupom && (p.cupom.total > 0 || p.cupom.qtdItens > 0),
+          }))}
+          fim={fimNaCamera}
+          onFoto={(f) => {
+            destinoRef.current = {};
+            adicionar([f]);
+          }}
+          onPronto={() => {
+            setAlvo(partes.length);
+            setCamera(false);
+          }}
+          onFechar={() => setCamera(false)}
+          onSemCamera={() => {
+            setCamera(false);
+            setSemCamera(true);
+          }}
+        />
+      )}
       <div className="mb-1 text-[13px] font-bold text-text-2">{titulo}</div>
+      {semCamera && (
+        <p className="mb-2 rounded-[12px] bg-warn-soft px-3 py-2 text-[13px] leading-snug">
+          A câmera do app não abriu (permissão negada?). Use <b>Galeria</b> ou a <b>câmera do celular</b>.
+        </p>
+      )}
       {cupom && (cupom.total > 0 || qtd > 0) && (
         <div className="mb-2 flex flex-wrap gap-1.5 text-[12px] font-bold">
           {cupom.total > 0 && <span className="rounded-full bg-card-2 px-2.5 py-1">Total {brl(cupom.total)}</span>}
@@ -260,7 +301,11 @@ export function NotaEmPartes({
       )}
 
       <div data-rodape className="mt-4 flex flex-col gap-2">
-        {faltaFoto ? (
+        {partes.length === 0 && !semCamera ? (
+          <button type="button" onClick={() => setCamera(true)} className="h-[52px] rounded-full bg-brand text-[16px] font-extrabold text-brand-ink">
+            📷 Abrir a câmera do app
+          </button>
+        ) : faltaFoto ? (
           <button type="button" onClick={() => abrir()} className="h-[52px] rounded-full bg-brand text-[16px] font-extrabold text-brand-ink">
             📷 {alvo === 1 ? "Tirar a foto do cupom" : proxima === 1 ? "Tirar foto 1 (metade de cima)" : `Tirar foto ${proxima} (metade de baixo)`}
           </button>
@@ -278,8 +323,8 @@ export function NotaEmPartes({
           {partes.length === 0 ? (
             <>
               <button type="button" onClick={onSair} className="h-11 flex-1 rounded-full border border-border text-[14px] font-bold">Voltar</button>
-              <button type="button" onClick={() => setAlvo((a) => (a === 1 ? 2 : 1))} className="h-11 flex-1 rounded-full border border-border text-[14px] font-bold">
-                {alvo === 1 ? "Usar 2 fotos" : "Cupom pequeno: 1 foto"}
+              <button type="button" onClick={() => abrir()} className="h-11 flex-1 rounded-full border border-border text-[14px] font-bold">
+                📱 Câmera do celular
               </button>
             </>
           ) : (
