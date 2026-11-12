@@ -65,3 +65,23 @@ describe("numerosDoMes", () => {
     expect(n.pctAnterior).toBe(-25);
   });
 });
+
+describe("de costume: unidade diferente nao vira economia", () => {
+  it("batata palha por pacote x por grama fica de fora", async () => {
+    const { deCostume, mesmaMedida } = await import("./economia");
+    expect(mesmaMedida(0.06, 16.19)).toBe(false);
+    expect(mesmaMedida(10, 15.98)).toBe(true);
+    const item = (nome: string, qty: number, preco: number) => ({ nome, qty, unit: "un", total: qty * preco, preco, compras: [] });
+    const r = deCostume(
+      [item("batata palha", 570, 0.06), item("morango congelado", 1, 10), item("ketchup", 1, 16.5)],
+      [
+        { name: "batata palha", media: 16.19, vezes: 1 },
+        { name: "morango congelado", media: 15.98, vezes: 1 },
+        { name: "ketchup", media: 9.98, vezes: 1 },
+      ],
+    );
+    expect(r.abaixo.map((l) => l.item.nome)).toEqual(["morango congelado"]);
+    expect(+r.economizou.toFixed(2)).toBe(5.98);
+    expect(+r.pagouAMais.toFixed(2)).toBe(6.52);
+  });
+});

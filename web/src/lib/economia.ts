@@ -80,6 +80,14 @@ export function emOutroMercado(itens: ItemMes[], ofertas: Oferta[]) {
 
 // Contra o proprio historico: pagou menos (ou mais) que a media dos 6 meses anteriores.
 // Folga de 3% para nao chamar centavo de economia.
+// Preco que mudou mais de 4x nao e economia, e unidade diferente: batata palha comprada
+// por pacote (R$ 16,19) e depois anotada por grama (570 g a R$ 0,06) virava "economizou
+// R$ 9.192". Miojo em fardo contra a unidade, idem. Esses ficam fora da comparacao.
+export function mesmaMedida(preco: number, media: number): boolean {
+  const r = preco / media;
+  return r >= 0.25 && r <= 4;
+}
+
 export function deCostume(itens: ItemMes[], historico: MesEconomia["historico"]) {
   const media = new Map(historico.map((h) => [h.name.trim().toLowerCase(), Number(h.media)]));
   const linhas = itens
@@ -88,7 +96,10 @@ export function deCostume(itens: ItemMes[], historico: MesEconomia["historico"])
       if (!m || !(i.preco > 0)) return null;
       return { item: i, media: m, diferenca: (m - i.preco) * i.qty };
     })
-    .filter((x): x is { item: ItemMes; media: number; diferenca: number } => !!x && Math.abs(x.item.preco - x.media) / x.media >= 0.03);
+    .filter(
+      (x): x is { item: ItemMes; media: number; diferenca: number } =>
+        !!x && Math.abs(x.item.preco - x.media) / x.media >= 0.03 && mesmaMedida(x.item.preco, x.media),
+    );
   const abaixo = linhas.filter((l) => l.diferenca > 0).sort((a, b) => b.diferenca - a.diferenca);
   const acima = linhas.filter((l) => l.diferenca < 0).sort((a, b) => a.diferenca - b.diferenca);
   return {
