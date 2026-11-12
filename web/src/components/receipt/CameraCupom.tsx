@@ -2,13 +2,16 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { abrirCamera, soltarCamera } from "@/lib/camera";
-import { DICA, MUDOU_DE_PARTE, medir, mudanca, veredito, type Veredito } from "@/lib/quadroCupom";
+import { DICA, medir, veredito, type Veredito } from "@/lib/quadroCupom";
 
 // Camera do PROPRIO app para fotografar a nota (pedido do dono: "a aplicacao vai
 // identificando se o enquadramento ta bom e vai separando as partes"). A camera do
 // iPhone nao sabe nada do cupom; aqui o app:
 // - mostra uma moldura e diz ao vivo se da para ler (luz, perto, firme, foco);
-// - tira a foto SOZINHO quando fica bom por ~1 s (o botao manual continua la);
+// - a foto e SEMPRE no botao. A automatica saiu (2026-11-12): luz, papel e nitidez num
+//   quadro pequeno nao dizem se as letras dao para ler. Medido nas fotos do dono: o
+//   cupom inteiro de longe e o celular virando davam as MESMAS notas que a foto boa, e o
+//   app tirava 3 fotos ruins em segundos ("ta se precipitando");
 // - depois da Parte 1, mostra o fim dela "fantasma" no topo da moldura, para a proxima
 //   repetir umas linhas (como foto panoramica);
 // - para quando uma parte lida traz o TOTAL ("chegou ao fim do cupom").
@@ -35,24 +38,15 @@ export function CameraCupom({
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [dica, setDica] = useState<Veredito | null>(null);
-  const [bons, setBons] = useState(0);
   const [flash, setFlash] = useState(false);
   const melhorRef = useRef(0);
   const anteriorRef = useRef<Uint8ClampedArray | null>(null);
-  const ultimaFotoRef = useRef(0);
-  const bonsRef = useRef(0);
-  const okRef = useRef(0); // quadros com luz e cupom na moldura (mesmo tremendo um pouco)
   const movsRef = useRef<number[]>([]);
-  // Depois de cada foto, a automatica so volta quando o quadro muda de verdade (o celular
-  // desceu para a proxima parte). Parado no mesmo lugar, nao tira de novo.
-  const fotoCinzaRef = useRef<Uint8ClampedArray | null>(null);
-  const liberadoRef = useRef(true);
-  const [descer, setDescer] = useState(false);
 
   // As funcoes do pai chegam novas a cada render (o relogio "lendo... N s" redesenha a
   // tela 1x por segundo). Ficam em ref: se fossem dependencia dos efeitos, a camera
   // desligava e religava a cada segundo enquanto lia a foto anterior (tela piscando,
-  // contagem do quadro bom zerada = a Parte 2 nunca saia sozinha, e foto preta no botao).
+  // e foto preta no botao).
   const onFotoRef = useRef(onFoto);
   const onSemCameraRef = useRef(onSemCamera);
   useEffect(() => {
@@ -84,19 +78,13 @@ export function CameraCupom({
     c.width = Math.round(v.videoWidth * escala);
     c.height = Math.round(v.videoHeight * escala);
     c.getContext("2d")!.drawImage(v, 0, 0, c.width, c.height);
-    ultimaFotoRef.current = Date.now();
-    fotoCinzaRef.current = anteriorRef.current;
-    liberadoRef.current = false;
-    setDescer(true);
-    bonsRef.current = 0;
-    setBons(0);
     setFlash(true);
     setTimeout(() => setFlash(false), 180);
     navigator.vibrate?.(30);
     onFotoRef.current(c.toDataURL("image/jpeg", 0.85));
   }, []);
 
-  // mede o quadro 4x por segundo; 4 quadros bons seguidos = foto automatica
+  // mede o quadro 5x por segundo so para ORIENTAR (luz, perto, firme, foco); quem tira e o botao
   useEffect(() => {
     if (fim) return;
     const c = document.createElement("canvas");
@@ -112,10 +100,6 @@ export function CameraCupom({
       const cinza = new Uint8ClampedArray(ANALISE_W * h);
       for (let i = 0; i < cinza.length; i++) cinza[i] = (px[i * 4] * 299 + px[i * 4 + 1] * 587 + px[i * 4 + 2] * 114) / 1000;
       const bruto = medir(cinza, ANALISE_W, h, anteriorRef.current ?? undefined);
-      if (!liberadoRef.current && mudanca(cinza, fotoCinzaRef.current) > MUDOU_DE_PARTE) {
-        liberadoRef.current = true;
-        setDescer(false);
-      }
       anteriorRef.current = cinza;
       // movimento pela media dos ultimos 3 quadros: um tranco isolado nao zera a contagem
       movsRef.current = [...movsRef.current.slice(-2), bruto.movimento];
@@ -123,27 +107,18 @@ export function CameraCupom({
       if (m.papel >= 0.35 && m.movimento < 30) melhorRef.current = Math.max(melhorRef.current, m.nitidez);
       const vd = veredito(m, melhorRef.current);
       setDica(vd);
-      bonsRef.current = vd === "bom" ? bonsRef.current + 1 : 0;
-      okRef.current = vd === "bom" || vd === "firme" || vd === "foco" ? okRef.current + 1 : 0;
-      setBons(bonsRef.current);
-      const desde = Date.now() - ultimaFotoRef.current;
-      // ~0,6 s de quadro bom, ou ~2 s com luz e cupom na moldura (plano B: nao travar)
-      if (liberadoRef.current && desde > 2500 && (bonsRef.current >= 3 || okRef.current >= 10)) {
-        okRef.current = 0;
-        tirar();
-      }
     }, 200);
     return () => clearInterval(t);
-  }, [fim, tirar]);
+  }, [fim]);
 
   const n = partes.length + 1;
   const ultima = partes[partes.length - 1];
   const orientacao = fim
     ? "✓ Chegou ao TOTAL. Toque em Pronto."
     : n === 1
-      ? "Parte 1: enquadre o TOPO do cupom (nome do mercado)"
-      : `Parte ${n}: desça o celular e encaixe as linhas de cima`;
-  const corDica = dica === "bom" && !descer ? "bg-pos text-white" : "bg-white/15 text-white";
+      ? "Parte 1: o TOPO do cupom, bem de perto (letras grandes). Toque no botão."
+      : `Parte ${n}: desça e encaixe as linhas de cima. Toque no botão.`;
+  const corDica = dica === "bom" ? "bg-pos text-white" : "bg-white/15 text-white";
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-black text-white">
@@ -177,12 +152,7 @@ export function CameraCupom({
           )}
           {!fim && dica && (
             <div className={`absolute inset-x-3 bottom-3 rounded-full px-3 py-2 text-center text-[14px] font-extrabold ${corDica}`}>
-              {descer ? `✓ Parte ${partes.length} tirada. Desça o celular` : DICA[dica]}
-              {dica === "bom" && !descer && (
-                <span className="ml-1.5 inline-block h-2 w-10 overflow-hidden rounded-full bg-white/30 align-middle">
-                  <span className="block h-full bg-white transition-[width]" style={{ width: `${Math.min(100, (bons / 3) * 100)}%` }} />
-                </span>
-              )}
+              {dica === "bom" ? "✓ Luz e foco ok. Letras grandes? Toque no botão" : DICA[dica]}
             </div>
           )}
         </div>
@@ -204,7 +174,7 @@ export function CameraCupom({
           </div>
         )}
         <div className="flex items-center justify-between gap-3">
-          <span className="w-[88px] text-[12px] font-bold text-white/60">{partes.length ? `${partes.length} ${partes.length === 1 ? "parte" : "partes"}` : "Auto: tiro sozinho"}</span>
+          <span className="w-[88px] text-[12px] font-bold text-white/60">{partes.length ? `${partes.length} ${partes.length === 1 ? "parte" : "partes"}` : "Toque para tirar"}</span>
           <button
             onClick={tirar}
             disabled={fim}

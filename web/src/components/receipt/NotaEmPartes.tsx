@@ -157,7 +157,7 @@ export function NotaEmPartes({
       instrucao = <>Do <b>nome do mercado</b> até o <b>TOTAL</b>. Se as letras ficarem pequenas, use 2 fotos.</>;
     } else if (proxima === 1) {
       tituloAgora = "Fotografe o cupom";
-      instrucao = <>Abra a <b>câmera</b>: ela mostra a moldura, avisa se dá para ler, tira a foto sozinha e diz quando chegou ao <b>TOTAL</b>. Cupom grande vira partes sozinho.</>;
+      instrucao = <>Abra a <b>câmera</b> e fotografe o cupom <b>de perto</b>, em partes, de cima até o <b>TOTAL</b>. Você toca no botão em cada parte.</>;
     } else {
       tituloAgora = `Foto ${proxima}: metade de baixo`;
       instrucao = <>Do <b>meio</b> até o <b>TOTAL</b> e o QR. <b>Repita umas 3 linhas</b> do fim da foto {proxima - 1}: é assim que eu confiro se não pulou nada.</>;

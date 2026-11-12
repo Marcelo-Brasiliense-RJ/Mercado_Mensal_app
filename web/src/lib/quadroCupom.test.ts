@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MUDOU_DE_PARTE, medir, mudanca, veredito } from "./quadroCupom";
+import { medir, veredito } from "./quadroCupom";
 
 // quadro sintetico 60x80: papel branco com "linhas de texto" pretas
 function cupom(w = 60, h = 80, fundo = 230, tinta = 20, borrado = false) {
@@ -34,21 +34,5 @@ describe("camera da nota: da para ler?", () => {
     const a = cupom();
     const b = a.map((v, i) => (i % 2 ? 255 - v : v));
     expect(veredito(medir(b, 60, 80, a), 0)).toBe("firme");
-  });
-});
-
-describe("camera da nota: so tira de novo depois de descer", () => {
-  it("parado no mesmo lugar nao libera outra foto", () => {
-    const a = cupom();
-    const tremido = a.map((v, i) => (i % 5 === 0 ? Math.min(255, v + 15) : v));
-    expect(mudanca(tremido, a)).toBeLessThan(MUDOU_DE_PARTE);
-  });
-  it("outra parte do cupom libera", () => {
-    const a = cupom();
-    const desceu = a.map((_, i) => a[(i + 60 * 2) % a.length]); // linhas deslocadas meia linha
-    expect(mudanca(desceu, a)).toBeGreaterThan(MUDOU_DE_PARTE);
-  });
-  it("sem foto anterior libera", () => {
-    expect(mudanca(cupom(), null)).toBe(Infinity);
   });
 });

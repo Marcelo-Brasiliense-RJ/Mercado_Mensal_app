@@ -65,17 +65,3 @@ export const DICA: Record<Veredito, string> = {
   firme: "✋ Segure firme",
   foco: "Toque no cupom na tela para focar, ou afaste um pouquinho",
 };
-
-// Quanto o quadro mudou desde a ultima foto (diferenca media, 0..255). A foto automatica
-// so volta depois que o celular DESCE para outra parte: parado no mesmo lugar ela
-// disparava a cada 2,5 s e enchia de fotos repetidas (print do dono: "Parte 8", 7 fotos
-// iguais). Medido na foto real do cupom do dono, quadro de 120 px: mao tremendo e
-// exposicao mudando = 9 a 25; descer 20% do cupom = 76.
-export const MUDOU_DE_PARTE = 40;
-
-export function mudanca(cinza: ArrayLike<number>, foto: ArrayLike<number> | null): number {
-  if (!foto || foto.length !== cinza.length) return Infinity;
-  let d = 0;
-  for (let i = 0; i < cinza.length; i += 3) d += Math.abs(cinza[i] - foto[i]);
-  return d / Math.ceil(cinza.length / 3);
-}
