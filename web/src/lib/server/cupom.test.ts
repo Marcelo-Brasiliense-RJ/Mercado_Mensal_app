@@ -45,3 +45,36 @@ describe("cupom em partes lidas em paralelo", () => {
     expect(r.chave).toHaveLength(44);
   });
 });
+
+describe("onde esta o que faltou", () => {
+  const lidos = [
+    { nome: "leite", qtd: 12, unidade: "un", preco: 4.79 },
+    { nome: "papel higiênico", qtd: 1, unidade: "pct", preco: 22.9 },
+  ];
+  it("linha de fora vem com a posicao; quantidade igual a lida e descartada", async () => {
+    const { normalizaFalta } = await import("./cupom");
+    const r = normalizaFalta(
+      {
+        faltam: [
+          { tipo: "linha", texto: "OLEO SOJA LIZA 900ML", nome: "Óleo de soja", marca: "Liza", qtd: 2, unidade: "UN", preco: 7.99, depois_de: 1 },
+          { tipo: "quantidade", texto: "1 PCT X 22,90", nome: "papel", qtd: 1, preco: 22.9, depois_de: 2, indice: 2 },
+          { tipo: "quantidade", texto: "6 UN", nome: "leite", qtd: 6, preco: 4.79, depois_de: 1, indice: 1 },
+          { tipo: "linha", texto: "x", nome: "fora da lista", qtd: 1, preco: 1, depois_de: 99 },
+        ],
+      },
+      lidos,
+    );
+    expect(r.map((f) => [f.tipo, f.nome, f.depoisDe, f.indice])).toEqual([
+      ["linha", "óleo de soja", 1, 1],
+      ["quantidade", "leite", 1, 1],
+      ["linha", "fora da lista", 2, 0],
+    ]);
+    expect(r[0].unidade).toBe("un");
+  });
+  it("prompt numera a lista na ordem do cupom", async () => {
+    const { promptFalta } = await import("./cupom");
+    const p = promptFalta(lidos, 14, 13);
+    expect(p).toContain("1. leite | 12 un | R$ 4,79");
+    expect(p).toContain("faltam 1");
+  });
+});

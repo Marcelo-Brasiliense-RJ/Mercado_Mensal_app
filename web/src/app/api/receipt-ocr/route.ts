@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { lerCupom, totalConfere } from "@/lib/server/cupom";
+import { acharFaltantes, lerCupom, totalConfere, type LidoResumo } from "@/lib/server/cupom";
 
 // Foto do cupom -> itens. Duas leitoras:
 // 1. Gemini direto (lib/server/cupom.ts): qualquer estado, varias fotos do mesmo cupom
@@ -25,8 +25,21 @@ export async function POST(req: Request) {
   }
 
   let fotos: string[] = [];
+  // { images, falta: { lidos, qtd_itens, contados } }: segunda olhada para achar onde
+  // esta o item que a leitura nao pegou (FaltaNaNota)
+  let falta: { lidos: LidoResumo[]; qtd: number; contados: number } | null = null;
   try {
     const b = await req.json();
+    if (b?.falta && Array.isArray(b.falta.lidos)) {
+      falta = {
+        lidos: (b.falta.lidos as unknown[]).slice(0, 200).map((x) => {
+          const i = (x ?? {}) as Record<string, unknown>;
+          return { nome: String(i.nome ?? "").slice(0, 80), qtd: Number(i.qtd) || 1, unidade: String(i.unidade ?? "un").slice(0, 4), preco: Number(i.preco) || 0 };
+        }),
+        qtd: Number(b.falta.qtd_itens) || 0,
+        contados: Number(b.falta.contados) || 0,
+      };
+    }
     const lista = Array.isArray(b?.images) ? b.images : [b?.image];
     fotos = lista.filter((x: unknown): x is string => typeof x === "string" && x.startsWith("data:image/")).slice(0, MAX_FOTOS);
   } catch {
@@ -37,6 +50,12 @@ export async function POST(req: Request) {
   }
   if (fotos.some((f) => f.length > 4_000_000)) {
     return NextResponse.json({ ok: false, erro: "imagem_grande" }, { status: 413 });
+  }
+
+  if (falta) {
+    if (!(falta.qtd > 0) || !falta.lidos.length) return NextResponse.json({ ok: false, erro: "sem_dados" }, { status: 400 });
+    const f = await acharFaltantes(fotos, falta.lidos, falta.qtd, falta.contados);
+    return f ? NextResponse.json({ ok: true, faltam: f }) : NextResponse.json({ ok: false, erro: "ia_falhou" }, { status: 502 });
   }
 
   const c = await lerCupom(fotos);

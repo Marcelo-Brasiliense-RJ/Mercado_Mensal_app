@@ -210,3 +210,157 @@ async function lerUma(fotos: string[], modelos: string[]): Promise<({ ok: true }
     return { ok: false, erro: "ia_falhou" };
   }
 }
+
+// ---------------------------------------------------------------------------------
+// ONDE ESTA O QUE FALTOU (dono, 2026-11-12: "45 de 46: voce sabe mais ou menos onde nao
+// foi captado, para a pessoa olhar na nota e bater o alvo exato"). Segunda olhada na
+// foto, agora com a lista do que JA foi lido, em ordem, numerada: a IA so precisa achar
+// a diferenca. Devolve a linha que ficou de fora (com o texto como esta impresso e entre
+// quais linhas da lista ela fica) ou a linha da lista com a quantidade lida errada.
+export type Faltante = {
+  tipo: "linha" | "quantidade";
+  texto: string; // como esta impresso no cupom ("DESINF.BUFALO 1X2L")
+  nome: string;
+  marca: string;
+  qtd: number;
+  unidade: string;
+  preco: number;
+  depoisDe: number; // n da linha da lista logo acima (0 = antes da primeira)
+  indice: number; // tipo quantidade: n da linha da lista com a quantidade errada
+};
+export type LidoResumo = { nome: string; qtd: number; unidade: string; preco: number };
+
+const ESQUEMA_FALTA = {
+  type: "OBJECT",
+  properties: {
+    faltam: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: {
+          tipo: { type: "STRING", enum: ["linha", "quantidade"] },
+          texto: { type: "STRING" },
+          nome: { type: "STRING" },
+          marca: { type: "STRING" },
+          qtd: { type: "NUMBER" },
+          unidade: { type: "STRING" },
+          preco: { type: "NUMBER" },
+          depois_de: { type: "NUMBER" },
+          indice: { type: "NUMBER" },
+        },
+        required: ["tipo", "texto", "nome", "qtd", "preco", "depois_de"],
+      },
+    },
+  },
+  required: ["faltam"],
+};
+
+export function promptFalta(lidos: LidoResumo[], qtdItens: number, contados: number): string {
+  const lista = lidos.map((l, i) => `${i + 1}. ${l.nome} | ${String(l.qtd).replace(".", ",")} ${l.unidade} | R$ ${l.preco.toFixed(2).replace(".", ",")}`).join("\n");
+  return `Foto(s) de UM cupom fiscal de supermercado (se várias, partes do mesmo cupom, de cima para baixo). O rodapé diz "Qtde. total de itens ${qtdItens}" (a soma das quantidades; produto pesado em kg conta 1).
+Já li estas linhas, NA ORDEM do cupom (n. nome | qtd | preço unitário):
+${lista}
+Elas somam ${contados}; faltam ${qtdItens - contados}. Olhe o cupom LINHA POR LINHA, comparando com a lista, e ache o que ficou de fora:
+- tipo "linha": uma linha de produto do cupom que NÃO está na lista. "texto" = a descrição como está impressa; "nome" = o produto genérico em minúsculo (como na lista); "marca"; "qtd"; "unidade" (un, kg, g, L, ml, pct, cx, dz); "preco" = preço unitário; "depois_de" = o número da linha da lista que fica LOGO ACIMA dela no cupom (0 se ela é a primeira).
+- tipo "quantidade": uma linha da lista cuja quantidade foi lida errada. "indice" = o número dela na lista; "qtd" = a quantidade certa; "texto" = como está impressa; "depois_de" = o mesmo número.
+Devolva só o que você VÊ no cupom; não invente. Nada faltando que dê para ver: "faltam" vazio.`;
+}
+
+export function normalizaFalta(bruto: unknown, lidos: LidoResumo[]): Faltante[] {
+  const nLidos = lidos.length;
+  const arr = Array.isArray((bruto as { faltam?: unknown })?.faltam) ? (bruto as { faltam: unknown[] }).faltam : [];
+  return arr
+    .map((x) => {
+      const i = (x ?? {}) as Record<string, unknown>;
+      const u = String(i.unidade ?? "un").trim();
+      const tipo: Faltante["tipo"] = i.tipo === "quantidade" ? "quantidade" : "linha";
+      const qtd = Number(i.qtd);
+      const preco = Number(i.preco);
+      const dep = Math.round(Number(i.depois_de));
+      const ind = Math.round(Number(i.indice ?? i.depois_de));
+      return {
+        tipo,
+        texto: String(i.texto ?? "").trim(),
+        nome: String(i.nome ?? "").trim().toLowerCase(),
+        marca: String(i.marca ?? "").trim(),
+        qtd: Number.isFinite(qtd) && qtd > 0 ? +qtd.toFixed(3) : 1,
+        unidade: u.toLowerCase() === "l" ? "L" : UNIDADES.has(u.toLowerCase()) ? u.toLowerCase() : "un",
+        preco: Number.isFinite(preco) && preco >= 0 ? Math.round(preco * 100) / 100 : 0,
+        depoisDe: Number.isFinite(dep) ? Math.min(Math.max(0, dep), nLidos) : 0,
+        indice: Number.isFinite(ind) && ind >= 1 && ind <= nLidos ? ind : 0,
+      };
+    })
+    // "quantidade" com a mesma quantidade que ja foi lida nao corrige nada (visto no teste)
+    .filter((f) => (f.tipo === "linha" ? !!f.nome : f.indice > 0 && Math.abs(f.qtd - lidos[f.indice - 1].qtd) > 0.001))
+    .slice(0, 5);
+}
+
+export async function acharFaltantes(fotos: string[], lidos: LidoResumo[], qtdItens: number, contados: number): Promise<Faltante[] | null> {
+  const texto = promptFalta(lidos, qtdItens, contados);
+  const partes = fotos
+    .map((f) => f.match(/^data:(image\/[a-z]+);base64,(.+)$/))
+    .filter((m): m is RegExpMatchArray => !!m)
+    .map((m) => ({ inline_data: { mime_type: m[1], data: m[2] } }));
+  if (!partes.length) return null;
+  const google = (modelos: string[]) =>
+    gemini(
+      { contents: [{ parts: [...partes, { text: texto }] }], generationConfig: { responseMimeType: "application/json", responseSchema: ESQUEMA_FALTA, temperature: 0 } },
+      true,
+      PRAZO_MS - 2000,
+      PRAZO_MS - 2000,
+      modelos,
+    ).then((g) => (g.ok ? normalizaFalta(JSON.parse(g.texto), lidos) : Promise.reject(g)));
+  const corredores = LEITORAS_GOOGLE.map((m) => google(m));
+  if (process.env.OPENROUTER_API_KEY) corredores.push(faltaOpenRouter(fotos, texto, lidos));
+  // a primeira que ACHAR algo; se todas acharem nada, nada; se todas falharem, null
+  return new Promise((resolve) => {
+    let restam = corredores.length;
+    let vazio = false;
+    const t = setTimeout(() => resolve(vazio ? [] : null), PRAZO_MS);
+    for (const c of corredores) {
+      c.then(
+        (r) => {
+          if (r.length) {
+            clearTimeout(t);
+            return resolve(r);
+          }
+          vazio = true;
+        },
+        () => {},
+      ).finally(() => {
+        if (--restam === 0) {
+          clearTimeout(t);
+          resolve(vazio ? [] : null);
+        }
+      });
+    }
+  });
+}
+
+async function faltaOpenRouter(fotos: string[], texto: string, lidos: LidoResumo[]): Promise<Faltante[]> {
+  const r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${process.env.OPENROUTER_API_KEY}` },
+    body: JSON.stringify({
+      model: "google/gemini-2.5-flash",
+      temperature: 0,
+      max_tokens: 4000,
+      response_format: { type: "json_object" },
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: `${texto}\nResponda SOMENTE JSON compacto: {"faltam":[{"tipo","texto","nome","marca","qtd","unidade","preco","depois_de","indice"}]}` },
+            ...fotos.map((f) => ({ type: "image_url", image_url: { url: f } })),
+          ],
+        },
+      ],
+    }),
+    signal: AbortSignal.timeout(50000),
+  });
+  if (!r.ok) throw new Error(`openrouter ${r.status}`);
+  const j = (await r.json()) as { choices?: { message?: { content?: string } }[] };
+  let txt = (j.choices?.[0]?.message?.content ?? "").trim();
+  if (txt.startsWith("```")) txt = txt.replace(/^```[a-z]*\n?/, "").replace(/```$/, "");
+  return normalizaFalta(JSON.parse(txt), lidos);
+}

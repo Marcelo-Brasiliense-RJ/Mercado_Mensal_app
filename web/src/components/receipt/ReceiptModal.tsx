@@ -11,9 +11,11 @@ import { ItemGrid, type GridItem } from "./ItemGrid";
 import { Conferencia } from "./Conferencia";
 import { NotaEmPartes } from "./NotaEmPartes";
 import { ValidarNota } from "./ValidarNota";
+import { FaltaNaNota } from "./FaltaNaNota";
+import { inserirNaOrdem } from "@/lib/faltaNaNota";
 import { provaReal, type Cupom } from "@/lib/cupomPartes";
 import { daListaNaNota } from "@/lib/notaLista";
-import { conferir, esquecerUltimaCompra, lerUltimaCompra, type Conferencia as Conf, type ItemNota } from "@/lib/conferencia";
+import { conferir, esquecerUltimaCompra, lerUltimaCompra, type Conferencia as Conf, type ItemCarrinho, type ItemNota } from "@/lib/conferencia";
 import { createClient } from "@/lib/supabase/client";
 import type { CompraMes } from "@/lib/economia";
 import { avisarComprasMudaram, diaMes } from "@/lib/compras";
@@ -67,6 +69,10 @@ export function ReceiptModal({
   // Carrinho que acabou de fechar (guardado ao finalizar): com ele, a nota vira
   // conferencia carrinho x nota em vez da revisao simples.
   const [conf, setConf] = useState<Conf | null>(null);
+  // O carrinho da conferencia, para refazer a conta quando um item que faltou e preenchido
+  const [baseConf, setBaseConf] = useState<ItemCarrinho[] | null>(null);
+  // Fotos da nota (as que leram): a "segunda olhada" que acha onde esta o item que faltou
+  const [fotosNota, setFotosNota] = useState<string[]>([]);
   // Nota para uma compra ja registrada: nao e conferencia do ultimo carrinho.
   const ultima = open && !notaDaCompra ? lerUltimaCompra() : null;
   // O leitor de QR guarda a funcao do primeiro render: a compra-alvo vai por ref.
@@ -109,6 +115,8 @@ export function ReceiptModal({
     setColando(false);
     setLink("");
     setConf(null);
+    setBaseConf(null);
+    setFotosNota([]);
     setValidar(true);
     setNaCamera(false);
   }
@@ -166,6 +174,7 @@ export function ReceiptModal({
             unit_price: Number(c.price),
           }));
           if (!daCompra.length) return setPhase("review");
+          setBaseConf(daCompra);
           setConf(conferir(daCompra, nota, total));
           setPhase("conferencia");
         });
@@ -173,6 +182,7 @@ export function ReceiptModal({
     }
     const u = lerUltimaCompra();
     if (u) {
+      setBaseConf(u.itens);
       setConf(conferir(u.itens, nota, total));
       setPhase("conferencia");
     } else setPhase("review");
@@ -231,8 +241,9 @@ export function ReceiptModal({
   }
 
   // Nota pela foto, em partes guiadas (NotaEmPartes): cada parte ja vem lida e juntada.
-  function cupomPronto(c: Cupom, confereTotal: boolean) {
+  function cupomPronto(c: Cupom, confereTotal: boolean, fotos: string[] = []) {
     setSource("ocr");
+    setFotosNota(fotos);
     const lidos = c.itens.map((it) => ({
       nome: it.nome || "",
       marca: it.marca || "",
@@ -250,6 +261,30 @@ export function ReceiptModal({
     setQtdNota(c.qtdItens || 0);
     irParaRevisao(lidos.map((x) => ({ nome: x.nome, marca: x.marca, qtd: x.qtd, preco: x.preco, unidade: x.unidade })), c.total || 0);
   }
+
+  // Item que faltou na leitura, preenchido na FaltaNaNota: entra na ordem do cupom e a
+  // conferencia refaz a conta (ele cai em "Esqueceu de anotar" ou bate com o carrinho).
+  function atualizarNota(novos: Item[]) {
+    setItems(novos);
+    if (baseConf) setConf(conferir(baseConf, novos.filter((i) => i.nome.trim()), totalNota));
+  }
+  function adicionarNaNota(it: ItemNota, depoisDe: number) {
+    atualizarNota(inserirNaOrdem(items, { nome: it.nome, marca: it.marca ?? "", qtd: it.qtd, preco: it.preco, unidade: it.unidade, duvida: false }, depoisDe));
+  }
+  function corrigirQtdNaNota(indice: number, qtd: number) {
+    atualizarNota(items.map((it, i) => (i === indice - 1 ? { ...it, qtd } : it)));
+  }
+  const faltaNaNota =
+    source === "ocr" && qtdNota > 0 ? (
+      <FaltaNaNota
+        itens={items}
+        noCupom={qtdNota}
+        fotos={fotosNota}
+        produtos={stock.map((x) => ({ name: x.name, unit: x.unit, priceLast: x.priceLast }))}
+        onAdicionar={adicionarNaNota}
+        onCorrigirQtd={corrigirQtdNaNota}
+      />
+    ) : null;
 
   function patch(i: number, field: "nome" | "qtd" | "preco", value: string) {
     setItems((prev) =>
@@ -440,6 +475,8 @@ export function ReceiptModal({
     return (
       <div className="fixed inset-0 z-40 overflow-y-auto overscroll-contain bg-bg text-text">
         <Conferencia
+          key={items.length}
+          falta={faltaNaNota}
           conf={conf}
           busy={saving}
           mercado={emitente}
@@ -489,8 +526,10 @@ export function ReceiptModal({
         </div>
       )}
 
+      {phase === "review" && validar && <div className="-mx-4 mb-3">{faltaNaNota}</div>}
       {phase === "review" && validar && (
         <ValidarNota
+          key={items.length}
           itens={items}
           lista={shopping}
           conhecidos={stock.map((x) => x.name)}

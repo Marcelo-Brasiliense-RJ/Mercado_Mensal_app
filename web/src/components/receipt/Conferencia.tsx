@@ -17,7 +17,10 @@ export function Conferencia({
   onFechar,
   troca,
   daLista = [],
+  falta,
 }: {
+  // "45 de 46 itens · Falta 1 item" e a ajuda para preencher (FaltaNaNota)
+  falta?: React.ReactNode;
   conf: Conf;
   busy: boolean;
   mercado?: string;
@@ -94,6 +97,8 @@ export function Conferencia({
           </div>
         </div>
       </div>
+
+      {falta}
 
       {!nada && (
         <>

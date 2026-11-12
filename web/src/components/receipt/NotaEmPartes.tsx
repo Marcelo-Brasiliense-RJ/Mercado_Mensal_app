@@ -30,7 +30,7 @@ export function NotaEmPartes({
   comecarNaCamera?: boolean;
   titulo: string;
   lerArquivo: (f: File) => Promise<string>;
-  onPronto: (c: Cupom, confere: boolean) => void;
+  onPronto: (c: Cupom, confere: boolean, fotos: string[]) => void;
   onSair: () => void;
 }) {
   const [partes, setPartes] = useState<Parte[]>([]);
@@ -343,7 +343,7 @@ export function NotaEmPartes({
           <button
             type="button"
             disabled={!todasLidas}
-            onClick={() => cupom && onPronto(cupom, totalConfere(cupom))}
+            onClick={() => cupom && onPronto(cupom, totalConfere(cupom), okPartes.map((p) => p.foto))}
             className="h-[52px] rounded-full bg-brand text-[16px] font-extrabold text-brand-ink disabled:opacity-50"
           >
             {lendo ? "Lendo as fotos…" : bate ? "Conferir itens" : "Conferir assim mesmo"}
