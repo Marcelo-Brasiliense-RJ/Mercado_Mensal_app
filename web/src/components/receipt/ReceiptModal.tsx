@@ -345,20 +345,25 @@ export function ReceiptModal({
               <div className="mb-5 flex items-center gap-2 rounded-full bg-pos/20 px-3 py-1.5 text-[14px] font-bold text-[#7CE3A8] w-fit">
                 <span aria-hidden>✓</span> QR lido{qr.uf ? `: nota do ${qr.uf}` : ""}
               </div>
-              <h2 className="text-[28px] font-extrabold leading-tight">Agora, a foto da nota</h2>
-              <p className="mt-2 text-[15px] leading-snug text-white/70">
-                O site da Receita{qr.uf ? ` do ${qr.uf}` : ""} não mostra os itens pelo QR. Pela foto eu leio cada item e preço.
+              <h2 className="text-[26px] font-extrabold leading-tight">Falta só a foto da nota</h2>
+              <p className="mt-1 text-[14px] leading-snug text-white/60">
+                O site da Receita{qr.uf ? ` do ${qr.uf}` : ""} não mostra os itens pelo QR. Pela foto eu leio.
               </p>
-              <ul className="mt-5 space-y-3 text-[15px] leading-snug">
-                <li className="flex gap-3"><span aria-hidden className="w-6 shrink-0 text-center">📄</span><span>Cupom <b>inteiro</b> na foto, de perto e com luz</span></li>
-                <li className="flex gap-3"><span aria-hidden className="w-6 shrink-0 text-center">✂️</span><span>Cupom comprido? Tire <b>em partes</b>, até 6 fotos</span></li>
-                <li className="flex gap-3"><span aria-hidden className="w-6 shrink-0 text-center">🔒</span><span>O QR já garante que esta nota não entra duas vezes</span></li>
-              </ul>
-              {notaDaCompra && (
-                <p className="mt-5 rounded-[16px] bg-white/10 p-3 text-[14px] leading-snug text-white/85">
-                  Os itens da nota vão <b>substituir</b> os {notaDaCompra.itens} da compra de {diaMes(notaDaCompra.data)} ({brl(notaDaCompra.total)}). Você confere antes.
-                </p>
-              )}
+              <ol className="mt-5 space-y-3">
+                {[
+                  ["Toque em Tirar foto da nota", "Cupom inteiro, de perto, com luz. Comprido? Tire em partes."],
+                  ["Toque em Ler nota", "Eu leio cada item e preço."],
+                  [notaDaCompra ? "Confira e toque em Trocar pela nota" : "Confira e toque em Confirmar", notaDaCompra ? `Os ${notaDaCompra.itens} itens da compra de ${diaMes(notaDaCompra.data)} (${brl(notaDaCompra.total)}) viram os da nota.` : "Os itens entram no estoque e no gasto do mês."],
+                ].map(([t, d], n) => (
+                  <li key={n} className="flex gap-3">
+                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-brand text-[15px] font-extrabold text-brand-ink">{n + 1}</span>
+                    <span className="leading-snug">
+                      <span className="block text-[16px] font-bold">{t}</span>
+                      <span className="block text-[13px] text-white/60">{d}</span>
+                    </span>
+                  </li>
+                ))}
+              </ol>
             </div>
           ) : ultima ? (
             <p className="mt-[78vw] text-[16px] font-bold drop-shadow sm:mt-80">
