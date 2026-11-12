@@ -44,7 +44,18 @@ export function CameraCupom({
   const okRef = useRef(0); // quadros com luz e cupom na moldura (mesmo tremendo um pouco)
   const movsRef = useRef<number[]>([]);
 
-  // liga a camera
+  // As funcoes do pai chegam novas a cada render (o relogio "lendo... N s" redesenha a
+  // tela 1x por segundo). Ficam em ref: se fossem dependencia dos efeitos, a camera
+  // desligava e religava a cada segundo enquanto lia a foto anterior (tela piscando,
+  // contagem do quadro bom zerada = a Parte 2 nunca saia sozinha, e foto preta no botao).
+  const onFotoRef = useRef(onFoto);
+  const onSemCameraRef = useRef(onSemCamera);
+  useEffect(() => {
+    onFotoRef.current = onFoto;
+    onSemCameraRef.current = onSemCamera;
+  });
+
+  // liga a camera (uma vez so, enquanto a tela da camera estiver aberta)
   useEffect(() => {
     let vivo = true;
     abrirCamera()
@@ -53,12 +64,12 @@ export function CameraCupom({
         videoRef.current.srcObject = s;
         void videoRef.current.play().catch(() => {});
       })
-      .catch(() => vivo && onSemCamera());
+      .catch(() => vivo && onSemCameraRef.current());
     return () => {
       vivo = false;
       soltarCamera();
     };
-  }, [onSemCamera]);
+  }, []);
 
   const tirar = useCallback(() => {
     const v = videoRef.current;
@@ -74,8 +85,8 @@ export function CameraCupom({
     setFlash(true);
     setTimeout(() => setFlash(false), 180);
     navigator.vibrate?.(30);
-    onFoto(c.toDataURL("image/jpeg", 0.85));
-  }, [onFoto]);
+    onFotoRef.current(c.toDataURL("image/jpeg", 0.85));
+  }, []);
 
   // mede o quadro 4x por segundo; 4 quadros bons seguidos = foto automatica
   useEffect(() => {
