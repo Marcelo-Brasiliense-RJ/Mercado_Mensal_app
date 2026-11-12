@@ -326,3 +326,16 @@ describe("atualizar estoque: como as pessoas falam de verdade", () => {
     expect(q("preciso de arroz")).toBe(false);
   });
 });
+
+describe("peso falado em gramas", () => {
+  it("350 g de queijo a R$ 18 vira 0,35 kg a R$ 51,43 o kg (total 18)", async () => {
+    const { emKgOuL } = await import("./voz");
+    expect(emKgOuL(350, "g")).toEqual({ qtd: 0.35, unidade: "kg" });
+    expect(emKgOuL(500, "ml")).toEqual({ qtd: 0.5, unidade: "L" });
+    expect(emKgOuL(2, "un")).toEqual({ qtd: 2, unidade: "un" });
+    const [q] = normalizaItens([{ nome: "queijo mussarela", qtd: 350, unidade: "g", preco_total: 18, acao: "carrinho" }]);
+    expect(q).toMatchObject({ qtd: 0.35, unidade: "kg", preco: 51.43 });
+    const l = interpretarLocal("comprei 350 gramas de queijo mussarela 18 reais").itens[0];
+    expect(l).toMatchObject({ nome: "queijo mussarela", qtd: 0.35, unidade: "kg", preco: 51.43 });
+  });
+});

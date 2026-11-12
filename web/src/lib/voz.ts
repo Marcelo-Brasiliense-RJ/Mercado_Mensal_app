@@ -98,6 +98,14 @@ function numero(v: unknown): number | null {
   return null;
 }
 
+// "350 gramas de queijo a 18 reais": grama e mililitro viram kg e L. Senao o preco por
+// unidade sai R$ 0,05 o grama e toda conta depois (economia, comparar preco) desanda.
+export function emKgOuL(qtd: number, unidade: string): { qtd: number; unidade: string } {
+  if (unidade === "g" && qtd >= 10) return { qtd: +(qtd / 1000).toFixed(3), unidade: "kg" };
+  if (unidade === "ml" && qtd >= 10) return { qtd: +(qtd / 1000).toFixed(3), unidade: "L" };
+  return { qtd, unidade };
+}
+
 // Sanea o que o modelo devolveu: nome obrigatorio, quantidade positiva, unidade
 // deduzida do nome quando nao vier, e o preco TOTAL virando preco por unidade.
 export function normalizaItens(raw: unknown): VozItem[] {
@@ -110,13 +118,13 @@ export function normalizaItens(raw: unknown): VozItem[] {
     if (!nome) continue;
 
     const q = numero(o.qtd);
-    const qtd = q != null && q > 0 ? q : 1;
+    const bruta = q != null && q > 0 ? q : 1;
     const acao = String(o.acao ?? "");
     // Zero so conta como "acabou" quando e estoque; em outra acao e so "nao disse".
     const zerou = o.zerou === true || (q === 0 && acao === "estoque");
     const semQtd = acao === "estoque" && !zerou && (q == null || q < 0);
 
-    const unidade = String(o.unidade ?? "").trim() || unitFor(nome);
+    const { qtd, unidade } = emKgOuL(bruta, String(o.unidade ?? "").trim() || unitFor(nome));
 
     const total = numero(o.preco_total);
     const preco = total != null && total > 0 ? +(total / qtd).toFixed(2) : null;
@@ -458,11 +466,11 @@ export function interpretarLocal(texto: string, atualizar = false): {
       }
       continue;
     }
-    const qtd = p.qtd != null && p.qtd > 0 ? p.qtd : 1;
+    const { qtd, unidade } = emKgOuL(p.qtd != null && p.qtd > 0 ? p.qtd : 1, p.unidade ?? unitFor(p.nome));
     itens.push({
       nome: p.nome,
       qtd,
-      unidade: p.unidade ?? unitFor(p.nome),
+      unidade,
       preco: p.preco != null && p.preco > 0 ? +(p.preco / qtd).toFixed(2) : null,
       ...(p.zerou && p.acao !== "remover" ? { zerou: true } : {}),
       ...(p.qtd == null && !p.zerou && p.acao === "estoque" ? { semQtd: true } : {}),
