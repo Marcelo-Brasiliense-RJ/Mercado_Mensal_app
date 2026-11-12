@@ -13,6 +13,7 @@ import { NotaEmPartes } from "./NotaEmPartes";
 import { ValidarNota } from "./ValidarNota";
 import { FaltaNaNota } from "./FaltaNaNota";
 import { inserirNaOrdem } from "@/lib/faltaNaNota";
+import { limparNome } from "@/lib/nomeNota";
 import { comecarNota, descartarNota, notaAtual } from "@/lib/filaNota";
 import { fecharComTotalPago, provaReal, type Cupom } from "@/lib/cupomPartes";
 import { daListaNaNota } from "@/lib/notaLista";
@@ -150,7 +151,7 @@ export function ReceiptModal({
     }
     setItems(
       resp.itens.map((it) => ({
-        nome: it.nome || "",
+        nome: limparNome(it.nome || ""),
         marca: it.marca || "",
         qtd: Number(it.qtd) || 1,
         preco: Number(it.preco) || 0,
@@ -161,7 +162,7 @@ export function ReceiptModal({
     setEmitente(resp.emitente);
     setTotalNota(resp.total_nota);
     setConfere(resp.total_confere);
-    irParaRevisao(resp.itens.map((it) => ({ nome: it.nome || "", marca: it.marca || "", qtd: Number(it.qtd) || 1, preco: Number(it.preco) || 0, unidade: it.unidade || "un" })), resp.total_nota);
+    irParaRevisao(resp.itens.map((it) => ({ nome: limparNome(it.nome || ""), marca: it.marca || "", qtd: Number(it.qtd) || 1, preco: Number(it.preco) || 0, unidade: it.unidade || "un" })), resp.total_nota);
   }, []);
   const semCamera = useCallback(() => {}, []);
 
@@ -254,7 +255,8 @@ export function ReceiptModal({
     setSource("ocr");
     setFotosNota(fotos);
     const lidos = c.itens.map((it) => ({
-      nome: it.nome || "",
+      // revisao do nome antes de salvar, com os nomes que a casa ja usa (lib/nomeNota)
+      nome: limparNome(it.nome || "", stock.map((x) => x.name)),
       marca: it.marca || "",
       qtd: Number(it.qtd) || 1,
       preco: Number(it.preco) || 0,

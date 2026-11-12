@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { FotoItem } from "@/components/ui/FotoItem";
 import { brl } from "@/lib/format";
 import { ondeFica, prova, sugerirProdutos, type LinhaNota } from "@/lib/faltaNaNota";
+import { limparNome } from "@/lib/nomeNota";
 
 // "45 de 46 itens · 97% · Falta 1 item" na nota lida, e a ajuda para achar e preencher o
 // que faltou (pedido do dono, 2026-11-12): a IA olha a foto de novo sabendo o que JA foi
@@ -107,7 +108,7 @@ export function FaltaNaNota({
     const preco = Number(form.preco.replace(",", ".")) || 0;
     if (!form.nome.trim() || !preco) return;
     const unidade = produtos.find((p) => p.name.toLowerCase() === form.nome.trim().toLowerCase())?.unit ?? "un";
-    onAdicionar({ nome: form.nome.trim().toLowerCase(), qtd, unidade, preco }, form.depoisDe);
+    onAdicionar({ nome: limparNome(form.nome, produtos.map((p) => p.name)).toLowerCase(), qtd, unidade, preco }, form.depoisDe);
     setFaltam((l) => l.filter((f) => !(f.tipo === "linha" && f.depoisDe === form.depoisDe && f.nome === form.nome)));
     setForm(null);
   }

@@ -4,6 +4,7 @@
 // cupom, em ordem, e a IA junta sem repetir o trecho que aparece em duas.
 // So no servidor.
 import { gemini, type RespostaGemini } from "./gemini";
+import { limparNome } from "../nomeNota";
 
 import { consertarLinha, consistencia, descontoNaLinha, juntarPartes, provaReal, totalConfere, type Cupom, type ItemCupom } from "../cupomPartes";
 export { juntarPartes, totalConfere, type Cupom, type ItemCupom };
@@ -65,7 +66,8 @@ export function normalizaCupom(bruto: unknown): Cupom {
       const qtd = Number(i.qtd);
       const preco = Number(i.preco);
       return {
-        nome: String(i.nome ?? "").trim().toLowerCase(),
+        // sem abreviacao de cupom ("sab liq" -> sabonete liquido), sem IA (lib/nomeNota)
+        nome: limparNome(String(i.nome ?? "")).toLowerCase(),
         marca: String(i.marca ?? "").trim(),
         qtd: Number.isFinite(qtd) && qtd > 0 ? +qtd.toFixed(3) : 1,
         unidade,
