@@ -65,3 +65,18 @@ export const DICA: Record<Veredito, string> = {
   firme: "✋ Segure firme",
   foco: "Toque no cupom na tela para focar, ou afaste um pouquinho",
 };
+
+// Onde um retangulo da TELA (a moldura) cai no quadro do video, com o video em
+// object-cover (escala para cobrir a tela e corta as sobras, centralizado). Serve para o
+// "encaixe estas linhas": o fim da parte anterior tem que ser o que estava DENTRO da
+// moldura, no mesmo tamanho, nao o fim da foto inteira (que pega mesa, QR e rodape e em
+// outra escala: print do dono, 2026-11-12, 'pegando uma parte nada a ver').
+export type Ret = { x: number; y: number; w: number; h: number };
+export function recorteNoVideo(videoW: number, videoH: number, tela: Ret, alvo: Ret): Ret {
+  const s = Math.max(tela.w / videoW, tela.h / videoH);
+  const ox = tela.x + (tela.w - videoW * s) / 2;
+  const oy = tela.y + (tela.h - videoH * s) / 2;
+  const x = Math.max(0, (alvo.x - ox) / s);
+  const y = Math.max(0, (alvo.y - oy) / s);
+  return { x, y, w: Math.min(videoW - x, alvo.w / s), h: Math.min(videoH - y, alvo.h / s) };
+}

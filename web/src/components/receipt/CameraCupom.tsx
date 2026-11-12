@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { abrirCamera, soltarCamera } from "@/lib/camera";
-import { DICA, medir, veredito, type Veredito } from "@/lib/quadroCupom";
+import { DICA, medir, recorteNoVideo, veredito, type Veredito } from "@/lib/quadroCupom";
 
 // Camera do PROPRIO app para fotografar a nota (pedido do dono: "a aplicacao vai
 // identificando se o enquadramento ta bom e vai separando as partes"). A camera do
@@ -20,6 +20,7 @@ export type ParteCamera = { foto: string; estado: "lendo" | "ok" | "erro"; itens
 
 const ANALISE_W = 120; // quadro reduzido para medir (rapido no celular)
 const FOTO_MAX = 1600;
+const FAIXA = 0.2; // pedaco do fim da parte anterior mostrado no topo da moldura
 
 export function CameraCupom({
   partes,
@@ -37,6 +38,9 @@ export function CameraCupom({
   onSemCamera: () => void;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const molduraRef = useRef<HTMLDivElement>(null);
+  // Fim da parte anterior, recortado de DENTRO da moldura no momento da foto.
+  const [fantasma, setFantasma] = useState<string | null>(null);
   const [dica, setDica] = useState<Veredito | null>(null);
   const [flash, setFlash] = useState(false);
   const melhorRef = useRef(0);
@@ -78,6 +82,17 @@ export function CameraCupom({
     c.width = Math.round(v.videoWidth * escala);
     c.height = Math.round(v.videoHeight * escala);
     c.getContext("2d")!.drawImage(v, 0, 0, c.width, c.height);
+    // Fim da moldura (o que a pessoa via na faixa de baixo dela), para encaixar a proxima
+    const mold = molduraRef.current?.getBoundingClientRect();
+    const tela = v.getBoundingClientRect();
+    if (mold && tela.width) {
+      const r = recorteNoVideo(v.videoWidth, v.videoHeight, { x: tela.x, y: tela.y, w: tela.width, h: tela.height }, { x: mold.x, y: mold.bottom - mold.height * FAIXA, w: mold.width, h: mold.height * FAIXA });
+      const f = document.createElement("canvas");
+      f.width = Math.round(Math.min(720, r.w));
+      f.height = Math.round((f.width * r.h) / r.w);
+      f.getContext("2d")!.drawImage(v, r.x, r.y, r.w, r.h, 0, 0, f.width, f.height);
+      setFantasma(f.toDataURL("image/jpeg", 0.75));
+    }
     setFlash(true);
     setTimeout(() => setFlash(false), 180);
     navigator.vibrate?.(30);
@@ -112,7 +127,6 @@ export function CameraCupom({
   }, [fim]);
 
   const n = partes.length + 1;
-  const ultima = partes[partes.length - 1];
   const orientacao = fim
     ? "✓ Chegou ao TOTAL. Toque em Pronto."
     : n === 1
@@ -136,23 +150,23 @@ export function CameraCupom({
       </div>
 
       {/* moldura do cupom, com o fantasma da parte anterior no topo */}
-      <div className="relative z-10 flex flex-1 items-center justify-center px-6 py-3">
-        <div className="relative aspect-[3/4] w-full max-w-[360px] rounded-[18px] border-[3px] border-white/90 shadow-[0_0_0_9999px_rgba(0,0,0,0.45)]">
-          {!fim && ultima && (
+      <div className="relative z-10 flex flex-1 items-center justify-center px-6 pb-12 pt-3">
+        <div ref={molduraRef} className="relative aspect-[3/4] w-full max-w-[360px] rounded-[18px] shadow-[0_0_0_9999px_rgba(0,0,0,0.45)] outline outline-[3px] outline-white/90">
+          {!fim && fantasma && partes.length > 0 && (
             <div
               aria-hidden
-              className="absolute inset-x-0 top-0 h-[18%] rounded-t-[15px] opacity-45"
-              style={{ backgroundImage: `url(${ultima.foto})`, backgroundSize: "100% auto", backgroundPosition: "bottom", backgroundRepeat: "no-repeat" }}
+              className="absolute inset-x-0 top-0 h-[20%] rounded-t-[18px] opacity-50"
+              style={{ backgroundImage: `url(${fantasma})`, backgroundSize: "100% 100%" }}
             />
           )}
-          {!fim && ultima && (
-            <span className="absolute left-1/2 top-[18%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-black/60 px-2.5 py-0.5 text-[11px] font-bold">
+          {!fim && fantasma && partes.length > 0 && (
+            <span className="absolute left-1/2 top-[20%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-black/60 px-2.5 py-0.5 text-[11px] font-bold">
               encaixe estas linhas
             </span>
           )}
           {!fim && dica && (
-            <div className={`absolute inset-x-3 bottom-3 rounded-full px-3 py-2 text-center text-[14px] font-extrabold ${corDica}`}>
-              {dica === "bom" ? "✓ Luz e foco ok. Letras grandes? Toque no botão" : DICA[dica]}
+            <div className={`absolute inset-x-0 top-full mt-2 rounded-full px-3 py-1.5 text-center text-[13px] font-extrabold ${corDica}`}>
+              {dica === "bom" ? "✓ Luz e foco ok: toque no botão" : DICA[dica]}
             </div>
           )}
         </div>
