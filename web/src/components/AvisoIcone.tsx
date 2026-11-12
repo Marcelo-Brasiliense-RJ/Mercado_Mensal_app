@@ -9,8 +9,15 @@ import { useEffect, useState } from "react";
 // icone ganharam nome novo para ele perceber a troca), entao la nao aparece.
 const CHAVE = "aviso_icone_cesta_v1";
 
+// Instalacao NOVA abre pelo start_url do manifesto, que agora tem ?pwa=2: essa ja tem o
+// icone novo e nunca ve o aviso. A antiga guardou o start_url velho (sem a marca).
+// "id" fixo no manifesto: trocar o start_url nao vira "outro app" no Android.
 function deveMostrar(): boolean {
   try {
+    if (new URLSearchParams(location.search).get("pwa") === "2") {
+      localStorage.setItem(CHAVE, "1");
+      return false;
+    }
     if (localStorage.getItem(CHAVE)) return false;
   } catch {
     return false; // sem como lembrar que ja mostrou: melhor nao insistir
@@ -57,13 +64,27 @@ export function AvisoIcone() {
             <p className="text-[13px] text-text-2">No iPhone ele só aparece se você instalar de novo.</p>
           </div>
         </div>
-        <ol className="mb-4 space-y-2 text-[14px] leading-snug">
-          <li><b>1.</b> Na tela inicial, segure o ícone <b>Despensa</b> e toque em <b>Remover App</b> → <b>Remover da Tela de Início</b>.</li>
-          <li><b>2.</b> Abra o <b>Safari</b> em <b>{typeof location !== "undefined" ? location.host : ""}</b>.</li>
-          <li><b>3.</b> Toque em <b>Compartilhar</b> (quadrado com seta) → <b>Adicionar à Tela de Início</b>.</li>
+        {/* Ordem pensada para o celular: primeiro abre o Safari (com o app ainda ali para
+            tocar no botao), instala o novo e so no fim apaga o velho. x-safari-https abre o
+            Safari de verdade (iOS 17+); um link normal abriria dentro do proprio app. */}
+        <a
+          href={`x-safari-${typeof location !== "undefined" ? location.origin : ""}/app/estoque`}
+          onClick={() => {
+            try {
+              localStorage.setItem(CHAVE, "1");
+            } catch {}
+          }}
+          className="mb-3 flex h-12 w-full items-center justify-center gap-2 rounded-full bg-brand text-[15px] font-extrabold text-brand-ink"
+        >
+          1. Abrir no Safari ↗
+        </a>
+        <ol start={2} className="mb-4 space-y-2 text-[14px] leading-snug">
+          <li><b>2.</b> No Safari, toque em <b>Compartilhar</b> (quadrado com seta) → <b>Adicionar à Tela de Início</b> → <b>Adicionar</b>.</li>
+          <li><b>3.</b> Apague o ícone antigo: segure o <b>Despensa</b> velho → <b>Remover App</b> → <b>Remover da Tela de Início</b>.</li>
         </ol>
         <p className="mb-4 rounded-[12px] bg-card-2 p-3 text-[12px] leading-snug text-text-2">
           Sua despensa, lista e compras ficam guardadas na conta. Talvez peça para entrar de novo com e-mail e senha.
+          Se o botão não abrir o Safari, copie o endereço e cole no Safari.
         </p>
         <div className="flex gap-2">
           <button type="button" onClick={() => void copiar()} className="h-12 flex-1 rounded-full bg-card-2 text-[14px] font-bold">
