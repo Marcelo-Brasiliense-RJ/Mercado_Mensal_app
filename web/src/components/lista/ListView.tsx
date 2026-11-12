@@ -18,6 +18,7 @@ import { categoriaDe } from "@/lib/categorias";
 import { RotaModal } from "./RotaModal";
 import { MontarLista } from "./MontarLista";
 import { useListaOfertas, useOfertas } from "@/components/ofertas/useOfertas";
+import { useEvitar } from "@/components/ofertas/useEvitar";
 import { NaoCompro } from "@/components/ofertas/NaoCompro";
 import { useLivelo } from "@/components/ofertas/useLivelo";
 import { comPontos, ofertasLivelo } from "@/lib/livelo";
@@ -25,7 +26,7 @@ import { corMercado, corredor, faltaEmCasa, maisBarataPara, nomeMercado, porMerc
 import { MercadoModal, type ItemMercado } from "./MercadoModal";
 import { useRouter } from "next/navigation";
 import { CartIcon } from "@/components/ui/icons";
-import { setModoMercado } from "@/lib/modoMercado";
+import { setModoMercado, useModoMercado } from "@/lib/modoMercado";
 import { categoriaDoItem, iconeDe, useCategorias } from "@/components/estoque/useCategorias";
 
 export function ListView() {
@@ -85,6 +86,9 @@ export function ListView() {
   const resumoLista = resumir(ofertas, faltaEmCasa(pendentes, []));
   const [rotaAberta, setRotaAberta] = useState(false);
   const [ondeAberto, setOndeAberto] = useState(false);
+  const [naoAberto, setNaoAberto] = useState(false);
+  const naoComproN = useEvitar().length;
+  const modoMercado = useModoMercado();
   const [montar, setMontar] = useState(false);
   const [receita, setReceita] = useState(false);
   const cats = useCategorias();
@@ -206,23 +210,56 @@ export function ListView() {
       <ScreenHeader title="Lista de compras" action={addBtn} />
 
       <div className="space-y-4 lg:space-y-6">
-        {/* Redesenho aprovado (Claude Design): um botao grande para ir ao mercado e quatro
-            atalhos, no lugar da pilha de cards (modo mercado, montar lista, nao comprar). */}
+        {/* Topo da Lista, opcao B escolhida pelo dono no Claude Design (2026-11-12): um cartao
+            escuro com o que falta comprar e o botao do mercado dentro, a oferta numa linha, e
+            os atalhos pequenos. Antes: botao + 4 atalhos + Nao comprar + Onde compensa
+            ocupavam mais da metade da tela antes do primeiro item. */}
         <div className="space-y-2">
-          <button
-            onClick={() => {
-              setModoMercado(true);
-              router.push("/app/mercado");
-            }}
-            className="flex h-[60px] w-full items-center gap-3 rounded-full bg-[var(--barra)] pl-5 pr-2 text-white"
+          {/* Modo mercado LIGADO: cartao escuro, botao laranja para a aba Mercado. DESLIGADO:
+              cartao claro e um botao discreto para ligar (pedido do dono). */}
+          <div
+            className={`rounded-[22px] px-[18px] pb-3 pt-3.5 ${
+              modoMercado ? "bg-[var(--barra)] text-white" : "bg-card text-text shadow-[0_2px_12px_var(--shadow)]"
+            }`}
           >
-            <CartIcon size={24} />
-            <span className="min-w-0 flex-1 truncate text-left text-[17px] font-extrabold">{trip ? "Voltar ao mercado" : "Estou no mercado"}</span>
-            <span className="flex h-11 shrink-0 items-center rounded-full bg-[var(--barra-ativa)] px-4 text-[14px] font-extrabold text-[var(--barra-ativa-ink)]">
-              {trip ? `${trip.items.length} no carrinho` : "Começar"}
-            </span>
-          </button>
-          <div className="grid grid-cols-4 gap-1.5">
+            <div className={`text-[12px] font-bold uppercase tracking-[0.06em] ${modoMercado ? "text-white/60" : "text-text-3"}`}>
+              {trip ? "No carrinho" : "Falta comprar"}
+            </div>
+            <div className="text-[24px] font-extrabold leading-tight tabular-nums">
+              {trip ? `${trip.items.length} ${trip.items.length === 1 ? "item" : "itens"}` : `${missing} ${missing === 1 ? "item" : "itens"}`}{" "}
+              <span className={modoMercado ? "text-[var(--barra-ativa)]" : "text-brand"}>{trip ? brl(trip.total) : `~${brl(total)}`}</span>
+            </div>
+            <div className="mt-2 flex items-center justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                {mercadosComOferta.length > 0 && resumoLista.mercados[0] ? (
+                  <button
+                    onClick={() => setOndeAberto((v) => !v)}
+                    aria-expanded={ondeAberto}
+                    className={`block max-w-full truncate text-left text-[13px] font-semibold underline-offset-2 hover:underline ${modoMercado ? "text-white/75" : "text-text-2"}`}
+                  >
+                    🏷 {nomeMercado(resumoLista.mercados[0].mercado)}: {resumoLista.mercados[0].itens} em oferta {ondeAberto ? "▴" : "›"}
+                  </button>
+                ) : (
+                  trip && pendentes.length > 0 && <span className={`text-[13px] ${modoMercado ? "text-white/75" : "text-text-2"}`}>Falta pegar {pendentes.length}</span>
+                )}
+              </div>
+              <button
+                onClick={() => {
+                  setModoMercado(true);
+                  router.push("/app/mercado");
+                }}
+                className={
+                  modoMercado
+                    ? "flex h-11 shrink-0 items-center gap-1.5 rounded-full bg-[var(--barra-ativa)] px-4 text-[14px] font-extrabold text-[var(--barra-ativa-ink)] active:scale-95"
+                    : "flex h-10 shrink-0 items-center gap-1.5 rounded-full border border-border bg-card-2 px-3.5 text-[13px] font-bold text-text active:scale-95"
+                }
+              >
+                <CartIcon size={modoMercado ? 18 : 16} />
+                {modoMercado ? (trip ? "Voltar ao mercado" : "Modo mercado ›") : "Estou no mercado"}
+              </button>
+            </div>
+          </div>
+          <div className="grid grid-cols-4 gap-2">
             {(
               [
                 // Um toque poe na lista tudo o que esta abaixo do normal em casa; sem nada
@@ -230,16 +267,22 @@ export function ListView() {
                 ["⚡", doMes.length ? (montando ? "Pondo…" : `Repor ${doMes.length}`) : "Montar", () => (doMes.length ? void montarMes() : setMontar(true))],
                 ["🎤", "Falar", () => setVoiceOpen(true)],
                 ["🍝", "Receita", () => setReceita(true)],
-                ["🚫", "Não comprar", () => document.getElementById("nao-compro")?.scrollIntoView({ behavior: "smooth", block: "center" })],
+                ["🚫", "Não comprar", () => setNaoAberto((v) => !v)],
               ] as const
             ).map(([ic, rot, fn]) => (
               <button
-                key={rot}
+                key={ic}
                 onClick={fn}
-                className="flex h-16 flex-col items-center justify-center gap-1 rounded-[18px] bg-card text-[12px] font-bold active:scale-95"
+                aria-label={ic === "🚫" && naoComproN ? `Não comprar: ${naoComproN}` : undefined}
+                className="relative flex h-[52px] flex-col items-center justify-center gap-0.5 rounded-[16px] bg-card text-[12px] font-bold active:scale-95"
               >
-                <span className="text-[19px] leading-none" aria-hidden>{ic}</span>
-                <span className="max-w-full truncate px-1">{rot}</span>
+                <span className="text-[17px] leading-none" aria-hidden>{ic}</span>
+                <span className={`max-w-full truncate ${rot.length > 9 ? "px-0.5 text-[11px] tracking-[-0.01em]" : "px-1"}`}>{rot}</span>
+                {ic === "🚫" && naoComproN > 0 && (
+                  <span className="absolute right-1.5 top-1.5 grid h-5 min-w-5 place-items-center rounded-full bg-card-2 px-1 text-[11px] font-extrabold text-text-2">
+                    {naoComproN}
+                  </span>
+                )}
               </button>
             ))}
           </div>
@@ -275,32 +318,18 @@ export function ListView() {
         </div>
 
         {/* Nao compro (0045): os produtos ruins, aqui onde a lista e montada. */}
-        <div id="nao-compro">
-          <NaoCompro ofertas={ofertasMercado} escondidas={escondidas} />
-        </div>
+        {naoAberto && (
+          <div id="nao-compro">
+            <NaoCompro ofertas={ofertasMercado} escondidas={escondidas} inicialAberto />
+          </div>
+        )}
 
         {/* Onde compensa: cada mercado com quantos itens da lista e quanto sai la.
             Tocar filtra a lista por aquele mercado, na ordem dos corredores. */}
         {/* No mercado (carrinho aberto) fica fechado numa linha: a tela e de pegar. */}
-        {trip && !ondeAberto && mercadosComOferta.length > 0 && resumoLista.mercados[0] && (
-          <button
-            onClick={() => setOndeAberto(true)}
-            aria-expanded={false}
-            className="flex w-full items-center justify-between gap-3 rounded-2xl border border-border bg-card px-3.5 py-3 text-left"
-          >
-            <span className="min-w-0">
-              <span className="block text-[16px] font-extrabold">🏆 Onde compensa comprar</span>
-              <span className="block truncate text-[12px] text-text-2">
-                {nomeMercado(resumoLista.mercados[0].mercado)}: {resumoLista.mercados[0].itens} de {pendentes.length} itens em
-                oferta · {brl(resumoLista.mercados[0].total)}
-              </span>
-            </span>
-            <span className="text-[18px] text-text-3" aria-hidden>⌄</span>
-          </button>
-        )}
-        {(!trip || ondeAberto) && mercadosComOferta.length > 0 && (
+        {ondeAberto && mercadosComOferta.length > 0 && (
           <div className="rounded-[18px] border border-border bg-card p-3.5">
-            {trip && (
+            {(
               <button onClick={() => setOndeAberto(false)} className="float-right -mt-1 h-8 px-2 text-[13px] font-bold text-text-3">
                 Fechar
               </button>

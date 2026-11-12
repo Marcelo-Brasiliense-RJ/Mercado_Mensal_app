@@ -25,9 +25,9 @@ import { desmarcarRuim, marcarNaoComprar, marcarRuim, useEvitar } from "./useEvi
 // 📦 Em excesso: tem demais em casa ("nao comprar leite esse mes"); fica em
 // observacao, com o estoque do lado, ate poder comprar de novo. Nao esconde oferta.
 // A voz poe aqui sozinha: "nao comprar X" entra como excesso; falou mal, entra como ruim.
-export function NaoCompro({ ofertas, escondidas = 0 }: { ofertas: Oferta[]; escondidas?: number }) {
+export function NaoCompro({ ofertas, escondidas = 0, inicialAberto = false }: { ofertas: Oferta[]; escondidas?: number; inicialAberto?: boolean }) {
   const itens = useEvitar();
-  const [aberto, setAberto] = useState(false);
+  const [aberto, setAberto] = useState(inicialAberto);
   const [marcar, setMarcar] = useState(false);
   const ruins = itens.filter((e) => !ehExcesso(e));
   const excesso = itens.filter(ehExcesso);
