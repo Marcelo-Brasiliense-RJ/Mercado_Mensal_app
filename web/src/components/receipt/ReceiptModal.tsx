@@ -10,6 +10,7 @@ import { chaveDoQr, invokeNfce, ufDaChave } from "@/lib/nfce";
 import { ItemGrid, type GridItem } from "./ItemGrid";
 import { Conferencia } from "./Conferencia";
 import { NotaEmPartes } from "./NotaEmPartes";
+import { ValidarNota } from "./ValidarNota";
 import { provaReal, type Cupom } from "@/lib/cupomPartes";
 import { daListaNaNota } from "@/lib/notaLista";
 import { conferir, esquecerUltimaCompra, lerUltimaCompra, type Conferencia as Conf, type ItemNota } from "@/lib/conferencia";
@@ -53,7 +54,9 @@ export function ReceiptModal({
   open: boolean;
   onClose: () => void;
 }) {
-  const { confirmReceipt, showToast, updateCompra, reloadData, notaDaCompra, shopping, buyItems } = useStore();
+  const { confirmReceipt, showToast, updateCompra, reloadData, notaDaCompra, shopping, buyItems, stock } = useStore();
+  // Revisao: primeiro a validacao facil (so as duvidas); "Ver e editar todos" abre a grade.
+  const [validar, setValidar] = useState(true);
   async function riscarDaLista(ids: string[]) {
     if (!ids.length) return 0;
     const r = await buyItems(ids);
@@ -104,6 +107,7 @@ export function ReceiptModal({
     setColando(false);
     setLink("");
     setConf(null);
+    setValidar(true);
   }
 
   // QR ou link da nota: tenta a SEFAZ (itens prontos, sem foto). A do RJ barra acesso de
@@ -263,7 +267,7 @@ export function ReceiptModal({
 
   // Nota de uma compra ja registrada: os itens da nota SUBSTITUEM os da compra, na mesma
   // data (o carrinho anotou 820, a nota foi 1.800). Gasto e estoque nao duplicam.
-  async function trocarNaCompra(clean: Item[]) {
+  async function trocarNaCompra(clean: Item[], riscar?: string[]) {
     if (!notaDaCompra) return;
     const { data, error } = await createClient().rpc("mercado_compra_nota_web", {
       p_id: notaDaCompra.id,
@@ -284,7 +288,7 @@ export function ReceiptModal({
             : "Não consegui trocar a nota. Tente de novo.",
       );
     }
-    const riscados = await riscarDaLista(daLista.map((x) => x.id));
+    const riscados = await riscarDaLista(riscar ?? daLista.map((x) => x.id));
     await reloadData();
     avisarComprasMudaram();
     showToast(
@@ -293,11 +297,12 @@ export function ReceiptModal({
     close();
   }
 
-  async function confirm() {
-    const clean = items.filter((i) => i.nome.trim());
+  // lista/riscar: vindos da validacao (ValidarNota); sem eles, o que esta na tela.
+  async function confirm(lista?: Item[], riscar?: string[]) {
+    const clean = (lista ?? items).filter((i) => i.nome.trim());
     if (!clean.length) return;
     setSaving(true);
-    if (notaDaCompra) return trocarNaCompra(clean);
+    if (notaDaCompra) return trocarNaCompra(clean, riscar);
     try {
       const res = await confirmReceipt(
         clean,
@@ -313,7 +318,7 @@ export function ReceiptModal({
         }
         return;
       }
-      const riscados = await riscarDaLista(daLista.map((x) => x.id));
+      const riscados = await riscarDaLista(riscar ?? daLista.map((x) => x.id));
       showToast(`${clean.length} itens adicionados ao estoque${riscados ? ` · ${riscados} riscados da lista` : ""}`);
       close();
     } catch {
@@ -480,7 +485,23 @@ export function ReceiptModal({
         </div>
       )}
 
-      {phase === "review" && (
+      {phase === "review" && validar && (
+        <ValidarNota
+          itens={items}
+          lista={shopping}
+          conhecidos={stock.map((x) => x.name)}
+          busy={saving}
+          rotuloSalvar={notaDaCompra ? "Trocar pela nota" : "Salvar"}
+          onSalvar={(final, riscar) => {
+            setItems(final);
+            void confirm(final, riscar);
+          }}
+          onEditarTodos={() => setValidar(false)}
+          onCancelar={close}
+        />
+      )}
+
+      {phase === "review" && !validar && (
         <>
           <div className="mb-1 flex items-center gap-2">
             <span className="grid h-[26px] w-[26px] place-items-center rounded-lg bg-pos-soft text-pos">
@@ -535,7 +556,7 @@ export function ReceiptModal({
               Cancelar
             </button>
             <button
-              onClick={confirm}
+              onClick={() => void confirm()}
               disabled={saving || items.length === 0}
               className="h-[50px] flex-[1.6] rounded-[14px] bg-brand text-[15px] font-bold text-brand-ink disabled:opacity-50"
             >
