@@ -11,6 +11,7 @@ import { ItemGrid, type GridItem } from "./ItemGrid";
 import { Conferencia } from "./Conferencia";
 import { NotaEmPartes } from "./NotaEmPartes";
 import { provaReal, type Cupom } from "@/lib/cupomPartes";
+import { daListaNaNota } from "@/lib/notaLista";
 import { conferir, esquecerUltimaCompra, lerUltimaCompra, type Conferencia as Conf, type ItemNota } from "@/lib/conferencia";
 import { createClient } from "@/lib/supabase/client";
 import type { CompraMes } from "@/lib/economia";
@@ -52,7 +53,12 @@ export function ReceiptModal({
   open: boolean;
   onClose: () => void;
 }) {
-  const { confirmReceipt, showToast, updateCompra, reloadData, notaDaCompra } = useStore();
+  const { confirmReceipt, showToast, updateCompra, reloadData, notaDaCompra, shopping, buyItems } = useStore();
+  async function riscarDaLista(ids: string[]) {
+    if (!ids.length) return 0;
+    const r = await buyItems(ids);
+    return r.ok ? ids.length : 0;
+  }
   // Carrinho que acabou de fechar (guardado ao finalizar): com ele, a nota vira
   // conferencia carrinho x nota em vez da revisao simples.
   const [conf, setConf] = useState<Conf | null>(null);
@@ -70,6 +76,9 @@ export function ReceiptModal({
   const [link, setLink] = useState("");
   const [phase, setPhase] = useState<Phase>("capture");
   const [items, setItems] = useState<Item[]>([]);
+  // O que veio na nota risca da lista o item certo (dono: "fazer o match correto do que
+  // veio da nota com o que esta na lista"), mesmo com nome diferente.
+  const daLista = daListaNaNota(shopping, items.filter((i) => i.nome.trim()));
   const [saving, setSaving] = useState(false);
   // Origem da leitura: "qr" (SEFAZ) usa dedup pela chave; "ocr" (foto) nao tem chave.
   const [source, setSource] = useState<"qr" | "ocr">("qr");
@@ -135,7 +144,27 @@ export function ReceiptModal({
 
   // Com a ultima compra guardada: conferencia. Sem: revisao para gravar na despensa.
   function irParaRevisao(nota: ItemNota[], total: number) {
-    const u = notaRef.current ? null : lerUltimaCompra();
+    // Nota de uma compra ja registrada: confere com o que o carrinho anotou NELA (itens da
+    // compra no banco), com foto e marca; o botao troca a compra pela nota.
+    const alvo = notaRef.current;
+    if (alvo) {
+      setPhase("processing");
+      void createClient()
+        .rpc("mercado_compra_itens_web", { p_id: alvo.id })
+        .then(({ data }) => {
+          const daCompra = ((data as { itens?: CompraMes[] } | null)?.itens ?? []).map((c) => ({
+            name: c.name,
+            quantity: Number(c.qty),
+            unit: c.unit,
+            unit_price: Number(c.price),
+          }));
+          if (!daCompra.length) return setPhase("review");
+          setConf(conferir(daCompra, nota, total));
+          setPhase("conferencia");
+        });
+      return;
+    }
+    const u = lerUltimaCompra();
     if (u) {
       setConf(conferir(u.itens, nota, total));
       setPhase("conferencia");
@@ -255,9 +284,12 @@ export function ReceiptModal({
             : "Não consegui trocar a nota. Tente de novo.",
       );
     }
+    const riscados = await riscarDaLista(daLista.map((x) => x.id));
     await reloadData();
     avisarComprasMudaram();
-    showToast(`Compra de ${diaMes(notaDaCompra.data)}: ${brl(Number(d.antes))} → ${brl(Number(d.depois))} pela nota`);
+    showToast(
+      `Compra de ${diaMes(notaDaCompra.data)}: ${brl(Number(d.antes))} → ${brl(Number(d.depois))} pela nota${riscados ? ` · ${riscados} riscados da lista` : ""}`,
+    );
     close();
   }
 
@@ -281,7 +313,8 @@ export function ReceiptModal({
         }
         return;
       }
-      showToast(`${clean.length} itens adicionados ao estoque`);
+      const riscados = await riscarDaLista(daLista.map((x) => x.id));
+      showToast(`${clean.length} itens adicionados ao estoque${riscados ? ` · ${riscados} riscados da lista` : ""}`);
       close();
     } catch {
       setSaving(false);
@@ -398,7 +431,26 @@ export function ReceiptModal({
   if (open && phase === "conferencia" && conf) {
     return (
       <div className="fixed inset-0 z-40 overflow-y-auto overscroll-contain bg-bg text-text">
-        <Conferencia conf={conf} busy={saving} mercado={emitente} onAplicar={(e, c) => void aplicarConferencia(e, c)} onFechar={close} />
+        <Conferencia
+          conf={conf}
+          busy={saving}
+          mercado={emitente}
+          onAplicar={(e, c) => void aplicarConferencia(e, c)}
+          onFechar={close}
+          daLista={daLista.map((x) => x.name)}
+          troca={
+            notaDaCompra
+              ? {
+                  onTrocar: () => {
+                    const clean = items.filter((i) => i.nome.trim());
+                    if (!clean.length) return;
+                    setSaving(true);
+                    void trocarNaCompra(clean);
+                  },
+                }
+              : undefined
+          }
+        />
       </div>
     );
   }
@@ -465,6 +517,13 @@ export function ReceiptModal({
           ) : (
             <div className="mb-3.5 text-[14px] text-text-2">
               Confira e ajuste antes de adicionar ao estoque. Toque para editar.
+            </div>
+          )}
+          {daLista.length > 0 && (
+            <div className="mb-3 rounded-[12px] bg-pos-soft px-3 py-2.5 text-[13px] leading-snug">
+              <b>📝 Vai riscar {daLista.length} da lista:</b>{" "}
+              {daLista.slice(0, 8).map((x) => x.name).join(", ")}
+              {daLista.length > 8 ? ` e mais ${daLista.length - 8}` : ""}
             </div>
           )}
           <ItemGrid items={items} onPatch={patch} onRemove={remove} />

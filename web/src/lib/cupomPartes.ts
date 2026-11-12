@@ -2,7 +2,31 @@
 // (lib/server/cupom.ts) e no celular (components/receipt/NotaEmPartes.tsx): o celular le
 // cada parte assim que a foto e tirada e junta aqui.
 
-export type ItemCupom = { nome: string; marca: string; qtd: number; unidade: string; preco: number; duvida: boolean };
+export type ItemCupom = { nome: string; marca: string; qtd: number; unidade: string; preco: number; duvida: boolean; totalLinha?: number };
+
+// Conserta a linha pelo TOTAL impresso (o dado mais firme do cupom). Visto na nota real
+// do dono: "BEB LACTEA 27X200ML 1 CXA 29,43" lido como 27 cx (o 27 e o tamanho do pacote)
+// e "ALCATRA 4,136 kg x 47,90" lido a R$ 7,90. Total/preco inteiro -> e a quantidade;
+// senao o preco e total/quantidade.
+export function consertarLinha<T extends Pick<ItemCupom, "qtd" | "preco" | "totalLinha">>(i: T): T {
+  const t = i.totalLinha ?? 0;
+  if (!(t > 0) || Math.abs(i.qtd * i.preco - t) <= Math.max(0.05, t * 0.01)) return i;
+  if (i.preco > 0) {
+    const q = Math.round(t / i.preco);
+    if (q >= 1 && Math.abs(q * i.preco - t) <= 0.05) return { ...i, qtd: q };
+  }
+  if (i.qtd > 0) return { ...i, preco: Math.round((t / i.qtd) * 100) / 100 };
+  return i;
+}
+
+// Conferencia de cada linha sem precisar do rodape: qtd x preco = total da linha impresso.
+// IA rapida que le quantidade errada (6 pacotes como 1) falha aqui. 1 = todas batem.
+export function consistencia(itens: Pick<ItemCupom, "qtd" | "preco" | "totalLinha">[]): number {
+  const comTotal = itens.filter((i) => (i.totalLinha ?? 0) > 0);
+  if (comTotal.length < 3) return 0;
+  const boas = comTotal.filter((i) => Math.abs(i.qtd * i.preco - (i.totalLinha ?? 0)) <= Math.max(0.05, (i.totalLinha ?? 0) * 0.01));
+  return boas.length / comTotal.length;
+}
 // qtdItens: a "Qtde. total de itens" do rodape (0 = nao apareceu na foto).
 export type Cupom = { itens: ItemCupom[]; total: number; emitente: string; chave: string; qtdItens: number };
 
@@ -52,14 +76,29 @@ export function totalConfere(c: Pick<Cupom, "itens" | "total">): boolean {
 // semEmenda: indices i (>= 1) em que a parte i NAO repetiu nada do fim da parte i-1: ali
 // provavelmente ficou um pedaco do cupom de fora (e o lugar para mostrar a pessoa).
 export function juntarComEmendas(partes: Cupom[]): { cupom: Cupom; semEmenda: number[] } {
-  const igual = (a: ItemCupom, b: ItemCupom) => a.nome === b.nome && a.preco === b.preco && a.qtd === b.qtd;
+  // A mesma linha lida em duas fotos (as vezes por IAs diferentes) vem com o nome um pouco
+  // diferente ("biscoito piraque wafer" x "bisc. piraque wafer"): vale preco + quantidade +
+  // o comeco do nome.
+  const raiz = (n: string) => n.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z]/g, "").slice(0, 3);
+  const igual = (a: ItemCupom, b: ItemCupom) =>
+    Math.abs(a.preco - b.preco) < 0.015 && Math.abs(a.qtd - b.qtd) < 0.001 && (a.nome === b.nome || raiz(a.nome) === raiz(b.nome));
+  const chaves = (l: ItemCupom[]) => l.map((i) => `${i.preco.toFixed(2)}|${+i.qtd.toFixed(3)}`).sort();
   const itens: ItemCupom[] = [];
   const semEmenda: number[] = [];
   partes.forEach((p, idx) => {
     let pular = 0;
     const fim = itens.slice(-20);
     for (let k = Math.min(20, p.itens.length, fim.length); k > 0; k--) {
-      if (p.itens.slice(0, k).every((it, i) => igual(it, fim[fim.length - k + i]))) {
+      const ini = p.itens.slice(0, k);
+      const cauda = fim.slice(fim.length - k);
+      // 2+ linhas: o mesmo CONJUNTO de preco x quantidade (a IA troca a ordem e o nome de
+      // uma linha ou outra: "catchup" x "ketchup", wafer 6 e 3 invertidos na nota real).
+      // 1 linha so: tem que ser a mesma linha, nome incluido.
+      const bate =
+        k >= 2
+          ? chaves(ini).join() === chaves(cauda).join()
+          : igual(ini[0], cauda[0]);
+      if (bate) {
         pular = k;
         break;
       }

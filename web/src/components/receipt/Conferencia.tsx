@@ -15,12 +15,19 @@ export function Conferencia({
   mercado,
   onAplicar,
   onFechar,
+  troca,
+  daLista = [],
 }: {
   conf: Conf;
   busy: boolean;
   mercado?: string;
   onAplicar: (esquecidos: ItemNota[], corrigirPrecos: boolean) => void;
   onFechar: () => void;
+  // Nota de uma compra ja registrada: a nota manda (o que entra no estoque e o gasto e
+  // o que ela diz). Em vez de "Atualizar despensa", troca a compra inteira pela nota.
+  troca?: { onTrocar: () => void };
+  // Itens da lista que a nota vai riscar (nome da lista)
+  daLista?: string[];
 }) {
   const [marcados, setMarcados] = useState<Set<number>>(() => new Set(conf.soNaNota.map((_, i) => i)));
   const [verIguais, setVerIguais] = useState(false);
@@ -107,7 +114,7 @@ export function Conferencia({
           </div>
           {conf.soNaNota.map((n, i) => (
             <label key={i} className={linha}>
-              <FotoItem nome={n.nome} className="h-11 w-11 shrink-0 rounded-xl" />
+              <FotoItem nome={[n.nome, n.marca].filter(Boolean).join(" ")} className="h-11 w-11 shrink-0 rounded-xl" />
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-[15px] font-bold capitalize">{n.nome}</span>
                 <span className="block truncate text-[12px] text-text-3">
@@ -139,7 +146,7 @@ export function Conferencia({
           <div className={cab}>Preço diferente</div>
           {conf.diferentes.map((x, i) => (
             <div key={i} className={linha}>
-              <FotoItem nome={x.c.name} className="h-11 w-11 shrink-0 rounded-xl" />
+              <FotoItem nome={[x.n.nome, x.n.marca].filter(Boolean).join(" ") || x.c.name} className="h-11 w-11 shrink-0 rounded-xl" />
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-[15px] font-bold capitalize">{x.c.name}</span>
                 <span className="block truncate text-[12px] text-text-3">
@@ -184,7 +191,7 @@ export function Conferencia({
             <div className="px-3.5 pb-2">
               {conf.iguais.map((x, i) => (
                 <div key={i} className={linha}>
-                  <FotoItem nome={x.c.name} className="h-9 w-9 shrink-0 rounded-xl" />
+                  <FotoItem nome={[x.n.nome, x.n.marca].filter(Boolean).join(" ") || x.c.name} className="h-9 w-9 shrink-0 rounded-xl" />
                   <span className="min-w-0 flex-1 truncate text-[14px] font-bold capitalize">{x.c.name}</span>
                   <span className="shrink-0 text-[14px] tabular-nums text-text-2">{brl(valorLinhaNota(x.n))}</span>
                 </div>
@@ -194,9 +201,33 @@ export function Conferencia({
         </div>
       )}
 
+      {daLista.length > 0 && (
+        <div className={card}>
+          <div className={cab}>📝 Da lista, vai riscar {daLista.length}</div>
+          <p className="pb-2 text-[13px] leading-snug text-text-2">
+            {daLista.slice(0, 12).join(", ")}
+            {daLista.length > 12 ? ` e mais ${daLista.length - 12}` : ""}
+          </p>
+        </div>
+      )}
+
       <div className="flex-1" />
       <div className="sticky bottom-0 mt-4 flex flex-col gap-2 bg-gradient-to-t from-bg from-70% to-transparent px-4 pb-[max(16px,env(safe-area-inset-bottom))] pt-3">
-        {!nada && (
+        {troca && (
+          <button
+            onClick={troca.onTrocar}
+            disabled={busy}
+            className="flex h-[58px] items-center justify-center gap-2.5 rounded-full bg-[var(--barra)] text-[16px] font-extrabold text-white disabled:opacity-50"
+          >
+            {busy ? "Trocando…" : "Trocar pela nota"}
+            {!busy && (
+              <span className="rounded-full bg-[var(--barra-ativa)] px-2.5 py-0.5 text-[13px] font-extrabold text-[var(--barra-ativa-ink)]">
+                {brl(conf.totalNota)}
+              </span>
+            )}
+          </button>
+        )}
+        {!troca && !nada && (
           <button
             onClick={() => onAplicar(conf.soNaNota.filter((_, i) => marcados.has(i)), nPrecos > 0)}
             disabled={busy || (nItens === 0 && nPrecos === 0)}
@@ -214,7 +245,7 @@ export function Conferencia({
           onClick={onFechar}
           className={nada ? "h-[58px] rounded-full bg-[var(--barra)] text-[16px] font-extrabold text-white" : "h-12 rounded-full text-[15px] font-bold text-text-2"}
         >
-          {nada ? "Fechar" : "Agora não"}
+          {troca ? "Agora não" : nada ? "Fechar" : "Agora não"}
         </button>
       </div>
     </div>
