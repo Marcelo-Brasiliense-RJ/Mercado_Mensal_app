@@ -134,7 +134,9 @@ export function NotaEmPartes({
   const qtd = cupom?.qtdItens ?? 0;
   const lidos = cupom ? contarComoNoCupom(cupom.itens) : 0;
   const nome = (p: Parte) => `foto ${partes.indexOf(p) + 1}`;
-  const buracos = todasLidas ? (junta?.semEmenda ?? []).map((i) => ({ antes: okPartes[i - 1], depois: okPartes[i] })) : [];
+  // Leu itens de sobra: nao e buraco (buraco so faz faltar), entao nao manda tirar o meio
+  const sobra = qtd > 0 && lidos > qtd;
+  const buracos = todasLidas && !sobra ? (junta?.semEmenda ?? []).map((i) => ({ antes: okPartes[i - 1], depois: okPartes[i] })) : [];
   const borradas = todasLidas ? okPartes.map((p) => ({ p, n: p.cupom!.itens.filter((it) => it.duvida).length })).filter((x) => x.n > 0) : [];
   const ultimaOk = okPartes[okPartes.length - 1];
   const semTotal = todasLidas && !qtd && !cupom?.total;
@@ -171,8 +173,11 @@ export function NotaEmPartes({
   } else if (bate) {
     tituloAgora = `✓ ${qtd} de ${qtd} itens`;
     instrucao = <>Prova real ok: li todos os itens que o cupom diz. Toque em <b>Conferir itens</b>.</>;
+  } else if (sobra) {
+    tituloAgora = `${lidos - qtd} ${lidos - qtd === 1 ? "item" : "itens"} a mais`;
+    instrucao = <>Alguma linha entrou repetida ou uma quantidade foi lida a mais. Confira na próxima tela.</>;
   } else {
-    tituloAgora = qtd ? `Faltam ${Math.max(0, qtd - lidos)} itens` : "Confira o que faltou";
+    tituloAgora = qtd ? `Faltam ${qtd - lidos} itens` : "Confira o que faltou";
     instrucao = <>Veja abaixo <b>onde faltou</b> e toque no botão.</>;
   }
 

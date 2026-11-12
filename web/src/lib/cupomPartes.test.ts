@@ -100,3 +100,44 @@ describe("emenda da nota real (ordem e nome trocados)", () => {
     expect(r.cupom.itens.map((i) => i.nome)).toEqual(["mostarda", "catchup", "maionese", "pao de forma", "wafer", "wafer", "wafer", "passatempo", "piraque"]);
   });
 });
+
+describe("fotos que pegaram o cupom quase inteiro (print do dono: 'Li 90 de 46')", () => {
+  // 32 linhas, precos distintos; algumas com qtd > 1, como a nota real
+  const linhas = Array.from({ length: 32 }, (_, i) => ({ nome: `item${i}`, marca: "", qtd: i % 5 === 0 ? 2 : 1, unidade: "un", preco: 3 + i * 0.37, duvida: false }));
+  const qtd = linhas.reduce((t, l) => t + l.qtd, 0);
+
+  it("as duas repetem quase tudo: nao soma, fica cada linha uma vez", async () => {
+    const { juntarComEmendas, contarComoNoCupom } = await import("./cupomPartes");
+    const foto1 = cup([]);
+    foto1.itens = linhas.slice(0, 31).map((l, i) => (i === 7 ? { ...l, preco: l.preco + 1 } : l)); // sem a ultima e uma lida errada
+    const foto2 = cup([], { qtdItens: qtd + 5 }); // rodape diz outra coisa: nenhuma foto sozinha fecha
+    foto2.itens = linhas.slice(1).map((l) => ({ ...l, nome: l.nome.toUpperCase() }));
+    const r = juntarComEmendas([foto1, foto2]);
+    expect(r.semEmenda).toEqual([]);
+    expect(r.cupom.itens).toHaveLength(32);
+    expect(contarComoNoCupom(r.cupom.itens)).toBe(qtd);
+  });
+
+  it("uma foto sozinha fecha a prova real: fica com ela", async () => {
+    const { juntarComEmendas } = await import("./cupomPartes");
+    const ruim = cup([]);
+    ruim.itens = linhas.slice(0, 20).map((l) => ({ ...l, preco: l.preco + 0.5 })); // tudo lido torto: nao emenda
+    const inteira = cup([], { qtdItens: qtd, total: 99 });
+    inteira.itens = linhas;
+    const r = juntarComEmendas([ruim, inteira]);
+    expect(r.cupom.itens).toBe(linhas);
+    expect(r.semEmenda).toEqual([]);
+    expect(r.cupom.total).toBe(99);
+  });
+
+  it("metades de verdade (sem repeticao) continuam apontando o buraco", async () => {
+    const { juntarComEmendas } = await import("./cupomPartes");
+    const cima = cup([]);
+    cima.itens = linhas.slice(0, 14);
+    const baixo = cup([], { qtdItens: qtd });
+    baixo.itens = linhas.slice(18);
+    const r = juntarComEmendas([cima, baixo]);
+    expect(r.semEmenda).toEqual([1]);
+    expect(r.cupom.itens).toHaveLength(28);
+  });
+});
