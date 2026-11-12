@@ -1,6 +1,6 @@
 "use client";
 
-import { useModoMercado } from "./modoMercado";
+import { modoMercadoEsquecido, setModoMercado, useModoMercado } from "./modoMercado";
 import {
   createContext,
   useCallback,
@@ -844,6 +844,11 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   // "parece que o modo mercado esta ativo a todo momento"). Uma compra vazia esquecida
   // aberta no banco nao pode deixar a Lista com cara de mercado.
   const modoMercado = useModoMercado();
+  // Modo mercado esquecido ligado (carrinho vazio ha mais de 12 h): desliga sozinho, senao
+  // a Lista fica com cara de mercado para sempre (print do dono, 2026-11-12).
+  useEffect(() => {
+    if (dataReady && modoMercado && modoMercadoEsquecido(data.trip?.items.length ?? 0)) setModoMercado(false);
+  }, [dataReady, modoMercado, data.trip]);
   const value = useMemo<Store>(
     () => ({
       ...data,

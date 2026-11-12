@@ -27,13 +27,37 @@ function ler(): boolean {
   }
 }
 
+const DESDE = "modo_mercado_desde";
+const ESQUECIDO_MS = 12 * 60 * 60 * 1000;
+
 export function setModoMercado(ligado: boolean): void {
   memoria = ligado;
   try {
-    if (ligado) localStorage.setItem(CHAVE, "1");
-    else localStorage.removeItem(CHAVE);
+    if (ligado) {
+      localStorage.setItem(CHAVE, "1");
+      localStorage.setItem(DESDE, String(Date.now()));
+    } else {
+      localStorage.removeItem(CHAVE);
+      localStorage.removeItem(DESDE);
+    }
   } catch {}
   window.dispatchEvent(new Event(EVENTO));
+}
+
+// Modo ligado ha mais de 12 h com o carrinho vazio = esquecido ligado (ninguem fica 12 h
+// no mercado sem pegar nada). Sem a hora gravada (ligado antes desta versao), tambem
+// conta como esquecido. Carrinho com itens nunca desliga sozinho.
+export function modoMercadoEsquecido(itensNoCarrinho: number, agora = Date.now(), desde?: number | null): boolean {
+  if (itensNoCarrinho > 0) return false;
+  let d = desde;
+  if (d === undefined) {
+    try {
+      d = Number(localStorage.getItem(DESDE)) || null;
+    } catch {
+      d = null;
+    }
+  }
+  return !d || agora - d > ESQUECIDO_MS;
 }
 
 function ouvir(f: () => void) {

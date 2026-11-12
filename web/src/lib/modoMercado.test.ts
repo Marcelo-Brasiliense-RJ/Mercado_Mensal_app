@@ -124,3 +124,17 @@ describe("casos do uso real (print do dono)", () => {
     expect(contem("sabao em po", "sabao liquido")).toBe(false);
   });
 });
+
+describe("modo mercado esquecido", () => {
+  it("carrinho com itens nunca desliga sozinho", async () => {
+    const { modoMercadoEsquecido } = await import("./modoMercado");
+    expect(modoMercadoEsquecido(3, Date.now(), null)).toBe(false);
+  });
+  it("vazio ha mais de 12 h, ou sem hora gravada, desliga", async () => {
+    const { modoMercadoEsquecido } = await import("./modoMercado");
+    const agora = Date.now();
+    expect(modoMercadoEsquecido(0, agora, agora - 13 * 3600e3)).toBe(true);
+    expect(modoMercadoEsquecido(0, agora, null)).toBe(true);
+    expect(modoMercadoEsquecido(0, agora, agora - 2 * 3600e3)).toBe(false);
+  });
+});
