@@ -102,27 +102,46 @@ function confiavel(c: Cupom): boolean {
   return !c.qtdItens || provaReal(c.itens, c.qtdItens)?.bate === true;
 }
 
-// CORRIDA (dono: "nao pode ficar 5.000 anos processando"). Medido na nota real do dono:
-// Google direto (forte) 37 s e certo; Gemini 2.5 Flash pela OpenRouter 10 s mas as vezes
-// le quantidade errada. As duas leem juntas; a rapida so vale se passar na conferencia
-// (confiavel); senao espera a outra. Sem OPENROUTER_API_KEY, so o Google, como antes.
+// CORRIDA (dono: "nao pode ficar 5.000 anos processando"). Todas as leitoras comecam
+// JUNTAS e vale a primeira que passar na conferencia (confiavel). Antes o Google tentava
+// um modelo DEPOIS do outro: em 2026-11-12 o 3.5-flash dava 503 ou ficava 40 s mudo, o
+// 2.5-flash (o unico que respondia) precisava de ~45 s e nunca sobrava prazo para ele;
+// a foto falhava inteira. Correndo juntos, cada um tem o prazo todo.
+// Leitoras: Google 3.5-flash, Google 2.5-flash, Google lite e, com OPENROUTER_API_KEY,
+// Gemini 2.5 Flash pela OpenRouter (~6 s, cobra centavos; sem credito so falha).
+const LEITORAS_GOOGLE = [["gemini-3.5-flash"], ["gemini-2.5-flash"], ["gemini-3.5-flash-lite", "gemini-flash-lite-latest"]];
+const PRAZO_MS = 55000; // cabe no limite de 60 s da rota
+
+// Nenhuma passou na conferencia: a melhor das que leram (prova real > linhas que batem >
+// mais linhas).
+function nota(c: Cupom): number {
+  const pr = c.qtdItens ? provaReal(c.itens, c.qtdItens)?.bate : false;
+  return (pr ? 1000 : 0) + consistencia(c.itens) * 100 + c.itens.length;
+}
+
 async function lerCorrida(fotos: string[]): Promise<Lido> {
-  const corredores: Promise<Lido>[] = [lerUma(fotos)];
+  const corredores: Promise<Lido>[] = LEITORAS_GOOGLE.map((m) => lerUma(fotos, m));
   if (process.env.OPENROUTER_API_KEY) corredores.push(lerOpenRouter(fotos, "google/gemini-2.5-flash"));
-  if (corredores.length === 1) return corredores[0];
   const feitos: Lido[] = [];
   return new Promise<Lido>((resolve) => {
     let restam = corredores.length;
+    const melhor = () => {
+      const oks = feitos.filter((x): x is { ok: true } & Cupom => x.ok && x.itens.length > 0);
+      if (oks.length) return oks.sort((a, b) => nota(b) - nota(a))[0];
+      // "limite" (espere N s) so se TODAS estao sem cota; senao e falha passageira
+      const lim = feitos.filter((x): x is { ok: false; erro: "limite"; espera: number } => !x.ok && x.erro === "limite");
+      if (feitos.length === corredores.length && lim.length === feitos.length) return lim.sort((a, b) => a.espera - b.espera)[0];
+      return { ok: false, erro: "ia_falhou" } as Lido;
+    };
+    // prazo da rota: entrega o melhor que tiver (uma leitora lenta nao derruba a foto)
+    const t = setTimeout(() => resolve(melhor()), PRAZO_MS);
     for (const c of corredores) {
       void c.then((r) => {
         feitos.push(r);
         restam--;
-        if (r.ok && confiavel(r)) return resolve(r);
-        if (restam === 0) {
-          // ninguem passou na conferencia: o Google (o mais certo) se leu; senao o que leu mais
-          const oks = feitos.filter((x): x is { ok: true } & Cupom => x.ok);
-          const google = corredores[0];
-          void google.then((g) => resolve(g.ok ? g : oks.sort((a, b) => b.itens.length - a.itens.length)[0] ?? feitos[0]));
+        if ((r.ok && confiavel(r)) || restam === 0) {
+          clearTimeout(t);
+          resolve(r.ok && confiavel(r) ? r : melhor());
         }
       });
     }
@@ -137,13 +156,15 @@ async function lerOpenRouter(fotos: string[], modelo: string): Promise<Lido> {
       body: JSON.stringify({
         model: modelo,
         temperature: 0,
-        max_tokens: 4000,
+        // 4000 cortava a resposta no meio no cupom do mes (32+ linhas em JSON identado =
+        // ~3.000 tokens so de texto) e a leitura inteira falhava ("Unexpected end of JSON").
+        max_tokens: 12000,
         response_format: { type: "json_object" },
         messages: [
           {
             role: "user",
             content: [
-              { type: "text", text: `${LER_CUPOM}\nResponda SOMENTE JSON: {"itens":[{"nome","marca","qtd","unidade","preco","duvida","total_linha"}],"total","emitente","chave","qtd_itens"}` },
+              { type: "text", text: `${LER_CUPOM}\nResponda SOMENTE JSON compacto, numa linha so, sem espacos nem quebras: {"itens":[{"nome","marca","qtd","unidade","preco","duvida","total_linha"}],"total","emitente","chave","qtd_itens"}` },
               ...fotos.map((f) => ({ type: "image_url", image_url: { url: f } })),
             ],
           },
@@ -155,7 +176,8 @@ async function lerOpenRouter(fotos: string[], modelo: string): Promise<Lido> {
       console.error("cupom: openrouter", modelo, r.status, (await r.text().catch(() => "")).slice(0, 200));
       return { ok: false, erro: "ia_falhou" };
     }
-    const j = (await r.json()) as { choices?: { message?: { content?: string } }[] };
+    const j = (await r.json()) as { choices?: { finish_reason?: string; message?: { content?: string } }[] };
+    if (j.choices?.[0]?.finish_reason === "length") console.error("cupom: openrouter", modelo, "resposta cortada (max_tokens)");
     let txt = (j.choices?.[0]?.message?.content ?? "").trim();
     if (txt.startsWith("```")) txt = txt.replace(/^```[a-z]*\n?/, "").replace(/```$/, "");
     return { ok: true, ...normalizaCupom(JSON.parse(txt)) };
@@ -165,7 +187,7 @@ async function lerOpenRouter(fotos: string[], modelo: string): Promise<Lido> {
   }
 }
 
-async function lerUma(fotos: string[]): Promise<({ ok: true } & Cupom) | Exclude<RespostaGemini, { ok: true }>> {
+async function lerUma(fotos: string[], modelos: string[]): Promise<({ ok: true } & Cupom) | Exclude<RespostaGemini, { ok: true }>> {
   const partes = fotos
     .map((f) => f.match(/^data:(image\/[a-z]+);base64,(.+)$/))
     .filter((m): m is RegExpMatchArray => !!m)
@@ -176,9 +198,10 @@ async function lerUma(fotos: string[]): Promise<({ ok: true } & Cupom) | Exclude
       contents: [{ parts: [...partes, { text: LER_CUPOM }] }],
       generationConfig: { responseMimeType: "application/json", responseSchema: ESQUEMA, temperature: 0 },
     },
-    true, // cupom longo e abreviado: modelo forte na frente
-    50000,
-    55000, // cabe no limite de 60 s da rota
+    true,
+    PRAZO_MS - 2000,
+    PRAZO_MS - 2000,
+    modelos,
   );
   if (!g.ok) return g;
   try {

@@ -37,3 +37,63 @@ describe("gemini: limite x falha passageira", () => {
     expect(r).toEqual({ ok: true, texto: "ok" });
   });
 });
+
+describe("gemini: modelo sobrecarregado sai da frente", () => {
+  beforeEach(() => {
+    process.env.GEMINI_API_KEY = "a";
+    process.env.GEMINI_API_KEY_2 = "b";
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("503 num modelo: a proxima chamada nem tenta nele (vai direto no que responde)", async () => {
+    vi.resetModules();
+    const urls: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+      const m = String(url).match(/models\/([^:]+)/)![1];
+      urls.push(m);
+      return m === "forte" ? r503() : r200();
+    }));
+    const { gemini } = await import("./gemini");
+    expect(await gemini({}, false, 1000, undefined, ["forte", "lite"])).toEqual({ ok: true, texto: "ok" });
+    expect(await gemini({}, false, 1000, undefined, ["forte", "lite"])).toEqual({ ok: true, texto: "ok" });
+    expect(urls).toEqual(["forte", "lite", "lite"]);
+  });
+
+  it("modelo mudo (estoura o prazo): pula para o proximo modelo, nao para a outra chave do mesmo", async () => {
+    vi.resetModules();
+    const urls: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (url: string, init: RequestInit) => {
+      const m = String(url).match(/models\/([^:]+)/)![1];
+      urls.push(m);
+      if (m === "forte") {
+        return new Promise<Response>((_, rej) => init.signal!.addEventListener("abort", () => rej(init.signal!.reason)));
+      }
+      return r200();
+    }));
+    const { gemini } = await import("./gemini");
+    expect(await gemini({}, false, 50, undefined, ["forte", "lite"])).toEqual({ ok: true, texto: "ok" });
+    expect(urls).toEqual(["forte", "lite"]);
+  });
+});
+
+describe("gemini: todos sobrecarregados", () => {
+  beforeEach(() => {
+    process.env.GEMINI_API_KEY = "a";
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("depois de todos darem 503, a proxima chamada tenta de novo (nao falha em 0 s)", async () => {
+    vi.resetModules();
+    let fora = true;
+    const urls: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+      urls.push(String(url).match(/models\/([^:]+)/)![1]);
+      return fora ? r503() : r200();
+    }));
+    const { gemini } = await import("./gemini");
+    expect((await gemini({}, false, 1000, undefined, ["x"])).ok).toBe(false);
+    fora = false;
+    expect(await gemini({}, false, 1000, undefined, ["x"])).toEqual({ ok: true, texto: "ok" });
+    expect(urls).toEqual(["x", "x"]);
+  });
+});

@@ -18,6 +18,13 @@ const descanso = new Map<string, number>(); // "modelo|chave" -> livre a partir 
 // "modelo|chave" que deu 404: essa chave nao tem esse modelo. Fica fora do rodizio
 // (nao entra na conta de "espera", senao a fila acharia que e cota e pararia).
 const semModelo = new Set<string>();
+// Modelo SOBRECARREGADO (503 "high demand") ou que nao respondeu no prazo: fica de fora
+// por uns minutos, em TODAS as chaves (a sobrecarga e do modelo, nao da chave). Medido em
+// 2026-11-12 na nota do dono: o 3.5-flash dava 503 ou ficava 30-40 s mudo, e cada foto
+// gastava o prazo inteiro nele antes de chegar no modelo que respondia ("lendo, lendo...
+// nao deu pra ler"). Nao conta como "limite": e passageiro.
+const sobrecarga = new Map<string, number>(); // modelo -> livre a partir de (ms)
+const SOBRECARGA_MS = 3 * 60 * 1000;
 
 // O 429 do Gemini diz quanto esperar (RetryInfo.retryDelay, ex.: "23s").
 async function pausaPedida(r: Response): Promise<number | null> {
@@ -57,7 +64,15 @@ export async function gemini(corpo: unknown, forte = false, timeoutMs = 20000, p
   // por dia) dizia "volta em 16 h" e a fila de fotos parava o dia inteiro, com os modelos
   // lite cheios de cota (visto no uso real em 2026-11-07, conferido nas 3 chaves).
   let passageiro = false;
-  for (const modelo of modelos ?? (forte ? [...MODELOS].reverse() : MODELOS)) {
+  const lista = modelos ?? (forte ? [...MODELOS].reverse() : MODELOS);
+  // Todos marcados como sobrecarregados? Tenta assim mesmo (pular todos = falhar na hora,
+  // visto no teste: depois de uma foto ruim, as seguintes falhavam em 0 s).
+  const pulaSobrecarga = lista.some((m) => (sobrecarga.get(m) ?? 0) <= Date.now());
+  for (const modelo of lista) {
+    if (pulaSobrecarga && (sobrecarga.get(modelo) ?? 0) > Date.now()) {
+      passageiro = true;
+      continue;
+    }
     for (let n = 0; n < ks.length; n++) {
       const i = (inicio + n) % ks.length;
       const id = `${modelo}|${i}`;
@@ -72,12 +87,13 @@ export async function gemini(corpo: unknown, forte = false, timeoutMs = 20000, p
         espera = Math.min(espera, livre - Date.now());
         continue;
       }
+      const prazo = Math.min(timeoutMs, sobra);
       try {
         const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`, {
           method: "POST",
           headers: { "content-type": "application/json", "x-goog-api-key": ks[i] },
           body,
-          signal: AbortSignal.timeout(Math.min(timeoutMs, sobra)),
+          signal: AbortSignal.timeout(prazo),
         });
         if (r.status === 429) {
           const ms = (await pausaPedida(r)) ?? 60_000;
@@ -97,6 +113,7 @@ export async function gemini(corpo: unknown, forte = false, timeoutMs = 20000, p
         }
         if (r.status >= 500) {
           passageiro = true;
+          sobrecarga.set(modelo, Date.now() + SOBRECARGA_MS);
           break; // modelo fora do ar ou sobrecarregado: tenta o proximo
         }
         if (!r.ok) {
@@ -107,8 +124,16 @@ export async function gemini(corpo: unknown, forte = false, timeoutMs = 20000, p
         const txt = j.candidates?.[0]?.content?.parts?.[0]?.text;
         if (txt) return { ok: true, texto: txt };
         passageiro = true; // respondeu vazio
-      } catch {
-        passageiro = true; // rede, demora ou resposta quebrada: tenta a proxima chave
+      } catch (e) {
+        passageiro = true;
+        // Nao respondeu no prazo: e o modelo travado, nao a chave. Proximo modelo (esperar
+        // de novo nele com outra chave gastava mais 20-40 s).
+        if (e instanceof Error && (e.name === "TimeoutError" || e.name === "AbortError")) {
+          // so marca se teve o tempo todo dele (acabar o prazo da rota nao e culpa do modelo)
+          if (prazo >= timeoutMs) sobrecarga.set(modelo, Date.now() + SOBRECARGA_MS);
+          break;
+        }
+        // rede ou resposta quebrada: tenta a proxima chave
       }
     }
   }
