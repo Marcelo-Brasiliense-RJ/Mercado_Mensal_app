@@ -57,6 +57,8 @@ export function FaltaNaNota({
   // Segunda olhada na foto, uma vez por contagem (preencheu um e ainda falta: procura de novo)
   const falta = (pr?.falta ?? 0) + (pr?.sobra ?? 0); // sobrou tambem procura (a linha repetida)
   const lidos = pr?.lidos ?? 0;
+  const porLinha = pr?.porLinha ?? false;
+  const semNumero = (pr?.semNumero ?? []).join(",");
   useEffect(() => {
     if (!falta || !fotos.length || procurouCom.current === lidos) return;
     procurouCom.current = lidos;
@@ -66,7 +68,13 @@ export function FaltaNaNota({
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         images: fotos,
-        falta: { lidos: itens.map((i) => ({ nome: i.nome, qtd: i.qtd, unidade: i.unidade, preco: i.preco })), qtd_itens: noCupom, contados: lidos },
+        falta: {
+          lidos: itens.map((i) => ({ nome: i.nome, qtd: i.qtd, unidade: i.unidade, preco: i.preco, n: i.n })),
+          qtd_itens: noCupom,
+          contados: lidos,
+          por_linha: porLinha,
+          sem_numero: semNumero ? semNumero.split(",").map(Number) : [],
+        },
       }),
     })
       .then((r) => r.json())
@@ -77,7 +85,7 @@ export function FaltaNaNota({
         setBusca(d.faltam?.length ? "achou" : "nada");
       })
       .catch(() => montado.current && setBusca("erro"));
-  }, [lidos, falta, fotos, itens, noCupom]);
+  }, [lidos, falta, fotos, itens, noCupom, porLinha, semNumero]);
 
   if (!pr) return null;
   const ok = pr.falta === 0 && pr.sobra === 0;

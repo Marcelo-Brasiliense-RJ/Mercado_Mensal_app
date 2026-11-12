@@ -251,6 +251,7 @@ export function ReceiptModal({
       preco: Number(it.preco) || 0,
       unidade: it.unidade || "un",
       duvida: !!it.duvida,
+      ...(it.n ? { n: it.n } : {}),
     }));
     if (!lidos.length) return setPhase("error");
     setItems(lidos);

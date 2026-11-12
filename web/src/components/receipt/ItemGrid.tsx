@@ -5,6 +5,7 @@ import { FotoItem } from "@/components/ui/FotoItem";
 import { dinheiroCampo, mascaraDinheiro } from "@/lib/dinheiro";
 
 export type GridItem = {
+  n?: number; // numero do item impresso no cupom (001...), quando ele numera
   nome: string;
   marca?: string;
   qtd: number;

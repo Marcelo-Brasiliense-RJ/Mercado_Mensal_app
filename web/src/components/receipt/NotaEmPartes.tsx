@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { contarComoNoCupom, juntarComEmendas, totalConfere, type Cupom } from "@/lib/cupomPartes";
+import { contarItens, juntarComEmendas, totalConfere, type Cupom } from "@/lib/cupomPartes";
 import { brl } from "@/lib/format";
 import { CameraCupom } from "./CameraCupom";
 
@@ -19,6 +19,25 @@ import { CameraCupom } from "./CameraCupom";
 type Parte = { id: number; foto: string; estado: "lendo" | "ok" | "erro"; cupom?: Cupom; erro?: string; desde: number; tentativa: number };
 
 let proximoId = 1;
+const agoraMs = () => Date.now(); // so em evento/leitura, nunca no render
+
+// No maximo 2 fotos sendo lidas ao mesmo tempo. Com 7 fotos de uma vez (uso real,
+// 2026-11-12) a IA gratis estourava o limite por minuto e a foto do rodape falhava em 4 s.
+const MAX_JUNTAS = 2;
+let lendoAgora = 0;
+const fila: (() => void)[] = [];
+function pegarVez(): Promise<void> {
+  if (lendoAgora < MAX_JUNTAS) {
+    lendoAgora++;
+    return Promise.resolve();
+  }
+  return new Promise((ok) => fila.push(ok));
+}
+function soltarVez() {
+  const prox = fila.shift();
+  if (prox) prox();
+  else lendoAgora--;
+}
 
 export function NotaEmPartes({
   titulo,
@@ -57,8 +76,9 @@ export function NotaEmPartes({
   }
 
   async function ler(id: number, foto: string, tentativa = 1) {
-    atualizar(id, { estado: "lendo", erro: undefined, desde: Date.now(), tentativa });
+    atualizar(id, { estado: "lendo", erro: undefined, desde: agoraMs(), tentativa });
     let erro = "";
+    await pegarVez();
     try {
       const r = await fetch("/api/receipt-ocr", {
         method: "POST",
@@ -74,16 +94,26 @@ export function NotaEmPartes({
           cupom: { itens: d.itens, total: Number(d.total) || 0, emitente: d.emitente ?? "", chave: d.chave ?? "", qtdItens: Number(d.qtd_itens) || 0 },
         });
       }
-      erro = d?.erro === "limite" ? "A leitura está ocupada agora." : "Não consegui ler esta foto.";
+      // so "sem_itens" e culpa da foto; o resto e a IA ocupada ou sem cota
+      erro = d?.erro === "sem_itens" ? "foto" : "ia";
     } catch {
-      erro = "Sem internet?";
+      erro = "ia";
+    } finally {
+      soltarVez();
     }
-    // Uma segunda tentativa sozinha: a IA as vezes fica sobrecarregada um instante.
-    if (tentativa < 2) {
-      await new Promise((ok) => setTimeout(ok, 3000));
+    // IA ocupada: tenta de novo sozinha com a MESMA foto (ate 5 vezes, ~1 min e meio),
+    // sem pedir foto nova (dono: "sempre travando ou pedindo uma nova").
+    if (erro === "ia" && tentativa < 5) {
+      await new Promise((ok) => setTimeout(ok, [0, 5000, 10000, 20000, 30000][tentativa]));
       return ler(id, foto, tentativa + 1);
     }
     atualizar(id, { estado: "erro", erro });
+  }
+
+  // "Ler de novo" a mesma foto (a IA estava ocupada): nao precisa tirar outra
+  function lerDeNovo(id: number) {
+    const p = partes.find((x) => x.id === id);
+    if (p) void ler(p.id, p.foto);
   }
 
   async function chegou(arquivos: File[], galeria = false) {
@@ -142,7 +172,7 @@ export function NotaEmPartes({
   }, [partes]);
   const cupom = junta?.cupom ?? null;
   const qtd = cupom?.qtdItens ?? 0;
-  const lidos = cupom ? contarComoNoCupom(cupom.itens) : 0;
+  const lidos = cupom ? contarItens(cupom.itens, qtd).lidos : 0;
   const nome = (p: Parte) => `foto ${partes.indexOf(p) + 1}`;
   // Leu itens de sobra: nao e buraco (buraco so faz faltar), entao nao manda tirar o meio
   const sobra = qtd > 0 && lidos > qtd;
@@ -185,8 +215,13 @@ export function NotaEmPartes({
     tituloAgora = "Lendo as fotos…";
     instrucao = <>Leva alguns segundos por foto.</>;
   } else if (comErro.length && !(todasLidas && qtd > 0 && lidos === qtd)) {
-    tituloAgora = "Uma foto não deu para ler";
-    instrucao = <>Toque em <b>Tirar de novo</b> na foto marcada, ou <b>Tirar fora</b> se as outras já pegaram tudo.</>;
+    const daIa = comErro.some((p) => p.erro === "ia");
+    tituloAgora = daIa ? "A leitura está ocupada" : "Uma foto não deu para ler";
+    instrucao = daIa ? (
+      <>Não é a sua foto: a IA está sobrecarregada agora. Toque em <b>Ler de novo</b> daqui a pouco (a foto fica guardada), ou em <b>Conferir itens</b> com o que já leu.</>
+    ) : (
+      <>Não achei itens na foto marcada. Toque nela para ver e tire de novo mais de perto, ou <b>Tirar fora</b>.</>
+    );
   } else if (bate) {
     tituloAgora = `✓ ${qtd} de ${qtd} itens`;
     instrucao = <>Prova real ok: li todos os itens que o cupom diz. Toque em <b>Conferir itens</b>.</>;
@@ -209,7 +244,7 @@ export function NotaEmPartes({
           partes={partes.map((p) => ({
             foto: p.foto,
             estado: p.estado,
-            itens: p.cupom ? contarComoNoCupom(p.cupom.itens) : 0,
+            itens: p.cupom ? p.cupom.itens.length : 0,
             temTotal: !!p.cupom && (p.cupom.total > 0 || p.cupom.qtdItens > 0),
           }))}
           fim={fimNaCamera && !umaFoto}
@@ -241,7 +276,7 @@ export function NotaEmPartes({
             </button>
             <span className="text-[15px] font-extrabold">
               Foto {partes.indexOf(fotoAberta) + 1}
-              {fotoAberta.estado === "ok" ? ` · ${contarComoNoCupom(fotoAberta.cupom!.itens)} itens` : fotoAberta.estado === "erro" ? " · não deu para ler" : " · lendo…"}
+              {fotoAberta.estado === "ok" ? ` · ${fotoAberta.cupom!.itens.length} linhas` : fotoAberta.estado === "erro" ? " · não deu para ler" : " · lendo…"}
             </span>
           </div>
           <div className="min-h-0 flex-1 overflow-auto">
@@ -348,15 +383,21 @@ export function NotaEmPartes({
               <div className="mt-1 text-center text-[11px] font-bold leading-tight">
                 {p.estado === "lendo" && (
                   <span className="text-text-3">
-                    lendo… {relogio(p)} s{p.tentativa > 1 ? " (2ª vez)" : ""}
+                    {p.tentativa > 1 ? `IA ocupada, ${p.tentativa}ª tentativa…` : `lendo… ${relogio(p)} s`}
                   </span>
                 )}
-                {p.estado === "ok" && <span className="text-pos">✓ {contarComoNoCupom(p.cupom!.itens)} itens</span>}
+                {p.estado === "ok" && <span className="text-pos">✓ {p.cupom!.itens.length} linhas</span>}
                 {p.estado === "erro" && (
                   <span className="flex flex-col gap-0.5">
-                    <button type="button" onClick={() => abrir(false, { trocar: p.id })} className="text-neg underline">
-                      Tirar de novo
-                    </button>
+                    {p.erro === "ia" ? (
+                      <button type="button" onClick={() => lerDeNovo(p.id)} className="text-neg underline">
+                        Ler de novo
+                      </button>
+                    ) : (
+                      <button type="button" onClick={() => abrir(false, { trocar: p.id })} className="text-neg underline">
+                        Tirar de novo
+                      </button>
+                    )}
                     <button type="button" onClick={() => {
                         setPartes((l) => l.filter((x) => x.id !== p.id));
                         setAlvo((a) => Math.max(1, Math.min(a, partes.length - 1))); // nao pede outra no lugar

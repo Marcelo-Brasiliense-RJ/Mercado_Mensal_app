@@ -1,16 +1,20 @@
 // "Falta 1 item" na nota lida (pedido do dono, 2026-11-12): quantos itens do cupom foram
 // lidos, em %, onde fica na nota o que faltou e sugestoes de produto ao preencher.
 // Parte pura, usada por components/receipt/FaltaNaNota.tsx.
-import { contarComoNoCupom } from "./cupomPartes";
+import { contarItens } from "./cupomPartes";
 
-export type LinhaNota = { nome: string; marca?: string; qtd: number; unidade: string; preco: number };
+export type LinhaNota = { nome: string; marca?: string; qtd: number; unidade: string; preco: number; n?: number };
 
-export function prova(itens: Pick<LinhaNota, "qtd" | "unidade">[], noCupom: number) {
-  const lidos = contarComoNoCupom(itens);
+export function prova(itens: Pick<LinhaNota, "qtd" | "unidade" | "n">[], noCupom: number) {
   if (!(noCupom > 0)) return null;
+  const { lidos, porLinha } = contarItens(itens, noCupom);
   // 45 de 46 = 97,8%: arredonda para BAIXO, para nao mostrar 100% sem bater
   const pct = lidos === noCupom ? 100 : Math.min(99, Math.floor((Math.min(lidos, noCupom) / noCupom) * 100));
-  return { lidos, noCupom, pct, falta: Math.max(0, noCupom - lidos), sobra: Math.max(0, lidos - noCupom) };
+  // cupom que numera os itens e conta por linha: os numeros que nao vieram SAO os que faltam
+  const vistos = new Set(itens.map((i) => i.n ?? 0));
+  const numerados = porLinha && itens.some((i) => i.n);
+  const semNumero = numerados ? Array.from({ length: noCupom }, (_, k) => k + 1).filter((n) => !vistos.has(n)).slice(0, 20) : [];
+  return { lidos, noCupom, pct, falta: Math.max(0, noCupom - lidos), sobra: Math.max(0, lidos - noCupom), porLinha, semNumero };
 }
 
 // Linhas da lista que ficam em volta: depoisDe = n (1..) da linha logo acima, 0 = topo.

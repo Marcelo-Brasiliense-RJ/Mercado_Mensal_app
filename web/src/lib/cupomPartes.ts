@@ -2,7 +2,8 @@
 // (lib/server/cupom.ts) e no celular (components/receipt/NotaEmPartes.tsx): o celular le
 // cada parte assim que a foto e tirada e junta aqui.
 
-export type ItemCupom = { nome: string; marca: string; qtd: number; unidade: string; preco: number; duvida: boolean; totalLinha?: number; desconto?: number };
+// n: o numero do item impresso no comeco da linha (001, 002...), quando o cupom numera.
+export type ItemCupom = { nome: string; marca: string; qtd: number; unidade: string; preco: number; duvida: boolean; totalLinha?: number; desconto?: number; n?: number };
 
 const r2 = (v: number) => Math.round(v * 100) / 100;
 
@@ -72,9 +73,22 @@ export function contarComoNoCupom(itens: Pick<ItemCupom, "qtd" | "unidade">[]): 
   return itens.reduce((t, i) => t + (i.unidade === "kg" || i.unidade === "g" ? 1 : Math.max(1, Math.round(Number(i.qtd) || 1))), 0);
 }
 
-export function provaReal(itens: Pick<ItemCupom, "qtd" | "unidade">[], qtdItens: number): { lidos: number; noCupom: number; bate: boolean } | null {
+// Cada mercado conta de um jeito a "Qtde. total de itens": o Atacadao SOMA as quantidades
+// (32 linhas, 46 itens), o Guanabara conta LINHAS (itens 001 a 110, "QTD. TOTAL DE ITENS
+// 110", com 12 cocas numa linha so). Visto em 2026-11-12: o app sempre somava e dava
+// "Li 160 de 110" com as 110 linhas lidas certas. Escolhe a conta: se o cupom numera os
+// itens e o ultimo numero e o total, e por linha; senao, a que chega mais perto.
+export function contarItens(itens: Pick<ItemCupom, "qtd" | "unidade" | "n">[], noCupom: number): { lidos: number; porLinha: boolean } {
+  const linhas = itens.length;
+  const unidades = contarComoNoCupom(itens);
+  const maiorN = itens.reduce((m, i) => Math.max(m, i.n ?? 0), 0);
+  const porLinha = noCupom > 0 && (maiorN === noCupom || Math.abs(linhas - noCupom) < Math.abs(unidades - noCupom));
+  return { lidos: porLinha ? linhas : unidades, porLinha };
+}
+
+export function provaReal(itens: Pick<ItemCupom, "qtd" | "unidade" | "n">[], qtdItens: number): { lidos: number; noCupom: number; bate: boolean } | null {
   if (!(qtdItens > 0)) return null;
-  const lidos = contarComoNoCupom(itens);
+  const { lidos } = contarItens(itens, qtdItens);
   return { lidos, noCupom: qtdItens, bate: lidos === qtdItens };
 }
 
@@ -121,8 +135,21 @@ const raizNome = (n: string) => n.normalize("NFD").replace(/[\u0300-\u036f]/g, "
 
 export function alinhar(a: ItemCupom[], b: ItemCupom[]): { itens: ItemCupom[]; encaixou: boolean; iguais: number } {
   if (!a.length || !b.length) return { itens: [...a, ...b], encaixou: false, iguais: 0 };
-  const mesma = (x: ItemCupom, y: ItemCupom) => Math.abs(x.preco - y.preco) < 0.005 && Math.abs(x.qtd - y.qtd) < 0.001;
-  const pontos = (x: ItemCupom, y: ItemCupom) => (mesma(x, y) ? (raizNome(x.nome) === raizNome(y.nome) ? 4 : 3) : raizNome(x.nome) === raizNome(y.nome) ? -1 : -3);
+  // Cupom que numera os itens (001...110): o numero manda, e o mais seguro que existe.
+  const mesma = (x: ItemCupom, y: ItemCupom) =>
+    x.n && y.n ? x.n === y.n : Math.abs(x.preco - y.preco) < 0.005 && Math.abs(x.qtd - y.qtd) < 0.001;
+  const pontos = (x: ItemCupom, y: ItemCupom) =>
+    x.n && y.n
+      ? x.n === y.n
+        ? 6
+        : -6
+      : mesma(x, y)
+        ? raizNome(x.nome) === raizNome(y.nome)
+          ? 4
+          : 3
+        : raizNome(x.nome) === raizNome(y.nome)
+          ? -1
+          : -3;
   const GAP = -2;
   const n = a.length, m = b.length;
   // H: melhor alinhamento terminando em (i, j). Sobreposicao: o comeco e livre so na BORDA
@@ -242,8 +269,8 @@ export function juntarComEmendas(partes: Cupom[]): { cupom: Cupom; semEmenda: nu
   // Uma foto sozinha ja fecha a prova real (pegou o cupom inteiro legivel) e a juncao nao?
   // Fica com ela: a juncao so pode ter repetido ou perdido linha.
   const q = cupom.qtdItens;
-  if (q > 0 && contarComoNoCupom(itens) !== q) {
-    const inteira = partes.find((p) => p.itens.length && contarComoNoCupom(p.itens) === q);
+  if (q > 0 && contarItens(itens, q).lidos !== q) {
+    const inteira = partes.find((p) => p.itens.length && contarItens(p.itens, q).lidos === q);
     if (inteira) return { cupom: { ...cupom, itens: inteira.itens }, semEmenda: [] };
   }
   return { cupom, semEmenda };

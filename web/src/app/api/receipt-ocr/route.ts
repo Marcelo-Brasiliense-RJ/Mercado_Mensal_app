@@ -27,17 +27,20 @@ export async function POST(req: Request) {
   let fotos: string[] = [];
   // { images, falta: { lidos, qtd_itens, contados } }: segunda olhada para achar onde
   // esta o item que a leitura nao pegou (FaltaNaNota)
-  let falta: { lidos: LidoResumo[]; qtd: number; contados: number } | null = null;
+  let falta: { lidos: LidoResumo[]; qtd: number; contados: number; porLinha: boolean; semNumero: number[] } | null = null;
   try {
     const b = await req.json();
     if (b?.falta && Array.isArray(b.falta.lidos)) {
       falta = {
         lidos: (b.falta.lidos as unknown[]).slice(0, 200).map((x) => {
           const i = (x ?? {}) as Record<string, unknown>;
-          return { nome: String(i.nome ?? "").slice(0, 80), qtd: Number(i.qtd) || 1, unidade: String(i.unidade ?? "un").slice(0, 4), preco: Number(i.preco) || 0 };
+          const n = Number(i.n);
+          return { nome: String(i.nome ?? "").slice(0, 80), qtd: Number(i.qtd) || 1, unidade: String(i.unidade ?? "un").slice(0, 4), preco: Number(i.preco) || 0, ...(n > 0 ? { n } : {}) };
         }),
         qtd: Number(b.falta.qtd_itens) || 0,
         contados: Number(b.falta.contados) || 0,
+        porLinha: b.falta.por_linha === true,
+        semNumero: (Array.isArray(b.falta.sem_numero) ? b.falta.sem_numero : []).map(Number).filter((n: number) => n > 0).slice(0, 20),
       };
     }
     const lista = Array.isArray(b?.images) ? b.images : [b?.image];
@@ -54,7 +57,7 @@ export async function POST(req: Request) {
 
   if (falta) {
     if (!(falta.qtd > 0) || !falta.lidos.length) return NextResponse.json({ ok: false, erro: "sem_dados" }, { status: 400 });
-    const f = await acharFaltantes(fotos, falta.lidos, falta.qtd, falta.contados);
+    const f = await acharFaltantes(fotos, falta.lidos, falta.qtd, falta.contados, falta.porLinha, falta.semNumero);
     return f ? NextResponse.json({ ok: true, faltam: f }) : NextResponse.json({ ok: false, erro: "ia_falhou" }, { status: 502 });
   }
 
@@ -70,6 +73,11 @@ export async function POST(req: Request) {
       confere: totalConfere(c),
       por: "gemini",
     });
+  }
+  // A IA leu e nao achou item nenhum: ai sim e a FOTO (borrada, longe, sem cupom). Os
+  // outros erros sao da IA (ocupada, sem cota): o celular tenta de novo com a mesma foto.
+  if (c.ok && !c.itens.length) {
+    return NextResponse.json({ ok: false, erro: "sem_itens" }, { status: 422 });
   }
   if (!c.ok && c.erro === "limite" && !process.env.N8N_RECEIPT_WEBHOOK_URL) {
     return NextResponse.json({ ok: false, erro: "limite", espera: c.espera }, { status: 429 });

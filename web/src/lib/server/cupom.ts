@@ -17,6 +17,7 @@ Leia TODAS as linhas de produto. Para cada uma:
 - "preco": preço de UMA unidade (o "vl unit"), em reais, número. Se a linha só tem o total, divida pela qtd.
 - "duvida": true se a linha estava ilegível ou você não tem certeza do produto.
 - "total_linha": o valor TOTAL impresso NA LINHA do produto ("Vl Total"), número.
+- "n": o NÚMERO do item impresso no começo da linha ("001", "057" = 57), se o cupom numera os itens; 0 se não numera.
 - "desconto": o valor de "desconto sobre item" / "DESC" que vem na linha LOGO ABAIXO do produto e abate dele (número positivo; 0 se não tem).
 Linha cancelada não entra.
 Também devolva: "total": o "Valor a Pagar" (o que foi pago, DEPOIS dos descontos; número, 0 se não aparece), "emitente": o nome do mercado no topo, "chave": os 44 dígitos da chave de acesso, só números (vazio se não aparece inteira), "qtd_itens": o número da linha "Qtde. total de itens" do rodapé (0 se não aparece).
@@ -39,6 +40,7 @@ export const ESQUEMA = {
           duvida: { type: "BOOLEAN" },
           total_linha: { type: "NUMBER" },
           desconto: { type: "NUMBER" },
+          n: { type: "NUMBER" },
         },
         required: ["nome", "qtd", "unidade", "preco"],
       },
@@ -71,6 +73,7 @@ export function normalizaCupom(bruto: unknown): Cupom {
         duvida: i.duvida === true,
         ...(Number(i.total_linha) > 0 ? { totalLinha: Math.round(Number(i.total_linha) * 100) / 100 } : {}),
         ...(Number(i.desconto) > 0 ? { desconto: Math.round(Number(i.desconto) * 100) / 100 } : {}),
+        ...(Number.isInteger(Number(i.n)) && Number(i.n) > 0 && Number(i.n) < 1000 ? { n: Number(i.n) } : {}),
       };
     })
     .filter((i) => i.nome)
@@ -168,7 +171,7 @@ async function lerOpenRouter(fotos: string[], modelo: string): Promise<Lido> {
           {
             role: "user",
             content: [
-              { type: "text", text: `${LER_CUPOM}\nResponda SOMENTE JSON compacto, numa linha so, sem espacos nem quebras: {"itens":[{"nome","marca","qtd","unidade","preco","duvida","total_linha","desconto"}],"total","emitente","chave","qtd_itens"}` },
+              { type: "text", text: `${LER_CUPOM}\nResponda SOMENTE JSON compacto, numa linha so, sem espacos nem quebras: {"itens":[{"nome","marca","qtd","unidade","preco","duvida","total_linha","desconto","n"}],"total","emitente","chave","qtd_itens"}` },
               ...fotos.map((f) => ({ type: "image_url", image_url: { url: f } })),
             ],
           },
@@ -232,7 +235,7 @@ export type Faltante = {
   depoisDe: number; // n da linha da lista logo acima (0 = antes da primeira)
   indice: number; // tipo quantidade: n da linha da lista com a quantidade errada
 };
-export type LidoResumo = { nome: string; qtd: number; unidade: string; preco: number };
+export type LidoResumo = { nome: string; qtd: number; unidade: string; preco: number; n?: number };
 
 const ESQUEMA_FALTA = {
   type: "OBJECT",
@@ -259,9 +262,13 @@ const ESQUEMA_FALTA = {
   required: ["faltam"],
 };
 
-export function promptFalta(lidos: LidoResumo[], qtdItens: number, contados: number): string {
-  const lista = lidos.map((l, i) => `${i + 1}. ${l.nome} | ${String(l.qtd).replace(".", ",")} ${l.unidade} | R$ ${l.preco.toFixed(2).replace(".", ",")}`).join("\n");
-  return `Foto(s) de UM cupom fiscal de supermercado (se várias, partes do mesmo cupom, de cima para baixo). O rodapé diz "Qtde. total de itens ${qtdItens}" (a soma das quantidades; produto pesado em kg conta 1).
+export function promptFalta(lidos: LidoResumo[], qtdItens: number, contados: number, porLinha = false, semNumero: number[] = []): string {
+  const lista = lidos
+    .map((l, i) => `${i + 1}. ${l.n ? `[item ${String(l.n).padStart(3, "0")}] ` : ""}${l.nome} | ${String(l.qtd).replace(".", ",")} ${l.unidade} | R$ ${l.preco.toFixed(2).replace(".", ",")}`)
+    .join("\n");
+  const conta = porLinha ? "o número de LINHAS de produto (cada linha conta 1)" : "a soma das quantidades; produto pesado em kg conta 1";
+  const dica = semNumero.length ? `\nO cupom numera os itens: os números ${semNumero.map((n) => String(n).padStart(3, "0")).join(", ")} NÃO estão na lista. Procure essas linhas.` : "";
+  return `Foto(s) de UM cupom fiscal de supermercado (se várias, partes do mesmo cupom, fora de ordem talvez). O rodapé diz "Qtde. total de itens ${qtdItens}" (${conta}).${dica}
 Já li estas linhas, NA ORDEM do cupom (n. nome | qtd | preço unitário):
 ${lista}
 ${
@@ -307,8 +314,15 @@ export function normalizaFalta(bruto: unknown, lidos: LidoResumo[]): Faltante[] 
     .slice(0, 5);
 }
 
-export async function acharFaltantes(fotos: string[], lidos: LidoResumo[], qtdItens: number, contados: number): Promise<Faltante[] | null> {
-  const texto = promptFalta(lidos, qtdItens, contados);
+export async function acharFaltantes(
+  fotos: string[],
+  lidos: LidoResumo[],
+  qtdItens: number,
+  contados: number,
+  porLinha = false,
+  semNumero: number[] = [],
+): Promise<Faltante[] | null> {
+  const texto = promptFalta(lidos, qtdItens, contados, porLinha, semNumero);
   const partes = fotos
     .map((f) => f.match(/^data:(image\/[a-z]+);base64,(.+)$/))
     .filter((m): m is RegExpMatchArray => !!m)
