@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { abrirCamera, soltarCamera } from "@/lib/camera";
-import { DICA, medir, veredito, type Veredito } from "@/lib/quadroCupom";
+import { DICA, MUDOU_DE_PARTE, medir, mudanca, veredito, type Veredito } from "@/lib/quadroCupom";
 
 // Camera do PROPRIO app para fotografar a nota (pedido do dono: "a aplicacao vai
 // identificando se o enquadramento ta bom e vai separando as partes"). A camera do
@@ -43,6 +43,11 @@ export function CameraCupom({
   const bonsRef = useRef(0);
   const okRef = useRef(0); // quadros com luz e cupom na moldura (mesmo tremendo um pouco)
   const movsRef = useRef<number[]>([]);
+  // Depois de cada foto, a automatica so volta quando o quadro muda de verdade (o celular
+  // desceu para a proxima parte). Parado no mesmo lugar, nao tira de novo.
+  const fotoCinzaRef = useRef<Uint8ClampedArray | null>(null);
+  const liberadoRef = useRef(true);
+  const [descer, setDescer] = useState(false);
 
   // As funcoes do pai chegam novas a cada render (o relogio "lendo... N s" redesenha a
   // tela 1x por segundo). Ficam em ref: se fossem dependencia dos efeitos, a camera
@@ -80,6 +85,9 @@ export function CameraCupom({
     c.height = Math.round(v.videoHeight * escala);
     c.getContext("2d")!.drawImage(v, 0, 0, c.width, c.height);
     ultimaFotoRef.current = Date.now();
+    fotoCinzaRef.current = anteriorRef.current;
+    liberadoRef.current = false;
+    setDescer(true);
     bonsRef.current = 0;
     setBons(0);
     setFlash(true);
@@ -104,6 +112,10 @@ export function CameraCupom({
       const cinza = new Uint8ClampedArray(ANALISE_W * h);
       for (let i = 0; i < cinza.length; i++) cinza[i] = (px[i * 4] * 299 + px[i * 4 + 1] * 587 + px[i * 4 + 2] * 114) / 1000;
       const bruto = medir(cinza, ANALISE_W, h, anteriorRef.current ?? undefined);
+      if (!liberadoRef.current && mudanca(cinza, fotoCinzaRef.current) > MUDOU_DE_PARTE) {
+        liberadoRef.current = true;
+        setDescer(false);
+      }
       anteriorRef.current = cinza;
       // movimento pela media dos ultimos 3 quadros: um tranco isolado nao zera a contagem
       movsRef.current = [...movsRef.current.slice(-2), bruto.movimento];
@@ -116,7 +128,7 @@ export function CameraCupom({
       setBons(bonsRef.current);
       const desde = Date.now() - ultimaFotoRef.current;
       // ~0,6 s de quadro bom, ou ~2 s com luz e cupom na moldura (plano B: nao travar)
-      if (desde > 2500 && (bonsRef.current >= 3 || okRef.current >= 10)) {
+      if (liberadoRef.current && desde > 2500 && (bonsRef.current >= 3 || okRef.current >= 10)) {
         okRef.current = 0;
         tirar();
       }
@@ -131,7 +143,7 @@ export function CameraCupom({
     : n === 1
       ? "Parte 1: enquadre o TOPO do cupom (nome do mercado)"
       : `Parte ${n}: desça o celular e encaixe as linhas de cima`;
-  const corDica = dica === "bom" ? "bg-pos text-white" : "bg-white/15 text-white";
+  const corDica = dica === "bom" && !descer ? "bg-pos text-white" : "bg-white/15 text-white";
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-black text-white">
@@ -165,8 +177,8 @@ export function CameraCupom({
           )}
           {!fim && dica && (
             <div className={`absolute inset-x-3 bottom-3 rounded-full px-3 py-2 text-center text-[14px] font-extrabold ${corDica}`}>
-              {DICA[dica]}
-              {dica === "bom" && (
+              {descer ? `✓ Parte ${partes.length} tirada. Desça o celular` : DICA[dica]}
+              {dica === "bom" && !descer && (
                 <span className="ml-1.5 inline-block h-2 w-10 overflow-hidden rounded-full bg-white/30 align-middle">
                   <span className="block h-full bg-white transition-[width]" style={{ width: `${Math.min(100, (bons / 3) * 100)}%` }} />
                 </span>
