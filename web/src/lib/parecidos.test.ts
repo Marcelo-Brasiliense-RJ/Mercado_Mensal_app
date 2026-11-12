@@ -33,3 +33,20 @@ describe("parecidos", () => {
     expect(repetidos(itens).map((g) => g.map((x) => x.id))).toEqual([["1", "2"], ["3", "4"]]);
   });
 });
+
+describe("repetidos do estoque (dono, 2026-11-12)", () => {
+  it.each([
+    ["alcatra", "alcatra com maminha", true],
+    ["ovo", "ovos", true],
+    ["farinha panco", "farinha panko", true],
+    ["haste flexível", "hastes flexíveis", true],
+    ["linguiça", "linguiça suína", true],
+    ["leite", "leite condensado", false],
+    ["batata", "batata palha", false],
+    ["carne", "carne moida", false],
+    ["leite integral italac", "leite integral piracanjuba", false],
+  ])("%s x %s = %s", async (a, b, esperado) => {
+    const { mesmoNoEstoque } = await import("./parecidos");
+    expect(mesmoNoEstoque(a, b)).toBe(esperado);
+  });
+});
