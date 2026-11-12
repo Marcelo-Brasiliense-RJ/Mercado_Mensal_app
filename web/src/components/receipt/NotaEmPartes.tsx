@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { contarItens, juntarComEmendas, totalConfere, type Cupom } from "@/lib/cupomPartes";
 import { brl } from "@/lib/format";
 import { CameraCupom } from "./CameraCupom";
+import { adicionarFotos, definirAlvo, descartarNota, lerDeNovo, marcarNotaAberta, tirarFoto, useFilaNota, type Parte } from "@/lib/filaNota";
 
 // Nota fiscal em fotos, com o app guiando. Desenho atual (pedido do dono, 2026-11-12,
 // depois de testar com 3 partes + rodape: demorou e "na segunda ja dava pra ver tudo"):
@@ -16,44 +17,28 @@ import { CameraCupom } from "./CameraCupom";
 //   Faltou? Mostra ONDE: buraco entre as fotos (tirar o meio), foto borrada (tirar de
 //   novo) ou o TOTAL nao apareceu (a ultima foto nao pegou o rodape).
 
-type Parte = { id: number; foto: string; estado: "lendo" | "ok" | "erro"; cupom?: Cupom; erro?: string; desde: number; tentativa: number };
-
-let proximoId = 1;
-const agoraMs = () => Date.now(); // so em evento/leitura, nunca no render
-
-// No maximo 2 fotos sendo lidas ao mesmo tempo. Com 7 fotos de uma vez (uso real,
-// 2026-11-12) a IA gratis estourava o limite por minuto e a foto do rodape falhava em 4 s.
-const MAX_JUNTAS = 2;
-let lendoAgora = 0;
-const fila: (() => void)[] = [];
-function pegarVez(): Promise<void> {
-  if (lendoAgora < MAX_JUNTAS) {
-    lendoAgora++;
-    return Promise.resolve();
-  }
-  return new Promise((ok) => fila.push(ok));
-}
-function soltarVez() {
-  const prox = fila.shift();
-  if (prox) prox();
-  else lendoAgora--;
-}
-
 export function NotaEmPartes({
   titulo,
   lerArquivo,
   onPronto,
   onSair,
+  onFechar,
   comecarNaCamera = false,
 }: {
+  onFechar?: () => void; // fecha a nota; a leitura continua em segundo plano
   comecarNaCamera?: boolean;
   titulo: string;
   lerArquivo: (f: File) => Promise<string>;
   onPronto: (c: Cupom, confere: boolean, fotos: string[]) => void;
   onSair: () => void;
 }) {
-  const [partes, setPartes] = useState<Parte[]>([]);
-  const [alvo, setAlvo] = useState(2); // quantas fotos o plano pede (1 = cupom pequeno)
+  // As fotos e a leitura moram na fila (lib/filaNota): fechar esta tela nao para a
+  // leitura; um aviso flutuante chama de volta quando ficar pronta.
+  const { partes, alvo } = useFilaNota();
+  useEffect(() => {
+    marcarNotaAberta(true);
+    return () => marcarNotaAberta(false);
+  }, []);
   const [agora, setAgora] = useState(() => Date.now());
   // Camera do app (guia o enquadramento e separa as partes); a do celular fica de reserva.
   const [camera, setCamera] = useState(comecarNaCamera);
@@ -71,74 +56,19 @@ export function NotaEmPartes({
     return () => clearInterval(t);
   }, [lendo]);
 
-  function atualizar(id: number, patch: Partial<Parte>) {
-    setPartes((l) => l.map((p) => (p.id === id ? { ...p, ...patch } : p)));
-  }
-
-  async function ler(id: number, foto: string, tentativa = 1) {
-    atualizar(id, { estado: "lendo", erro: undefined, desde: agoraMs(), tentativa });
-    let erro = "";
-    await pegarVez();
-    try {
-      const r = await fetch("/api/receipt-ocr", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ image: foto }),
-      });
-      const d = (await r.json().catch(() => null)) as
-        | { ok?: boolean; erro?: string; itens?: Cupom["itens"]; total?: number; emitente?: string; chave?: string; qtd_itens?: number }
-        | null;
-      if (d?.ok && Array.isArray(d.itens)) {
-        return atualizar(id, {
-          estado: "ok",
-          cupom: { itens: d.itens, total: Number(d.total) || 0, emitente: d.emitente ?? "", chave: d.chave ?? "", qtdItens: Number(d.qtd_itens) || 0 },
-        });
-      }
-      // so "sem_itens" e culpa da foto; o resto e a IA ocupada ou sem cota
-      erro = d?.erro === "sem_itens" ? "foto" : "ia";
-    } catch {
-      erro = "ia";
-    } finally {
-      soltarVez();
-    }
-    // IA ocupada: tenta de novo sozinha com a MESMA foto (ate 5 vezes, ~1 min e meio),
-    // sem pedir foto nova (dono: "sempre travando ou pedindo uma nova").
-    if (erro === "ia" && tentativa < 5) {
-      await new Promise((ok) => setTimeout(ok, [0, 5000, 10000, 20000, 30000][tentativa]));
-      return ler(id, foto, tentativa + 1);
-    }
-    atualizar(id, { estado: "erro", erro });
-  }
-
-  // "Ler de novo" a mesma foto (a IA estava ocupada): nao precisa tirar outra
-  function lerDeNovo(id: number) {
-    const p = partes.find((x) => x.id === id);
-    if (p) void ler(p.id, p.foto);
-  }
-
   async function chegou(arquivos: File[], galeria = false) {
     if (!arquivos.length) return;
     const fotos = (await Promise.all(arquivos.map((f) => lerArquivo(f).catch(() => "")))).filter(Boolean);
     if (!fotos.length) return;
     // Da galeria, de uma vez: as fotos escolhidas SAO o plano (1 foto = cupom pequeno).
-    if (galeria && !partes.length && destinoRef.current.trocar == null) setAlvo(fotos.length);
+    if (galeria && !partes.length && destinoRef.current.trocar == null) definirAlvo(fotos.length);
     adicionar(fotos);
   }
 
   function adicionar(fotos: string[]) {
-    const { trocar, antesDe } = destinoRef.current;
+    const destino = destinoRef.current;
     destinoRef.current = {};
-    if (trocar != null) {
-      setPartes((l) => l.map((p) => (p.id === trocar ? { ...p, foto: fotos[0] } : p)));
-      void ler(trocar, fotos[0]);
-      return;
-    }
-    const novas: Parte[] = fotos.map((foto) => ({ id: proximoId++, foto, estado: "lendo", desde: Date.now(), tentativa: 1 }));
-    setPartes((l) => {
-      const i = antesDe != null ? l.findIndex((p) => p.id === antesDe) : -1;
-      return i >= 0 ? [...l.slice(0, i), ...novas, ...l.slice(i)] : [...l, ...novas];
-    });
-    for (const p of novas) void ler(p.id, p.foto);
+    adicionarFotos(fotos, destino);
   }
 
   // Uma camera so: a do app (o dono tirou a opcao "camera do celular"). Refazer uma foto
@@ -213,7 +143,11 @@ export function NotaEmPartes({
     }
   } else if (lendo) {
     tituloAgora = "Lendo as fotos…";
-    instrucao = <>Leva alguns segundos por foto.</>;
+    instrucao = (
+      <>
+        Pode <b>fechar</b> e usar o app: eu continuo lendo e aviso quando a nota ficar pronta.
+      </>
+    );
   } else if (comErro.length && !(todasLidas && qtd > 0 && lidos === qtd)) {
     const daIa = comErro.some((p) => p.erro === "ia");
     tituloAgora = daIa ? "A leitura está ocupada" : "Uma foto não deu para ler";
@@ -256,7 +190,7 @@ export function NotaEmPartes({
             }
           }}
           onPronto={() => {
-            setAlvo(partes.length);
+            definirAlvo(partes.length);
             setCamera(false);
           }}
           onFechar={() => setCamera(false)}
@@ -294,8 +228,7 @@ export function NotaEmPartes({
               onClick={() => {
                 const id = fotoAberta.id;
                 setVendo(null);
-                setPartes((l) => l.filter((x) => x.id !== id));
-                setAlvo((a) => Math.max(1, Math.min(a, partes.length - 1)));
+                tirarFoto(id);
               }}
               className="h-12 flex-1 rounded-full bg-white/15 text-[15px] font-bold"
             >
@@ -398,10 +331,7 @@ export function NotaEmPartes({
                         Tirar de novo
                       </button>
                     )}
-                    <button type="button" onClick={() => {
-                        setPartes((l) => l.filter((x) => x.id !== p.id));
-                        setAlvo((a) => Math.max(1, Math.min(a, partes.length - 1))); // nao pede outra no lugar
-                      }} className="text-text-3 underline">
+                    <button type="button" onClick={() => tirarFoto(p.id)} className="text-text-3 underline">
                       Tirar fora
                     </button>
                   </span>
@@ -420,6 +350,11 @@ export function NotaEmPartes({
         ) : faltaFoto ? (
           <button type="button" onClick={() => abrir()} className="h-[52px] rounded-full bg-brand text-[16px] font-extrabold text-brand-ink">
             📷 {alvo === 1 ? "Tirar a foto do cupom" : proxima === 1 ? "Tirar foto 1 (metade de cima)" : `Tirar foto ${proxima} (metade de baixo)`}
+          </button>
+        ) : lendo && onFechar ? (
+          // nao trava a pessoa esperando a IA: fecha e o aviso flutuante chama quando ficar pronta
+          <button type="button" onClick={onFechar} className="h-[52px] rounded-full bg-brand text-[16px] font-extrabold text-brand-ink">
+            Fechar · aviso quando ficar pronta
           </button>
         ) : (
           <button
@@ -447,6 +382,20 @@ export function NotaEmPartes({
             🖼 Galeria
           </button>
         </div>
+        {partes.length > 0 && (
+          <button
+            type="button"
+            onClick={() => {
+              if (confirm("Descartar as fotos desta nota?")) {
+                descartarNota();
+                onSair();
+              }
+            }}
+            className="h-9 text-[13px] font-bold text-text-3 underline"
+          >
+            Descartar esta nota
+          </button>
+        )}
       </div>
       {inputs}
     </div>

@@ -3,6 +3,7 @@
 import { FilaPrateleira } from "@/components/estoque/FilaPrateleira";
 import Link from "next/link";
 import { FilaFotos } from "@/components/lista/FilaFotos";
+import { FilaNota } from "@/components/receipt/FilaNota";
 import { usePathname } from "next/navigation";
 import { Sidebar } from "./Sidebar";
 import { TabBar } from "./TabBar";
@@ -165,6 +166,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <ReceiptModal open={receiptOpen} onClose={closeReceipt} />
       <FilaFotos />
       <FilaPrateleira />
+      <FilaNota />
       <VoiceModal open={falar} onClose={() => setFalar(false)} tela={noModoMercado ? "mercado" : "auto"} />
       {/* Botao "+" flutuante, em todas as telas: abre o adicionar (falar, foto, codigo,
           escrever). Na Lista sobe um pouco para nao cobrir o total do rodape. */}

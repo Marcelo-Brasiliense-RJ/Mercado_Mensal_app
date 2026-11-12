@@ -13,6 +13,7 @@ import { NotaEmPartes } from "./NotaEmPartes";
 import { ValidarNota } from "./ValidarNota";
 import { FaltaNaNota } from "./FaltaNaNota";
 import { inserirNaOrdem } from "@/lib/faltaNaNota";
+import { comecarNota, descartarNota, notaAtual } from "@/lib/filaNota";
 import { fecharComTotalPago, provaReal, type Cupom } from "@/lib/cupomPartes";
 import { daListaNaNota } from "@/lib/notaLista";
 import { conferir, esquecerUltimaCompra, lerUltimaCompra, type Conferencia as Conf, type ItemCarrinho, type ItemNota } from "@/lib/conferencia";
@@ -86,6 +87,13 @@ export function ReceiptModal({
   const [colando, setColando] = useState(false);
   const [link, setLink] = useState("");
   const [phase, setPhase] = useState<Phase>("capture");
+  // Nota sendo lida em segundo plano (lib/filaNota) desta mesma compra: abre direto nela
+  const [abriuAntes, setAbriuAntes] = useState(false);
+  if (open !== abriuAntes) {
+    setAbriuAntes(open);
+    const n = notaAtual();
+    if (open && n.partes.length && (n.compra?.id ?? null) === (notaDaCompra?.id ?? null)) setPhase("partes");
+  }
   const [items, setItems] = useState<Item[]>([]);
   // O que veio na nota risca da lista o item certo (dono: "fazer o match correto do que
   // veio da nota com o que esta na lista"), mesmo com nome diferente.
@@ -237,6 +245,7 @@ export function ReceiptModal({
     esquecerUltimaCompra();
     setSaving(false);
     showToast(feitos ? `✓ ${feitos} ${feitos > 1 ? "ajustes" : "ajuste"} pela nota` : "Nada para ajustar");
+    descartarNota();
     close();
   }
 
@@ -338,6 +347,7 @@ export function ReceiptModal({
     showToast(
       `Compra de ${diaMes(notaDaCompra.data)}: ${brl(Number(d.antes))} → ${brl(Number(d.depois))} pela nota${riscados ? ` · ${riscados} riscados da lista` : ""}`,
     );
+    descartarNota();
     close();
   }
 
@@ -364,6 +374,7 @@ export function ReceiptModal({
       }
       const riscados = await riscarDaLista(riscar ?? daLista.map((x) => x.id));
       showToast(`${clean.length} itens adicionados ao estoque${riscados ? ` · ${riscados} riscados da lista` : ""}`);
+      descartarNota();
       close();
     } catch {
       setSaving(false);
@@ -456,15 +467,15 @@ export function ReceiptModal({
               <button type="submit" className="h-14 shrink-0 rounded-full bg-brand px-5 font-extrabold text-brand-ink">Ler</button>
             </form>
           ) : (
-            <button onClick={() => { setNaCamera(true); setPhase("partes"); }} className="flex h-14 w-full items-center justify-center gap-2 rounded-full bg-brand text-[17px] font-extrabold text-brand-ink">
+            <button onClick={() => { comecarNota(notaDaCompra); setNaCamera(true); setPhase("partes"); }} className="flex h-14 w-full items-center justify-center gap-2 rounded-full bg-brand text-[17px] font-extrabold text-brand-ink">
               📷 Tirar foto da nota
             </button>
           )}
           {qr ? (
-            <button onClick={() => setPhase("partes")} className="mt-1 h-12 w-full text-[15px] font-bold text-white/85">🖼 Escolher foto da galeria</button>
+            <button onClick={() => { comecarNota(notaDaCompra); setPhase("partes"); }} className="mt-1 h-12 w-full text-[15px] font-bold text-white/85">🖼 Escolher foto da galeria</button>
           ) : (
             <div className="mt-1 grid grid-cols-2">
-              <button onClick={() => setPhase("partes")} className="h-12 text-[15px] font-bold text-white/85">🖼 Da galeria</button>
+              <button onClick={() => { comecarNota(notaDaCompra); setPhase("partes"); }} className="h-12 text-[15px] font-bold text-white/85">🖼 Da galeria</button>
               <button onClick={() => setColando((c) => !c)} className="h-12 text-[15px] font-bold text-white/85">
                 {colando ? "📷 Foto" : "🔗 Colar link"}
               </button>
@@ -514,6 +525,7 @@ export function ReceiptModal({
           lerArquivo={fileToDataUrl}
           onPronto={cupomPronto}
           onSair={() => setPhase("capture")}
+          onFechar={close}
           comecarNaCamera={naCamera}
         />
       )}
