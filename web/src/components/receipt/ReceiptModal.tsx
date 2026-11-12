@@ -9,6 +9,8 @@ import { QrScanner } from "./QrScanner";
 import { chaveDoQr, invokeNfce, ufDaChave } from "@/lib/nfce";
 import { ItemGrid, type GridItem } from "./ItemGrid";
 import { Conferencia } from "./Conferencia";
+import { NotaEmPartes } from "./NotaEmPartes";
+import { provaReal, type Cupom } from "@/lib/cupomPartes";
 import { conferir, esquecerUltimaCompra, lerUltimaCompra, type Conferencia as Conf, type ItemNota } from "@/lib/conferencia";
 import { createClient } from "@/lib/supabase/client";
 import type { CompraMes } from "@/lib/economia";
@@ -16,10 +18,8 @@ import { avisarComprasMudaram, diaMes } from "@/lib/compras";
 import { brl } from "@/lib/format";
 
 type Item = GridItem;
-type Phase = "capture" | "scanning" | "fotos" | "processing" | "review" | "conferencia" | "error";
+type Phase = "capture" | "scanning" | "partes" | "processing" | "review" | "conferencia" | "error";
 
-// Cupom de compra do mes e comprido: ate 6 fotos, de cima para baixo.
-const MAX_FOTOS = 6;
 
 // Reduz a foto antes de mandar (payload menor, leitura mais rapida). Cai no
 // FileReader se createImageBitmap nao existir.
@@ -68,8 +68,6 @@ export function ReceiptModal({
   const [qr, setQr] = useState<{ url: string; chave: string; uf: string } | null>(null);
   const [colando, setColando] = useState(false);
   const [link, setLink] = useState("");
-  const camRef = useRef<HTMLInputElement>(null);
-  const galRef = useRef<HTMLInputElement>(null);
   const [phase, setPhase] = useState<Phase>("capture");
   const [items, setItems] = useState<Item[]>([]);
   const [saving, setSaving] = useState(false);
@@ -78,8 +76,9 @@ export function ReceiptModal({
   const [chave, setChave] = useState("");
   const [emitente, setEmitente] = useState("");
   const [totalNota, setTotalNota] = useState(0);
+  // "Qtde. total de itens" do rodape: a prova real na tela de conferir.
+  const [qtdNota, setQtdNota] = useState(0);
   const [confere, setConfere] = useState(true);
-  const [fotos, setFotos] = useState<string[]>([]);
 
   function close() {
     onClose();
@@ -90,8 +89,8 @@ export function ReceiptModal({
     setChave("");
     setEmitente("");
     setTotalNota(0);
+    setQtdNota(0);
     setConfere(true);
-    setFotos([]);
     setQr(null);
     setColando(false);
     setLink("");
@@ -195,51 +194,25 @@ export function ReceiptModal({
     close();
   }
 
-  // Foto da nota (qualquer estado): junta as fotos do cupom e manda tudo de uma vez
-  // para /api/receipt-ocr (Gemini). Com a chave impressa no cupom, nota repetida e barrada.
-  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const arquivos = [...(e.target.files ?? [])];
-    e.target.value = "";
-    if (!arquivos.length) return;
-    const novas = await Promise.all(arquivos.map((f) => fileToDataUrl(f).catch(() => "")));
-    setFotos((l) => [...l, ...novas.filter(Boolean)].slice(0, MAX_FOTOS));
-    setPhase("fotos");
-  }
-
-  async function lerFotos() {
-    if (!fotos.length) return;
+  // Nota pela foto, em partes guiadas (NotaEmPartes): cada parte ja vem lida e juntada.
+  function cupomPronto(c: Cupom, confereTotal: boolean) {
     setSource("ocr");
-    setPhase("processing");
-    try {
-      const r = await fetch("/api/receipt-ocr", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ images: fotos }),
-      });
-      const data = await r.json().catch(() => null);
-      const lidos = data?.ok && Array.isArray(data.itens) ? (data.itens as Item[]) : [];
-      if (!lidos.length) {
-        setPhase("error");
-        return;
-      }
-      setItems(
-        lidos.map((it) => ({
-          nome: it.nome || "",
-          marca: it.marca || "",
-          qtd: Number(it.qtd) || 1,
-          preco: Number(it.preco) || 0,
-          unidade: it.unidade || "un",
-          duvida: !!it.duvida,
-        })),
-      );
-      setChave(qr?.chave || (typeof data.chave === "string" ? data.chave : ""));
-      setEmitente(typeof data.emitente === "string" ? data.emitente : "");
-      setTotalNota(typeof data.total === "number" ? data.total : 0);
-      setConfere(data.confere !== false);
-      irParaRevisao(lidos.map((it) => ({ nome: it.nome || "", marca: it.marca || "", qtd: Number(it.qtd) || 1, preco: Number(it.preco) || 0, unidade: it.unidade || "un" })), typeof data.total === "number" ? data.total : 0);
-    } catch {
-      setPhase("error");
-    }
+    const lidos = c.itens.map((it) => ({
+      nome: it.nome || "",
+      marca: it.marca || "",
+      qtd: Number(it.qtd) || 1,
+      preco: Number(it.preco) || 0,
+      unidade: it.unidade || "un",
+      duvida: !!it.duvida,
+    }));
+    if (!lidos.length) return setPhase("error");
+    setItems(lidos);
+    setChave(qr?.chave || c.chave || "");
+    setEmitente(c.emitente || "");
+    setTotalNota(c.total || 0);
+    setConfere(confereTotal);
+    setQtdNota(c.qtdItens || 0);
+    irParaRevisao(lidos.map((x) => ({ nome: x.nome, marca: x.marca, qtd: x.qtd, preco: x.preco, unidade: x.unidade })), c.total || 0);
   }
 
   function patch(i: number, field: "nome" | "qtd" | "preco", value: string) {
@@ -322,8 +295,6 @@ export function ReceiptModal({
   if (open && phase === "capture") {
     const inputs = (
       <>
-        <input ref={camRef} type="file" accept="image/*" capture="environment" onChange={onFile} className="hidden" />
-        <input ref={galRef} type="file" accept="image/*" multiple onChange={onFile} className="hidden" />
       </>
     );
     return (
@@ -403,15 +374,15 @@ export function ReceiptModal({
               <button type="submit" className="h-14 shrink-0 rounded-full bg-brand px-5 font-extrabold text-brand-ink">Ler</button>
             </form>
           ) : (
-            <button onClick={() => camRef.current?.click()} className="flex h-14 w-full items-center justify-center gap-2 rounded-full bg-brand text-[17px] font-extrabold text-brand-ink">
+            <button onClick={() => setPhase("partes")} className="flex h-14 w-full items-center justify-center gap-2 rounded-full bg-brand text-[17px] font-extrabold text-brand-ink">
               📷 Tirar foto da nota
             </button>
           )}
           {qr ? (
-            <button onClick={() => galRef.current?.click()} className="mt-1 h-12 w-full text-[15px] font-bold text-white/85">🖼 Escolher foto da galeria</button>
+            <button onClick={() => setPhase("partes")} className="mt-1 h-12 w-full text-[15px] font-bold text-white/85">🖼 Escolher foto da galeria</button>
           ) : (
             <div className="mt-1 grid grid-cols-2">
-              <button onClick={() => galRef.current?.click()} className="h-12 text-[15px] font-bold text-white/85">🖼 Da galeria</button>
+              <button onClick={() => setPhase("partes")} className="h-12 text-[15px] font-bold text-white/85">🖼 Da galeria</button>
               <button onClick={() => setColando((c) => !c)} className="h-12 text-[15px] font-bold text-white/85">
                 {colando ? "📷 Foto" : "🔗 Colar link"}
               </button>
@@ -434,46 +405,13 @@ export function ReceiptModal({
 
   return (
     <Modal open={open} onClose={close}>
-      {phase === "fotos" && (
-        <>
-          <div className="mb-1 text-[20px] font-extrabold">
-            {fotos.length} {fotos.length === 1 ? "foto" : "fotos"} do cupom
-          </div>
-          <p className="mb-3 text-[13px] leading-snug text-text-2">
-            Cupom comprido? Tire a parte de baixo também (pode repetir um pedaço, eu não conto duas vezes).
-          </p>
-          <div className="mb-4 flex gap-2 overflow-x-auto pb-1">
-            {fotos.map((f, i) => (
-              <div key={i} className="relative shrink-0">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={f} alt={`Parte ${i + 1} do cupom`} className="h-28 w-20 rounded-lg border border-border object-cover" />
-                <span className="absolute left-1 top-1 rounded bg-black/70 px-1.5 text-[11px] font-bold text-white">{i + 1}</span>
-                <button
-                  onClick={() => setFotos((l) => l.filter((_, j) => j !== i))}
-                  aria-label={`Tirar foto ${i + 1}`}
-                  className="absolute -right-1.5 -top-1.5 grid h-6 w-6 place-items-center rounded-full bg-card text-[13px] font-bold shadow"
-                >
-                  ×
-                </button>
-              </div>
-            ))}
-          </div>
-          <div data-rodape className="flex gap-3">
-            {fotos.length < MAX_FOTOS && (
-              <label className="flex h-[50px] flex-1 cursor-pointer items-center justify-center rounded-[14px] border border-border bg-card text-[15px] font-bold">
-                + Mais uma parte
-                <input type="file" accept="image/*" capture="environment" onChange={onFile} className="hidden" />
-              </label>
-            )}
-            <button
-              onClick={lerFotos}
-              disabled={!fotos.length}
-              className="h-[50px] flex-[1.4] rounded-[14px] bg-brand text-[15px] font-bold text-brand-ink disabled:opacity-50"
-            >
-              Ler nota
-            </button>
-          </div>
-        </>
+      {phase === "partes" && (
+        <NotaEmPartes
+          titulo={notaDaCompra ? `Nota da compra de ${diaMes(notaDaCompra.data)}` : "Nota fiscal pela foto"}
+          lerArquivo={fileToDataUrl}
+          onPronto={cupomPronto}
+          onSair={() => setPhase("capture")}
+        />
       )}
 
       {phase === "processing" && (
@@ -485,7 +423,7 @@ export function ReceiptModal({
           <div className="text-[13px] text-text-2">
             {source === "qr"
               ? "Consultando a SEFAZ e identificando itens"
-              : `Lendo item por item${fotos.length > 1 ? ` nas ${fotos.length} fotos` : ""}. Cupom grande leva até 1 minuto.`}
+              : "Lendo item por item."}
           </div>
         </div>
       )}
@@ -500,6 +438,19 @@ export function ReceiptModal({
               {items.length} {items.length === 1 ? "item" : "itens"}
             </div>
           </div>
+          {(() => {
+            const pr = provaReal(items, qtdNota);
+            if (!pr) return null;
+            return pr.bate ? (
+              <div className="mb-2 rounded-[10px] bg-pos-soft px-3 py-2 text-[13px] font-bold text-pos">
+                ✓ Prova real: {pr.noCupom} de {pr.noCupom} itens do cupom
+              </div>
+            ) : (
+              <div className="mb-2 rounded-[10px] bg-warn-soft px-3 py-2 text-[13px] font-bold text-text">
+                ⚠ Prova real: o cupom diz {pr.noCupom} itens e aqui tem {pr.lidos}. Confira as quantidades ou volte e tire a parte que faltou.
+              </div>
+            );
+          })()}
           {!confere && (
             <div className="mb-2 rounded-[10px] bg-warn-soft px-3 py-2 text-[12px] font-bold text-warn">
               O total dos itens não bateu com o total da nota. Confira antes de confirmar.

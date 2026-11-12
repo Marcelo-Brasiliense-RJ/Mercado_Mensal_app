@@ -47,6 +47,7 @@ export async function POST(req: Request) {
       total: c.total,
       emitente: c.emitente,
       chave: c.chave,
+      qtd_itens: c.qtdItens,
       confere: totalConfere(c),
       por: "gemini",
     });

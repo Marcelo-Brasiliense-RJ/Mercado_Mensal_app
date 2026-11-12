@@ -36,8 +36,8 @@ describe("cupom em partes lidas em paralelo", () => {
   const it2 = (nome: string, preco: number) => ({ nome, marca: "", qtd: 1, unidade: "un", preco, duvida: false });
   it("tira o item repetido na emenda e pega total e chave do pe", () => {
     const r = juntarPartes([
-      { itens: [it2("arroz", 25), it2("feijao", 8), it2("cafe", 18)], total: 0, emitente: "Mercado X", chave: "" },
-      { itens: [it2("feijao", 8), it2("cafe", 18), it2("leite", 5)], total: 56, emitente: "", chave: "1".repeat(44) },
+      { itens: [it2("arroz", 25), it2("feijao", 8), it2("cafe", 18)], total: 0, emitente: "Mercado X", chave: "", qtdItens: 0 },
+      { itens: [it2("feijao", 8), it2("cafe", 18), it2("leite", 5)], total: 56, emitente: "", chave: "1".repeat(44), qtdItens: 4 },
     ]);
     expect(r.itens.map((i) => i.nome)).toEqual(["arroz", "feijao", "cafe", "leite"]);
     expect(r.total).toBe(56);

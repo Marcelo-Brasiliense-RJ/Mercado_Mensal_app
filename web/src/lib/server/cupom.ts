@@ -5,8 +5,8 @@
 // So no servidor.
 import { gemini, type RespostaGemini } from "./gemini";
 
-export type ItemCupom = { nome: string; marca: string; qtd: number; unidade: string; preco: number; duvida: boolean };
-export type Cupom = { itens: ItemCupom[]; total: number; emitente: string; chave: string };
+import { juntarPartes, totalConfere, type Cupom, type ItemCupom } from "../cupomPartes";
+export { juntarPartes, totalConfere, type Cupom, type ItemCupom };
 
 export const LER_CUPOM = `Foto(s) de UM cupom fiscal (NFC-e) de supermercado brasileiro. Se vierem várias fotos, são partes do MESMO cupom, de cima para baixo: junte tudo e NÃO repita o item que aparece em duas fotos (a sobreposição entre uma foto e a próxima).
 Leia TODAS as linhas de produto. Para cada uma:
@@ -17,7 +17,8 @@ Leia TODAS as linhas de produto. Para cada uma:
 - "preco": preço de UMA unidade (o "vl unit"), em reais, número. Se a linha só tem o total, divida pela qtd.
 - "duvida": true se a linha estava ilegível ou você não tem certeza do produto.
 Desconto na linha seguinte ("DESC", "-2,00") abate do item de cima. Linha cancelada não entra.
-Também devolva: "total": o valor total pago (número, 0 se não aparece), "emitente": o nome do mercado no topo, "chave": os 44 dígitos da chave de acesso, só números (vazio se não aparece inteira).
+Também devolva: "total": o valor total pago (número, 0 se não aparece), "emitente": o nome do mercado no topo, "chave": os 44 dígitos da chave de acesso, só números (vazio se não aparece inteira), "qtd_itens": o número da linha "Qtde. total de itens" do rodapé (0 se não aparece).
+A foto pode ser só um PEDAÇO do cupom (o topo, o meio ou o rodapé): leia o que estiver nela, mesmo sem o começo ou o fim.
 Não invente linha que não está na foto.`;
 
 const ESQUEMA = {
@@ -41,6 +42,7 @@ const ESQUEMA = {
     total: { type: "NUMBER" },
     emitente: { type: "STRING" },
     chave: { type: "STRING" },
+    qtd_itens: { type: "NUMBER" },
   },
   required: ["itens", "total", "emitente", "chave"],
 };
@@ -48,7 +50,7 @@ const ESQUEMA = {
 const UNIDADES = new Set(["un", "kg", "g", "L", "ml", "pct", "cx", "dz"]);
 
 export function normalizaCupom(bruto: unknown): Cupom {
-  const j = (bruto ?? {}) as { itens?: unknown; total?: unknown; emitente?: unknown; chave?: unknown };
+  const j = (bruto ?? {}) as { itens?: unknown; total?: unknown; emitente?: unknown; chave?: unknown; qtd_itens?: unknown };
   const itens = (Array.isArray(j.itens) ? j.itens : [])
     .map((x) => {
       const i = (x ?? {}) as Record<string, unknown>;
@@ -73,41 +75,7 @@ export function normalizaCupom(bruto: unknown): Cupom {
     total: Number.isFinite(total) && total > 0 ? Math.round(total * 100) / 100 : 0,
     emitente: String(j.emitente ?? "").trim(),
     chave: chave.length === 44 ? chave : "",
-  };
-}
-
-// Soma dos itens bate com o total da nota? Folga de 2% ou R$ 1 (arredondamento e
-// desconto no rodape que a IA nao pos em item nenhum).
-export function totalConfere(c: Pick<Cupom, "itens" | "total">): boolean {
-  if (!c.total) return true;
-  const soma = c.itens.reduce((t, i) => t + i.qtd * i.preco, 0);
-  return Math.abs(soma - c.total) <= Math.max(1, c.total * 0.02);
-}
-
-// Partes do mesmo cupom lidas em paralelo: junta na ordem e tira o item repetido na
-// emenda (o fim de uma foto aparece no comeco da proxima). Total, emitente e chave: o
-// primeiro que aparecer, de baixo para cima no total e na chave (ficam no pe do cupom).
-export function juntarPartes(partes: Cupom[]): Cupom {
-  const igual = (a: ItemCupom, b: ItemCupom) => a.nome === b.nome && a.preco === b.preco && a.qtd === b.qtd;
-  const itens: ItemCupom[] = [];
-  for (const p of partes) {
-    // pula do comeco desta parte o que repete o fim da anterior (ate 4 linhas)
-    let pular = 0;
-    const fim = itens.slice(-4);
-    for (let k = Math.min(4, p.itens.length, fim.length); k > 0; k--) {
-      if (p.itens.slice(0, k).every((it, i) => igual(it, fim[fim.length - k + i]))) {
-        pular = k;
-        break;
-      }
-    }
-    itens.push(...p.itens.slice(pular));
-  }
-  const ultimo = <T,>(f: (c: Cupom) => T) => [...partes].reverse().map(f).find(Boolean) ?? f(partes[0]);
-  return {
-    itens,
-    total: ultimo((c) => c.total) || 0,
-    emitente: partes.map((c) => c.emitente).find(Boolean) ?? "",
-    chave: ultimo((c) => c.chave) || "",
+    qtdItens: Number(j.qtd_itens) > 0 && Number(j.qtd_itens) < 1000 ? Math.round(Number(j.qtd_itens)) : 0,
   };
 }
 
