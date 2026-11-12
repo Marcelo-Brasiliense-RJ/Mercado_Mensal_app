@@ -141,3 +141,23 @@ describe("fotos que pegaram o cupom quase inteiro (print do dono: 'Li 90 de 46')
     expect(r.cupom.itens).toHaveLength(28);
   });
 });
+
+describe("desconto: a compra fica com o valor PAGO (nota de 574,52 salva como 615,06)", () => {
+  it("desconto sobre item abate da linha de cima", async () => {
+    const { descontoNaLinha } = await import("./cupomPartes");
+    const alcatra = descontoNaLinha({ qtd: 4.136, preco: 47.9, totalLinha: 198.11, desconto: 33.08 });
+    expect(alcatra.totalLinha).toBe(165.03);
+    expect(alcatra.preco).toBe(39.9);
+    expect(descontoNaLinha({ qtd: 3, preco: 7.48, totalLinha: 22.44, desconto: 7.48 }).preco).toBe(4.99);
+    expect(descontoNaLinha({ qtd: 1, preco: 5, totalLinha: 5 })).toEqual({ qtd: 1, preco: 5, totalLinha: 5 });
+  });
+  it("o que sobrar do Valor a Pagar sai dos itens e fecha no centavo", async () => {
+    const { fecharComTotalPago } = await import("./cupomPartes");
+    const itens = [{ qtd: 4.136, preco: 47.9 }, { qtd: 3, preco: 7.48 }, { qtd: 1, preco: 394.51 }];
+    const soma = (l: { qtd: number; preco: number }[]) => Math.round(l.reduce((t, i) => t + i.qtd * i.preco, 0) * 100) / 100;
+    expect(soma(itens)).toBe(615.06);
+    expect(soma(fecharComTotalPago(itens, 574.52))).toBe(574.52);
+    expect(fecharComTotalPago(itens, 300)).toBe(itens); // total lido errado: nao mexe
+    expect(fecharComTotalPago(itens, 700)).toBe(itens); // faltam itens: nao mexe
+  });
+});

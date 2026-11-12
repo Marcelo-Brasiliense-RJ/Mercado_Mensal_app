@@ -2,7 +2,42 @@
 // (lib/server/cupom.ts) e no celular (components/receipt/NotaEmPartes.tsx): o celular le
 // cada parte assim que a foto e tirada e junta aqui.
 
-export type ItemCupom = { nome: string; marca: string; qtd: number; unidade: string; preco: number; duvida: boolean; totalLinha?: number };
+export type ItemCupom = { nome: string; marca: string; qtd: number; unidade: string; preco: number; duvida: boolean; totalLinha?: number; desconto?: number };
+
+const r2 = (v: number) => Math.round(v * 100) / 100;
+
+// "desconto sobre item" logo abaixo da linha (nota real do dono, Atacadao 07/11: alcatra
+// 198,11 com desconto 33,08 e hamburguer 22,44 com 7,48). O preco salvo tem que ser o
+// PAGO: antes ficava o de antes do desconto e a compra registrava 615,06 com a nota de
+// 574,52. Depois de consertarLinha (que usa o total impresso da linha).
+export function descontoNaLinha<T extends Pick<ItemCupom, "qtd" | "preco" | "totalLinha" | "desconto">>(i: T): T {
+  const d = i.desconto ?? 0;
+  const bruto = i.totalLinha ?? i.qtd * i.preco;
+  if (!(d > 0) || d >= bruto || !(i.qtd > 0)) return i;
+  const liquido = r2(bruto - d);
+  return { ...i, preco: r2(liquido / i.qtd), totalLinha: liquido };
+}
+
+// Fecha com o "Valor a Pagar": se a soma das linhas ainda passa do que foi pago (desconto
+// que a leitura nao pos em linha nenhuma, desconto no rodape), a diferenca sai dos itens
+// na proporcao do valor de cada um, e os centavos que sobram do arredondamento vao na
+// linha de 1 unidade mais cara. Diferenca grande demais (> 20%) = total lido errado: nao mexe.
+export function fecharComTotalPago<T extends { qtd: number; preco: number }>(itens: T[], totalPago: number): T[] {
+  const soma = itens.reduce((t, i) => t + i.qtd * i.preco, 0);
+  const d = soma - totalPago;
+  if (!(totalPago > 0) || d <= 0.02 || d > soma * 0.2) return itens;
+  const f = totalPago / soma;
+  const out = itens.map((i) => ({ ...i, preco: r2(i.preco * f) }));
+  const resto = r2(totalPago - out.reduce((t, i) => t + i.qtd * i.preco, 0));
+  if (Math.abs(resto) >= 0.01) {
+    let k = -1;
+    out.forEach((i, j) => {
+      if (i.qtd === 1 && (k < 0 || i.preco > out[k].preco)) k = j;
+    });
+    if (k >= 0) out[k] = { ...out[k], preco: r2(out[k].preco + resto) };
+  }
+  return out;
+}
 
 // Conserta a linha pelo TOTAL impresso (o dado mais firme do cupom). Visto na nota real
 // do dono: "BEB LACTEA 27X200ML 1 CXA 29,43" lido como 27 cx (o 27 e o tamanho do pacote)

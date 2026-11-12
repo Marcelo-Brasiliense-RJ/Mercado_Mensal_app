@@ -5,7 +5,7 @@
 // So no servidor.
 import { gemini, type RespostaGemini } from "./gemini";
 
-import { consertarLinha, consistencia, juntarPartes, provaReal, totalConfere, type Cupom, type ItemCupom } from "../cupomPartes";
+import { consertarLinha, consistencia, descontoNaLinha, juntarPartes, provaReal, totalConfere, type Cupom, type ItemCupom } from "../cupomPartes";
 export { juntarPartes, totalConfere, type Cupom, type ItemCupom };
 
 export const LER_CUPOM = `Foto(s) de UM cupom fiscal (NFC-e) de supermercado brasileiro. Se vierem várias fotos, são partes do MESMO cupom, de cima para baixo: junte tudo e NÃO repita o item que aparece em duas fotos (a sobreposição entre uma foto e a próxima).
@@ -16,9 +16,10 @@ Leia TODAS as linhas de produto. Para cada uma:
 - "unidade": un, kg, g, L, ml, pct, cx ou dz. Pesado no caixa = "kg". Sem certeza, "un".
 - "preco": preço de UMA unidade (o "vl unit"), em reais, número. Se a linha só tem o total, divida pela qtd.
 - "duvida": true se a linha estava ilegível ou você não tem certeza do produto.
-- "total_linha": o valor TOTAL da linha impresso no cupom ("Vl Total"), já com o desconto da linha, número.
-Desconto na linha seguinte ("DESC", "-2,00") abate do item de cima. Linha cancelada não entra.
-Também devolva: "total": o valor total pago (número, 0 se não aparece), "emitente": o nome do mercado no topo, "chave": os 44 dígitos da chave de acesso, só números (vazio se não aparece inteira), "qtd_itens": o número da linha "Qtde. total de itens" do rodapé (0 se não aparece).
+- "total_linha": o valor TOTAL impresso NA LINHA do produto ("Vl Total"), número.
+- "desconto": o valor de "desconto sobre item" / "DESC" que vem na linha LOGO ABAIXO do produto e abate dele (número positivo; 0 se não tem).
+Linha cancelada não entra.
+Também devolva: "total": o "Valor a Pagar" (o que foi pago, DEPOIS dos descontos; número, 0 se não aparece), "emitente": o nome do mercado no topo, "chave": os 44 dígitos da chave de acesso, só números (vazio se não aparece inteira), "qtd_itens": o número da linha "Qtde. total de itens" do rodapé (0 se não aparece).
 A foto pode ser só um PEDAÇO do cupom (o topo, o meio ou o rodapé): leia o que estiver nela, mesmo sem o começo ou o fim.
 Não invente linha que não está na foto.`;
 
@@ -37,6 +38,7 @@ export const ESQUEMA = {
           preco: { type: "NUMBER" },
           duvida: { type: "BOOLEAN" },
           total_linha: { type: "NUMBER" },
+          desconto: { type: "NUMBER" },
         },
         required: ["nome", "qtd", "unidade", "preco"],
       },
@@ -68,10 +70,12 @@ export function normalizaCupom(bruto: unknown): Cupom {
         preco: Number.isFinite(preco) && preco >= 0 ? Math.round(preco * 100) / 100 : 0,
         duvida: i.duvida === true,
         ...(Number(i.total_linha) > 0 ? { totalLinha: Math.round(Number(i.total_linha) * 100) / 100 } : {}),
+        ...(Number(i.desconto) > 0 ? { desconto: Math.round(Number(i.desconto) * 100) / 100 } : {}),
       };
     })
     .filter((i) => i.nome)
-    .map(consertarLinha);
+    .map(consertarLinha)
+    .map(descontoNaLinha);
   const chave = String(j.chave ?? "").replace(/\D/g, "");
   const total = Number(j.total);
   return {
@@ -164,7 +168,7 @@ async function lerOpenRouter(fotos: string[], modelo: string): Promise<Lido> {
           {
             role: "user",
             content: [
-              { type: "text", text: `${LER_CUPOM}\nResponda SOMENTE JSON compacto, numa linha so, sem espacos nem quebras: {"itens":[{"nome","marca","qtd","unidade","preco","duvida","total_linha"}],"total","emitente","chave","qtd_itens"}` },
+              { type: "text", text: `${LER_CUPOM}\nResponda SOMENTE JSON compacto, numa linha so, sem espacos nem quebras: {"itens":[{"nome","marca","qtd","unidade","preco","duvida","total_linha","desconto"}],"total","emitente","chave","qtd_itens"}` },
               ...fotos.map((f) => ({ type: "image_url", image_url: { url: f } })),
             ],
           },

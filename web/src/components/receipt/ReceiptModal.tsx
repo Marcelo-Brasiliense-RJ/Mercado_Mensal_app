@@ -13,7 +13,7 @@ import { NotaEmPartes } from "./NotaEmPartes";
 import { ValidarNota } from "./ValidarNota";
 import { FaltaNaNota } from "./FaltaNaNota";
 import { inserirNaOrdem } from "@/lib/faltaNaNota";
-import { provaReal, type Cupom } from "@/lib/cupomPartes";
+import { fecharComTotalPago, provaReal, type Cupom } from "@/lib/cupomPartes";
 import { daListaNaNota } from "@/lib/notaLista";
 import { conferir, esquecerUltimaCompra, lerUltimaCompra, type Conferencia as Conf, type ItemCarrinho, type ItemNota } from "@/lib/conferencia";
 import { createClient } from "@/lib/supabase/client";
@@ -309,7 +309,8 @@ export function ReceiptModal({
     if (!notaDaCompra) return;
     const { data, error } = await createClient().rpc("mercado_compra_nota_web", {
       p_id: notaDaCompra.id,
-      p_items: clean,
+      // o gasto da compra = o Valor a Pagar da nota (desconto ja abatido dos itens)
+      p_items: fecharComTotalPago(clean, totalNota),
       p_trocar: true,
       p_chave: chave || null,
       p_emitente: emitente || null,
@@ -343,7 +344,7 @@ export function ReceiptModal({
     if (notaDaCompra) return trocarNaCompra(clean, riscar);
     try {
       const res = await confirmReceipt(
-        clean,
+        fecharComTotalPago(clean, totalNota),
         chave ? { chave, emitente, total: totalNota } : undefined,
       );
       if (res && res.ok === false) {
