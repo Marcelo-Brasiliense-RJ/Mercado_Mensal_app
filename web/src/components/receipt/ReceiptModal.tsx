@@ -339,15 +339,27 @@ export function ReceiptModal({
 
         <div className="relative z-10 flex flex-1 flex-col items-center justify-center px-8 text-center">
           {qr ? (
-            <>
-              <span className="mb-4 rounded-full bg-brand px-3.5 py-1 text-[13px] font-extrabold uppercase tracking-[0.1em] text-brand-ink">
-                Pela foto
-              </span>
-              <p className="text-[21px] font-bold leading-snug">
-                Nota{qr.uf ? ` do ${qr.uf}` : ""} reconhecida ✓<br />O site do governo não deixa ler pelo QR. Tire uma foto que eu leio.
+            // Depois do QR de um estado que nao libera os itens (RJ): uma coisa por linha.
+            // Print do dono: "ta de dificil entendimento" quando era um paragrafo so.
+            <div className="w-full max-w-[360px] text-left">
+              <div className="mb-5 flex items-center gap-2 rounded-full bg-pos/20 px-3 py-1.5 text-[14px] font-bold text-[#7CE3A8] w-fit">
+                <span aria-hidden>✓</span> QR lido{qr.uf ? `: nota do ${qr.uf}` : ""}
+              </div>
+              <h2 className="text-[28px] font-extrabold leading-tight">Agora, a foto da nota</h2>
+              <p className="mt-2 text-[15px] leading-snug text-white/70">
+                O site da Receita{qr.uf ? ` do ${qr.uf}` : ""} não mostra os itens pelo QR. Pela foto eu leio cada item e preço.
               </p>
-              <p className="mt-3 text-[14px] text-white/60">De perto, com boa luz. Cupom comprido: em partes, até 6 fotos.</p>
-            </>
+              <ul className="mt-5 space-y-3 text-[15px] leading-snug">
+                <li className="flex gap-3"><span aria-hidden className="w-6 shrink-0 text-center">📄</span><span>Cupom <b>inteiro</b> na foto, de perto e com luz</span></li>
+                <li className="flex gap-3"><span aria-hidden className="w-6 shrink-0 text-center">✂️</span><span>Cupom comprido? Tire <b>em partes</b>, até 6 fotos</span></li>
+                <li className="flex gap-3"><span aria-hidden className="w-6 shrink-0 text-center">🔒</span><span>O QR já garante que esta nota não entra duas vezes</span></li>
+              </ul>
+              {notaDaCompra && (
+                <p className="mt-5 rounded-[16px] bg-white/10 p-3 text-[14px] leading-snug text-white/85">
+                  Os itens da nota vão <b>substituir</b> os {notaDaCompra.itens} da compra de {diaMes(notaDaCompra.data)} ({brl(notaDaCompra.total)}). Você confere antes.
+                </p>
+              )}
+            </div>
           ) : ultima ? (
             <p className="mt-[78vw] text-[16px] font-bold drop-shadow sm:mt-80">
               Leia a nota desta compra e eu confiro item por item
@@ -359,13 +371,15 @@ export function ReceiptModal({
           ) : (
             <p className="mt-[78vw] text-[17px] font-bold drop-shadow sm:mt-80">
               Aponte para o QR code da nota
-              <span className="block text-[14px] font-normal text-white/70">Ele fica no pé do cupom</span>
+              <span className="block text-[14px] font-normal text-white/70">
+                {notaDaCompra ? "Ele fica no pé do cupom. Sem QR? Toque em Tirar foto." : "Ele fica no pé do cupom"}
+              </span>
             </p>
           )}
         </div>
 
         <div className="relative z-10 mx-3 mb-[max(14px,env(safe-area-inset-bottom))] rounded-[28px] bg-[#1c1c1e] p-2.5">
-          {colando ? (
+          {colando && !qr ? (
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -388,12 +402,16 @@ export function ReceiptModal({
               📷 Tirar foto da nota
             </button>
           )}
-          <div className="mt-1 grid grid-cols-2">
-            <button onClick={() => galRef.current?.click()} className="h-12 text-[15px] font-bold text-white/85">🖼 Da galeria</button>
-            <button onClick={() => setColando((c) => !c)} className="h-12 text-[15px] font-bold text-white/85">
-              {colando ? "📷 Foto" : "🔗 Colar link"}
-            </button>
-          </div>
+          {qr ? (
+            <button onClick={() => galRef.current?.click()} className="mt-1 h-12 w-full text-[15px] font-bold text-white/85">🖼 Escolher foto da galeria</button>
+          ) : (
+            <div className="mt-1 grid grid-cols-2">
+              <button onClick={() => galRef.current?.click()} className="h-12 text-[15px] font-bold text-white/85">🖼 Da galeria</button>
+              <button onClick={() => setColando((c) => !c)} className="h-12 text-[15px] font-bold text-white/85">
+                {colando ? "📷 Foto" : "🔗 Colar link"}
+              </button>
+            </div>
+          )}
         </div>
         {inputs}
       </div>
