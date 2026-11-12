@@ -25,7 +25,9 @@ export function NotaEmPartes({
   lerArquivo,
   onPronto,
   onSair,
+  comecarNaCamera = false,
 }: {
+  comecarNaCamera?: boolean;
   titulo: string;
   lerArquivo: (f: File) => Promise<string>;
   onPronto: (c: Cupom, confere: boolean) => void;
@@ -35,7 +37,7 @@ export function NotaEmPartes({
   const [alvo, setAlvo] = useState(2); // quantas fotos o plano pede (1 = cupom pequeno)
   const [agora, setAgora] = useState(() => Date.now());
   // Camera do app (guia o enquadramento e separa as partes); a do celular fica de reserva.
-  const [camera, setCamera] = useState(false);
+  const [camera, setCamera] = useState(comecarNaCamera);
   const [semCamera, setSemCamera] = useState(false);
   const camRef = useRef<HTMLInputElement>(null);
   const galRef = useRef<HTMLInputElement>(null);
@@ -109,9 +111,16 @@ export function NotaEmPartes({
     for (const p of novas) void ler(p.id, p.foto);
   }
 
+  // Uma camera so: a do app (o dono tirou a opcao "camera do celular"). Refazer uma foto
+  // ou o pedaco do meio tambem passa por ela e fecha depois de UMA foto. A do celular so
+  // entra se a do app nao abrir (permissao negada).
+  const umaFotoRef = useRef(false);
   function abrir(galeria = false, destino: { trocar?: number; antesDe?: number } = {}) {
     destinoRef.current = destino;
-    (galeria ? galRef : camRef).current?.click();
+    if (galeria) return galRef.current?.click();
+    if (semCamera) return camRef.current?.click();
+    umaFotoRef.current = destino.trocar != null || destino.antesDe != null;
+    setCamera(true);
   }
 
   // --- conta ---
@@ -148,7 +157,7 @@ export function NotaEmPartes({
       instrucao = <>Do <b>nome do mercado</b> até o <b>TOTAL</b>. Se as letras ficarem pequenas, use 2 fotos.</>;
     } else if (proxima === 1) {
       tituloAgora = "Fotografe o cupom";
-      instrucao = <>Abra a <b>câmera do app</b>: ela mostra a moldura, avisa se dá para ler, tira a foto sozinha e diz quando chegou ao <b>TOTAL</b>. Cupom grande vira partes sozinho.</>;
+      instrucao = <>Abra a <b>câmera</b>: ela mostra a moldura, avisa se dá para ler, tira a foto sozinha e diz quando chegou ao <b>TOTAL</b>. Cupom grande vira partes sozinho.</>;
     } else {
       tituloAgora = `Foto ${proxima}: metade de baixo`;
       instrucao = <>Do <b>meio</b> até o <b>TOTAL</b> e o QR. <b>Repita umas 3 linhas</b> do fim da foto {proxima - 1}: é assim que eu confiro se não pulou nada.</>;
@@ -183,8 +192,11 @@ export function NotaEmPartes({
           }))}
           fim={fimNaCamera}
           onFoto={(f) => {
-            destinoRef.current = {};
             adicionar([f]);
+            if (umaFotoRef.current) {
+              umaFotoRef.current = false;
+              setCamera(false);
+            }
           }}
           onPronto={() => {
             setAlvo(partes.length);
@@ -200,7 +212,7 @@ export function NotaEmPartes({
       <div className="mb-1 text-[13px] font-bold text-text-2">{titulo}</div>
       {semCamera && (
         <p className="mb-2 rounded-[12px] bg-warn-soft px-3 py-2 text-[13px] leading-snug">
-          A câmera do app não abriu (permissão negada?). Use <b>Galeria</b> ou a <b>câmera do celular</b>.
+          A câmera não abriu (permissão negada?). Libere a câmera para o app ou use a <b>Galeria</b>.
         </p>
       )}
       {cupom && (cupom.total > 0 || qtd > 0) && (
@@ -302,8 +314,8 @@ export function NotaEmPartes({
 
       <div data-rodape className="mt-4 flex flex-col gap-2">
         {partes.length === 0 && !semCamera ? (
-          <button type="button" onClick={() => setCamera(true)} className="h-[52px] rounded-full bg-brand text-[16px] font-extrabold text-brand-ink">
-            📷 Abrir a câmera do app
+          <button type="button" onClick={() => abrir()} className="h-[52px] rounded-full bg-brand text-[16px] font-extrabold text-brand-ink">
+            📷 Abrir câmera
           </button>
         ) : faltaFoto ? (
           <button type="button" onClick={() => abrir()} className="h-[52px] rounded-full bg-brand text-[16px] font-extrabold text-brand-ink">
@@ -323,9 +335,6 @@ export function NotaEmPartes({
           {partes.length === 0 ? (
             <>
               <button type="button" onClick={onSair} className="h-11 flex-1 rounded-full border border-border text-[14px] font-bold">Voltar</button>
-              <button type="button" onClick={() => abrir()} className="h-11 flex-1 rounded-full border border-border text-[14px] font-bold">
-                📱 Câmera do celular
-              </button>
             </>
           ) : (
             !faltaFoto && (

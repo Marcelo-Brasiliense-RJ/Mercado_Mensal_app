@@ -57,6 +57,8 @@ export function ReceiptModal({
   const { confirmReceipt, showToast, updateCompra, reloadData, notaDaCompra, shopping, buyItems, stock } = useStore();
   // Revisao: primeiro a validacao facil (so as duvidas); "Ver e editar todos" abre a grade.
   const [validar, setValidar] = useState(true);
+  // "Tirar foto da nota" abre a camera do app direto (galeria passa pela tela das partes).
+  const [naCamera, setNaCamera] = useState(false);
   async function riscarDaLista(ids: string[]) {
     if (!ids.length) return 0;
     const r = await buyItems(ids);
@@ -108,6 +110,7 @@ export function ReceiptModal({
     setLink("");
     setConf(null);
     setValidar(true);
+    setNaCamera(false);
   }
 
   // QR ou link da nota: tenta a SEFAZ (itens prontos, sem foto). A do RJ barra acesso de
@@ -412,7 +415,7 @@ export function ReceiptModal({
               <button type="submit" className="h-14 shrink-0 rounded-full bg-brand px-5 font-extrabold text-brand-ink">Ler</button>
             </form>
           ) : (
-            <button onClick={() => setPhase("partes")} className="flex h-14 w-full items-center justify-center gap-2 rounded-full bg-brand text-[17px] font-extrabold text-brand-ink">
+            <button onClick={() => { setNaCamera(true); setPhase("partes"); }} className="flex h-14 w-full items-center justify-center gap-2 rounded-full bg-brand text-[17px] font-extrabold text-brand-ink">
               📷 Tirar foto da nota
             </button>
           )}
@@ -468,6 +471,7 @@ export function ReceiptModal({
           lerArquivo={fileToDataUrl}
           onPronto={cupomPronto}
           onSair={() => setPhase("capture")}
+          comecarNaCamera={naCamera}
         />
       )}
 
