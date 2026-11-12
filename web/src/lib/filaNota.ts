@@ -28,9 +28,10 @@ export type NotaEmAndamento = {
   alvo: number; // quantas fotos o plano pede (1 = cupom pequeno)
   compra: CompraResumo | null; // nota de uma compra ja registrada (Gastos)
   aberta: boolean; // a tela da nota esta aberta (o aviso flutuante some)
+  avisada: boolean; // ja mandou a notificacao "Nota pronta" desta leitura
 };
 
-const VAZIA: NotaEmAndamento = { partes: [], alvo: 2, compra: null, aberta: false };
+const VAZIA: NotaEmAndamento = { partes: [], alvo: 2, compra: null, aberta: false, avisada: false };
 let nota: NotaEmAndamento = VAZIA;
 const ouvintes = new Set<() => void>();
 let proximoId = 1;
@@ -39,7 +40,61 @@ function mudar(n: NotaEmAndamento) {
   nota = n;
   ouvintes.forEach((f) => f());
 }
-const trocarParte = (id: number, p: Partial<Parte>) => mudar({ ...nota, partes: nota.partes.map((x) => (x.id === id ? { ...x, ...p } : x)) });
+const trocarParte = (id: number, p: Partial<Parte>) => {
+  mudar({ ...nota, partes: nota.partes.map((x) => (x.id === id ? { ...x, ...p } : x)) });
+  // foto voltou a ser lida (tirar de novo, ler de novo): a proxima conclusao avisa de novo
+  if (p.estado === "lendo" && nota.avisada) mudar({ ...nota, avisada: false });
+  if (p.estado && p.estado !== "lendo") talvezAvisar();
+};
+
+// NOTIFICACAO no celular quando a nota termina de ler e a tela dela esta fechada (dono:
+// "quando terminar, me notificasse"). Notificacao local pelo service worker (o mesmo dos
+// avisos De olho); precisa da permissao, pedida no toque em "Fechar · aviso quando ficar
+// pronta" (pedirPermissaoAviso). Limite do iPhone: com o app fora da tela o iOS pausa o
+// app, a leitura so continua (e avisa) quando ele volta a ficar aberto.
+function talvezAvisar() {
+  if (nota.avisada || nota.aberta || !nota.partes.length || nota.partes.some((p) => p.estado === "lendo")) return;
+  mudar({ ...nota, avisada: true });
+  const ok = nota.partes.filter((p) => p.estado === "ok").length;
+  const erros = nota.partes.length - ok;
+  const quando = nota.compra?.data ? ` da compra de ${nota.compra.data.slice(8, 10)}/${nota.compra.data.slice(5, 7)}` : "";
+  void notificar(
+    erros && !ok ? "🧾 A nota não foi lida" : "🧾 Nota pronta",
+    erros && !ok
+      ? `A leitura${quando} está ocupada agora. Toque para ler de novo.`
+      : `Li ${ok} de ${nota.partes.length} ${nota.partes.length > 1 ? "fotos" : "foto"}${quando}. Toque para conferir.`,
+  );
+}
+
+async function notificar(titulo: string, corpo: string) {
+  try {
+    navigator.vibrate?.([80, 40, 80]);
+    if (!("Notification" in window) || Notification.permission !== "granted" || !("serviceWorker" in navigator)) return;
+    const reg = (await navigator.serviceWorker.getRegistration("/")) ?? (await navigator.serviceWorker.register("/sw.js", { scope: "/" }));
+    await reg.showNotification(titulo, {
+      body: corpo,
+      icon: "/icone-cesta-192.png",
+      badge: "/icone-badge.png",
+      tag: "nota",
+      data: { url: window.location.pathname },
+    });
+  } catch {
+    // sem notificacao: o aviso na tela continua la
+  }
+}
+
+// Pede a permissao de notificacao (tem que ser no toque: o iOS so pergunta com gesto).
+export async function pedirPermissaoAviso(): Promise<void> {
+  try {
+    if (!("Notification" in window) || Notification.permission !== "default") return;
+    await Notification.requestPermission();
+    if ("serviceWorker" in navigator && !(await navigator.serviceWorker.getRegistration("/"))) {
+      await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+    }
+  } catch {
+    // iPhone fora da Tela de Inicio nao tem notificacao: fica so o aviso na tela
+  }
+}
 
 export function useFilaNota(): NotaEmAndamento {
   return useSyncExternalStore(
@@ -62,7 +117,10 @@ export function descartarNota() {
   mudar({ ...VAZIA, aberta: nota.aberta });
 }
 export function marcarNotaAberta(aberta: boolean) {
-  if (nota.aberta !== aberta) mudar({ ...nota, aberta });
+  if (nota.aberta === aberta) return;
+  // fechou com tudo ja lido: a pessoa viu na tela, nao precisa de notificacao
+  const jaViu = !aberta && nota.partes.length > 0 && !nota.partes.some((p) => p.estado === "lendo");
+  mudar({ ...nota, aberta, avisada: nota.avisada || jaViu });
 }
 export function definirAlvo(alvo: number) {
   mudar({ ...nota, alvo });

@@ -21,11 +21,13 @@ export function FilaNota() {
       ? `🧾 Nota: ${erros} ${erros > 1 ? "fotos" : "foto"} sem ler · tocar`
       : "🧾 Nota pronta · tocar para conferir";
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-[calc(var(--acima-fab,160px)+48px)] z-30 flex justify-center px-4 lg:bottom-20">
+    // colado em cima da barra de baixo (dono: "nao pode ficar voando no meio da tela");
+    // a barra: bottom 10px + area segura, 62px de altura
+    <div className="pointer-events-none fixed inset-x-0 bottom-[calc(10px+env(safe-area-inset-bottom)+66px)] z-30 flex justify-center px-6 lg:bottom-6">
       <button
         type="button"
         onClick={() => (nota.compra ? abrirNotaDaCompra(nota.compra) : openReceipt())}
-        className={`pointer-events-auto flex items-center gap-2 rounded-full px-4 py-2 text-[13px] font-bold shadow-lg ${lendo ? "bg-text text-bg" : "bg-brand text-brand-ink"}`}
+        className={`pointer-events-auto flex max-w-full items-center gap-2 truncate rounded-full px-3.5 py-1.5 text-[12px] font-bold shadow-md ${lendo ? "bg-text text-bg" : "bg-brand text-brand-ink"}`}
       >
         {lendo > 0 && <span className="h-3 w-3 animate-spin rounded-full border-2 border-bg/40 border-t-bg" />}
         {texto}

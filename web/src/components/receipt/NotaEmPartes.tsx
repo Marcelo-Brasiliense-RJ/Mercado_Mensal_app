@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { contarItens, juntarComEmendas, totalConfere, type Cupom } from "@/lib/cupomPartes";
 import { brl } from "@/lib/format";
 import { CameraCupom } from "./CameraCupom";
-import { adicionarFotos, definirAlvo, descartarNota, lerDeNovo, marcarNotaAberta, tirarFoto, useFilaNota, type Parte } from "@/lib/filaNota";
+import { adicionarFotos, definirAlvo, descartarNota, lerDeNovo, pedirPermissaoAviso, marcarNotaAberta, tirarFoto, useFilaNota, type Parte } from "@/lib/filaNota";
 
 // Nota fiscal em fotos, com o app guiando. Desenho atual (pedido do dono, 2026-11-12,
 // depois de testar com 3 partes + rodape: demorou e "na segunda ja dava pra ver tudo"):
@@ -353,7 +353,14 @@ export function NotaEmPartes({
           </button>
         ) : lendo && onFechar ? (
           // nao trava a pessoa esperando a IA: fecha e o aviso flutuante chama quando ficar pronta
-          <button type="button" onClick={onFechar} className="h-[52px] rounded-full bg-brand text-[16px] font-extrabold text-brand-ink">
+          <button
+            type="button"
+            onClick={() => {
+              void pedirPermissaoAviso(); // no toque: o iOS so pergunta com gesto
+              onFechar();
+            }}
+            className="h-[52px] rounded-full bg-brand text-[16px] font-extrabold text-brand-ink"
+          >
             Fechar · aviso quando ficar pronta
           </button>
         ) : (
