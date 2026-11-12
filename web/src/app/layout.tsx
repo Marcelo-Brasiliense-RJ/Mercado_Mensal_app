@@ -4,6 +4,7 @@ import { Plus_Jakarta_Sans } from "next/font/google";
 import { AppStoreProvider } from "@/lib/store";
 import { Toast } from "@/components/ui/Toast";
 import { AutoAtualizar } from "@/components/AutoAtualizar";
+import { AvisoIcone } from "@/components/AvisoIcone";
 import { LimparCampo } from "@/components/ui/LimparCampo";
 import { Teclado } from "@/components/ui/Teclado";
 
@@ -15,7 +16,7 @@ export const metadata: Metadata = {
   description: "Controle da despensa e das compras do mês, por voz no Telegram.",
   manifest: "/manifest.webmanifest",
   appleWebApp: { capable: true, title: "Despensa", statusBarStyle: "default" },
-  icons: { apple: "/icon-180.png" },
+  icons: { apple: "/icone-cesta-180.png" },
 };
 
 export const viewport: Viewport = {
@@ -40,6 +41,7 @@ export default function RootLayout({
           {children}
           <Toast />
           <AutoAtualizar />
+          <AvisoIcone />
           <LimparCampo />
           <Teclado />
         </AppStoreProvider>

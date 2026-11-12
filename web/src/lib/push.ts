@@ -60,7 +60,7 @@ export async function ligarPush(): Promise<{ ok: true } | { ok: false; erro: str
     // Aviso de teste na hora: a pessoa ve que funciona sem esperar uma promocao.
     await reg.showNotification("🔔 Avisos ligados", {
       body: "Quando um produto De olho entrar em promoção, ele aparece aqui.",
-      icon: "/icon-192.png",
+      icon: "/icone-cesta-192.png",
       tag: "de-olho",
     });
     return { ok: true };

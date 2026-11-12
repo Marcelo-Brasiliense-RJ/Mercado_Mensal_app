@@ -14,7 +14,7 @@ self.addEventListener("push", (e) => {
   e.waitUntil(
     self.registration.showNotification(d.title || "Despensa", {
       body: d.body || "",
-      icon: "/icon-192.png",
+      icon: "/icone-cesta-192.png",
       badge: "/icone-badge.png",
       // Mesmo assunto substitui o aviso anterior (nao empilha 5 "pos na lista"), mas toca de novo.
       tag: d.tag || "de-olho",
