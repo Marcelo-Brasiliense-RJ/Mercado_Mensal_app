@@ -52,6 +52,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { receiptOpen, openReceipt, closeReceipt, showToast } = useStore();
   // Localizacao no topo: preenchida = ligada; riscada = desligada. Um toque liga.
   const lugar = useLugar();
+  const modoMercadoLigado = useModoMercado();
   const gpsLigado = lugar.permitido === "sim";
   async function tocarGps() {
     if (lugar.permitido === "sem") return showToast("Este aparelho não tem localização.");
@@ -124,6 +125,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             )
           }
           right={
+            // Localizacao so serve para saber que esta no mercado: com o modo mercado
+            // desligado o icone some (pedido do dono, 2026-11-12).
+            modoMercadoLigado ? (
             <div className="flex items-center">
               <button
                 onClick={() => void tocarGps()}
@@ -141,6 +145,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 )}
               </button>
             </div>
+            ) : null
           }
         />
 

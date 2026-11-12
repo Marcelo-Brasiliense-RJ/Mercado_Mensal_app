@@ -7,6 +7,7 @@ import { MeusMercadosModal } from "@/components/ofertas/MeusMercados";
 import { BudgetModal } from "@/components/economia/BudgetModal";
 import { estadoPush, ligarPush, type EstadoPush } from "@/lib/push";
 import { atualizarLugar, useLugar } from "@/lib/lugar";
+import { useModoMercado } from "@/lib/modoMercado";
 
 // "Falta configurar", na tela inicial: tudo que ainda nao foi preenchido ou ligado e
 // faz o app trabalhar sozinho, cada um com o botao que resolve ali mesmo. Antes isso
@@ -30,6 +31,8 @@ export function PrimeirosPassos({ onFalar, onDigitar }: { onFalar: () => void; o
   const { stock, budget, dataReady, showToast } = useStore();
   const ofertas = useOfertas();
   const lugar = useLugar();
+  // Localizacao e coisa do modo mercado: fora dele nao entra no "Falta configurar".
+  const modoMercado = useModoMercado();
   const [push, setPush] = useState<EstadoPush | null>(null);
   const [mercados, setMercados] = useState(false);
   const [orcamento, setOrcamento] = useState(false);
@@ -122,7 +125,9 @@ export function PrimeirosPassos({ onFalar, onDigitar }: { onFalar: () => void; o
       acao: null,
     });
 
-  if (lugar.permitido === "perguntar")
+  if (!modoMercado) {
+    // nada de localizacao
+  } else if (lugar.permitido === "perguntar")
     itens.push({
       id: "local",
       titulo: "📍 Localização",
