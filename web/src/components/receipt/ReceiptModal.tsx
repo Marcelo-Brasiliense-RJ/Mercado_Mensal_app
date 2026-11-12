@@ -274,6 +274,9 @@ export function ReceiptModal({
   function corrigirQtdNaNota(indice: number, qtd: number) {
     atualizarNota(items.map((it, i) => (i === indice - 1 ? { ...it, qtd } : it)));
   }
+  function removerDaNota(indice: number) {
+    atualizarNota(items.filter((_, i) => i !== indice - 1));
+  }
   const faltaNaNota =
     source === "ocr" && qtdNota > 0 ? (
       <FaltaNaNota
@@ -283,6 +286,7 @@ export function ReceiptModal({
         produtos={stock.map((x) => ({ name: x.name, unit: x.unit, priceLast: x.priceLast }))}
         onAdicionar={adicionarNaNota}
         onCorrigirQtd={corrigirQtdNaNota}
+        onRemover={removerDaNota}
       />
     ) : null;
 

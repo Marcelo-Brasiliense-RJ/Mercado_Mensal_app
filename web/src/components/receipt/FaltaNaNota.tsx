@@ -12,7 +12,7 @@ import { ondeFica, prova, sugerirProdutos, type LinhaNota } from "@/lib/faltaNaN
 // quantidade e preco) e o item entra na compra; o contador chega a 100%.
 
 type Faltante = {
-  tipo: "linha" | "quantidade";
+  tipo: "linha" | "quantidade" | "repetida";
   texto: string;
   nome: string;
   marca: string;
@@ -31,6 +31,7 @@ export function FaltaNaNota({
   produtos,
   onAdicionar,
   onCorrigirQtd,
+  onRemover,
 }: {
   itens: LinhaNota[]; // na ordem do cupom
   noCupom: number; // "Qtde. total de itens" do rodape
@@ -38,6 +39,7 @@ export function FaltaNaNota({
   produtos: Produto[];
   onAdicionar: (item: LinhaNota, depoisDe: number) => void;
   onCorrigirQtd: (indice: number, qtd: number) => void; // indice 1..
+  onRemover: (indice: number) => void; // linha repetida na leitura (indice 1..)
 }) {
   const pr = prova(itens, noCupom);
   const [busca, setBusca] = useState<"idle" | "procurando" | "achou" | "nada" | "erro">("idle");
@@ -53,7 +55,7 @@ export function FaltaNaNota({
   }, []);
 
   // Segunda olhada na foto, uma vez por contagem (preencheu um e ainda falta: procura de novo)
-  const falta = pr?.falta ?? 0;
+  const falta = (pr?.falta ?? 0) + (pr?.sobra ?? 0); // sobrou tambem procura (a linha repetida)
   const lidos = pr?.lidos ?? 0;
   useEffect(() => {
     if (!falta || !fotos.length || procurouCom.current === lidos) return;
@@ -126,12 +128,34 @@ export function FaltaNaNota({
         <div className={`h-full rounded-full ${ok ? "bg-pos" : "bg-warn"}`} style={{ width: `${pr.pct}%` }} />
       </div>
 
-      {pr.falta > 0 && !form && (
+      {falta > 0 && !form && (
         <div className="mt-3">
           {busca === "procurando" && <p className="text-[14px] text-text-2">🔎 Olhando a nota de novo para achar onde está…</p>}
 
           {busca === "achou" &&
             faltam.map((f, k) => {
+              if (f.tipo === "repetida") {
+                const lida = itens[f.indice - 1];
+                if (!lida) return null;
+                return (
+                  <div key={k} className="mt-2 rounded-[16px] border-2 border-dashed border-warn p-3">
+                    <div className="text-[14px] font-extrabold">
+                      <span className="capitalize">{lida.nome}</span> ({String(lida.qtd).replace(".", ",")} × {brl(lida.preco)}) entrou repetido na leitura
+                    </div>
+                    {f.texto && <div className="mt-1 rounded-[8px] bg-card-2 px-2 py-1 font-mono text-[12px]">{f.texto}</div>}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFaltam((l) => l.filter((x) => x !== f));
+                        onRemover(f.indice);
+                      }}
+                      className="mt-2 h-10 w-full rounded-full bg-[var(--barra)] text-[14px] font-extrabold text-white"
+                    >
+                      Tirar a linha repetida
+                    </button>
+                  </div>
+                );
+              }
               if (f.tipo === "quantidade") {
                 const lida = itens[f.indice - 1];
                 if (!lida) return null;
@@ -184,10 +208,11 @@ export function FaltaNaNota({
 
           {(busca === "nada" || busca === "erro" || busca === "idle") && (
             <p className="text-[13px] leading-snug text-text-2">
-              {busca === "erro" ? "Não consegui olhar a nota de novo agora." : busca === "nada" ? "Não achei sozinho onde está." : ""} Compare a nota com os itens abaixo e preencha o que faltou.
+              {busca === "erro" ? "Não consegui olhar a nota de novo agora." : busca === "nada" ? "Não achei sozinho onde está." : ""}{" "}
+              {pr.falta > 0 ? "Compare a nota com os itens abaixo e preencha o que faltou." : "Confira as quantidades dos itens abaixo."}
             </p>
           )}
-          {busca !== "procurando" && (
+          {busca !== "procurando" && pr.falta > 0 && (
             <button type="button" onClick={() => preencher()} className="mt-2 h-10 w-full rounded-full border border-border text-[14px] font-bold">
               + Preencher outro item
             </button>

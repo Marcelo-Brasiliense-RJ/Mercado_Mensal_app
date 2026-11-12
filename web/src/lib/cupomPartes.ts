@@ -104,59 +104,122 @@ export function totalConfere(c: Pick<Cupom, "itens" | "total">): boolean {
   return Math.abs(soma - c.total) <= Math.max(1, c.total * 0.02);
 }
 
-// Partes do mesmo cupom, de cima para baixo: junta na ordem e tira o trecho repetido.
-// A repeticao pode ser pequena (as ultimas linhas de uma foto no comeco da proxima) ou
-// enorme: no uso real (print do dono, 2026-11-12) as duas fotos pegaram o cupom quase
-// inteiro, 45 linhas cada, e a emenda antiga (so olhava ate 20 linhas, com o fim de uma
-// batendo EXATO com o comeco da outra) somou tudo: "Li 90 de 46". Agora procura onde a
-// foto nova comeca dentro do que ja foi lido (qualquer ponto, ate o comeco) e aceita a
-// emenda quando a maior parte das linhas dali para baixo reaparece no comeco da foto nova
-// (a IA troca ordem e nome de uma linha ou outra e erra uma ou outra leitura).
-// Total, chave e quantidade: o que aparecer, de baixo para cima (ficam no pe do cupom).
-// semEmenda: indices i (>= 1) em que a parte i NAO repetiu nada do fim da parte i-1: ali
-// provavelmente ficou um pedaco do cupom de fora (e o lugar para mostrar a pessoa).
+// Partes do mesmo cupom, de cima para baixo: junta e tira o que aparece em mais de uma
+// foto. ALINHAMENTO (como o de comparar textos): cada foto nova e alinhada com o que ja
+// foi lido, linha a linha, e o trecho em comum vira um so. Funciona com qualquer
+// sobreposicao: a foto nova repetindo 3 linhas, metade, o cupom inteiro, ou comecando
+// acima da anterior. Visto no uso real (2026-11-12): cupom de 110 itens em 9 fotos que
+// pegavam 27 a 103 itens cada; a emenda antiga (fim de uma no comeco da outra) dava
+// "Li 166 de 110". No alinhamento:
+// - mesma linha = mesmo preco e quantidade (+ o comeco do nome, se bater);
+// - a mesma posicao com leitura diferente (preco lido errado numa foto) e UMA linha so,
+//   fica a leitura sem duvida;
+// - linha que so uma das fotos leu entra (a outra pulou).
+// semEmenda: indices i (>= 1) em que a parte i nao encaixou em nada do que ja tinha:
+// ali provavelmente ficou um pedaco do cupom de fora.
+const raizNome = (n: string) => n.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z]/g, "").slice(0, 3);
+
+export function alinhar(a: ItemCupom[], b: ItemCupom[]): { itens: ItemCupom[]; encaixou: boolean } {
+  if (!a.length || !b.length) return { itens: [...a, ...b], encaixou: false };
+  const mesma = (x: ItemCupom, y: ItemCupom) => Math.abs(x.preco - y.preco) < 0.005 && Math.abs(x.qtd - y.qtd) < 0.001;
+  const pontos = (x: ItemCupom, y: ItemCupom) => (mesma(x, y) ? (raizNome(x.nome) === raizNome(y.nome) ? 4 : 3) : raizNome(x.nome) === raizNome(y.nome) ? -1 : -3);
+  const GAP = -2;
+  const n = a.length, m = b.length;
+  // H: melhor alinhamento terminando em (i, j). Sobreposicao: o comeco e livre so na BORDA
+  // (uma das fotos comeca no meio da outra), nunca solto no meio das duas; senao a
+  // primeira linha lida errada de uma foto sobrava como item extra no topo.
+  const H = Array.from({ length: n + 1 }, () => new Float64Array(m + 1));
+  const T = Array.from({ length: n + 1 }, () => new Uint8Array(m + 1)); // 1 diag, 2 cima (so a), 3 esq (so b), 0 inicio
+  for (let i = 1; i <= n; i++)
+    for (let j = 1; j <= m; j++) {
+      const d = H[i - 1][j - 1] + pontos(a[i - 1], b[j - 1]);
+      const c = H[i - 1][j] + GAP;
+      const e = H[i][j - 1] + GAP;
+      let v = d, t = 1;
+      if (c > v) {
+        v = c;
+        t = 2;
+      }
+      if (e > v) {
+        v = e;
+        t = 3;
+      }
+      H[i][j] = v;
+      T[i][j] = t;
+    }
+  // fim livre: termina onde uma das duas acaba (ultima linha ou coluna)
+  let bi = 0, bj = 0, best = 0;
+  for (let i = 1; i <= n; i++)
+    if (H[i][m] > best) {
+      best = H[i][m];
+      bi = i;
+      bj = m;
+    }
+  for (let j = 1; j <= m; j++)
+    if (H[n][j] > best) {
+      best = H[n][j];
+      bi = n;
+      bj = j;
+    }
+  // volta: pares do trecho em comum
+  const pares: [number, number][] = [];
+  let i = bi, j = bj, iguais = 0;
+  while (i > 0 && j > 0) {
+    const t = T[i][j];
+    if (t === 1) {
+      pares.push([i - 1, j - 1]);
+      if (mesma(a[i - 1], b[j - 1])) iguais++;
+      i--;
+      j--;
+    } else if (t === 2) pares.push([--i, -1]);
+    else pares.push([-1, --j]);
+  }
+  // so encaixa com 2+ linhas iguais (1 so pode ser coincidencia de preco), ou 1 so se for
+  // a mesma linha, nome incluido, na ponta (o fim de uma foto no comeco da outra)
+  const umaNaPonta = iguais === 1 && pares.length === 1 && raizNome(a[pares[0][0]]?.nome ?? "") === raizNome(b[pares[0][1]]?.nome ?? "-");
+  if (iguais < 2 && !umaNaPonta) return { itens: [...a, ...b], encaixou: false };
+  pares.reverse();
+  const a0 = i, b0 = j; // inicio do trecho em comum
+  // No trecho em comum, linha que so uma foto tem: se a outra tem a MESMA linha logo ali
+  // (ate 3 posicoes), e a IA trocando a ordem de duas vizinhas (wafer 6 e wafer 3 na nota
+  // real): e a mesma linha, entra uma vez so.
+  const meio: { it: ItemCupom; de: "a" | "b" | "ab" }[] = pares.map(([x, y]) =>
+    x >= 0 && y >= 0 ? { it: a[x].duvida && !b[y].duvida ? b[y] : a[x], de: "ab" } : x >= 0 ? { it: a[x], de: "a" } : { it: b[y], de: "b" },
+  );
+  const fora = new Set<number>();
+  meio.forEach((e, k) => {
+    if (e.de !== "b") return;
+    for (let d = -3; d <= 3; d++) {
+      const o = meio[k + d];
+      if (o && o.de === "a" && !fora.has(k + d) && mesma(o.it, e.it)) {
+        fora.add(k);
+        break;
+      }
+    }
+  });
+  const out: ItemCupom[] = [
+    ...b.slice(0, b0), // o que vem antes (so uma das duas tem)
+    ...a.slice(0, a0),
+    ...meio.filter((_, k) => !fora.has(k)).map((e) => e.it),
+    ...a.slice(bi), // o que vem depois (so uma das duas tem)
+    ...b.slice(bj),
+  ];
+  return { itens: out, encaixou: true };
+}
+
 export function juntarComEmendas(partes: Cupom[]): { cupom: Cupom; semEmenda: number[] } {
-  // A mesma linha lida em duas fotos (as vezes por IAs diferentes) vem com o nome um pouco
-  // diferente ("biscoito piraque wafer" x "bisc. piraque wafer"): vale preco + quantidade +
-  // o comeco do nome.
-  const raiz = (n: string) => n.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z]/g, "").slice(0, 3);
-  const igual = (a: ItemCupom, b: ItemCupom) =>
-    Math.abs(a.preco - b.preco) < 0.015 && Math.abs(a.qtd - b.qtd) < 0.001 && (a.nome === b.nome || raiz(a.nome) === raiz(b.nome));
-  const chave = (i: ItemCupom) => `${i.preco.toFixed(2)}|${+i.qtd.toFixed(3)}`;
-  const itens: ItemCupom[] = [];
+  let itens: ItemCupom[] = [];
   const semEmenda: number[] = [];
   partes.forEach((p, idx) => {
-    const pular = emenda(itens, p.itens);
-    if (idx > 0 && pular === 0 && p.itens.length && itens.length) semEmenda.push(idx);
-    itens.push(...p.itens.slice(pular));
-  });
-
-  // Quantas linhas do comeco de `nova` ja estao em `lidos`. Testa a foto nova comecando em
-  // cada ponto j do que ja foi lido, do mais alto (ela repete tudo) para o mais baixo.
-  function emenda(lidos: ItemCupom[], nova: ItemCupom[]): number {
-    for (let j = 0; j < lidos.length; j++) {
-      const cauda = lidos.slice(j);
-      const L = cauda.length;
-      if (L === 1) return nova.length && igual(cauda[0], nova[0]) ? 1 : 0;
-      const resta = new Map<string, number>();
-      for (const i of cauda) resta.set(chave(i), (resta.get(chave(i)) ?? 0) + 1);
-      let achou = 0;
-      let ultimo = -1;
-      const cabeca = nova.slice(0, L + 2); // folga: linha que a foto anterior nao leu
-      cabeca.forEach((i, k) => {
-        const n = resta.get(chave(i)) ?? 0;
-        if (n > 0) {
-          resta.set(chave(i), n - 1);
-          achou++;
-          ultimo = k;
-        }
-      });
-      // 2 a 4 linhas: todas (o mesmo CONJUNTO de preco x quantidade); mais: 70%
-      const precisa = L <= 4 ? L : Math.ceil(L * 0.7);
-      if (achou >= precisa && achou >= 2) return ultimo + 1;
+    if (!p.itens.length) return;
+    if (!itens.length) {
+      itens = [...p.itens];
+      return;
     }
-    return 0;
-  }
+    const r = alinhar(itens, p.itens);
+    if (!r.encaixou && idx > 0) semEmenda.push(idx);
+    itens = r.itens;
+  });
 
   const ultimo = <T,>(f: (c: Cupom) => T) => [...partes].reverse().map(f).find(Boolean) ?? f(partes[0]);
   const cupom: Cupom = {

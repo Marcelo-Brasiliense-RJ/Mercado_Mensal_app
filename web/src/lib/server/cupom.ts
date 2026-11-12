@@ -222,7 +222,7 @@ async function lerUma(fotos: string[], modelos: string[]): Promise<({ ok: true }
 // a diferenca. Devolve a linha que ficou de fora (com o texto como esta impresso e entre
 // quais linhas da lista ela fica) ou a linha da lista com a quantidade lida errada.
 export type Faltante = {
-  tipo: "linha" | "quantidade";
+  tipo: "linha" | "quantidade" | "repetida";
   texto: string; // como esta impresso no cupom ("DESINF.BUFALO 1X2L")
   nome: string;
   marca: string;
@@ -242,7 +242,7 @@ const ESQUEMA_FALTA = {
       items: {
         type: "OBJECT",
         properties: {
-          tipo: { type: "STRING", enum: ["linha", "quantidade"] },
+          tipo: { type: "STRING", enum: ["linha", "quantidade", "repetida"] },
           texto: { type: "STRING" },
           nome: { type: "STRING" },
           marca: { type: "STRING" },
@@ -264,10 +264,16 @@ export function promptFalta(lidos: LidoResumo[], qtdItens: number, contados: num
   return `Foto(s) de UM cupom fiscal de supermercado (se várias, partes do mesmo cupom, de cima para baixo). O rodapé diz "Qtde. total de itens ${qtdItens}" (a soma das quantidades; produto pesado em kg conta 1).
 Já li estas linhas, NA ORDEM do cupom (n. nome | qtd | preço unitário):
 ${lista}
-Elas somam ${contados}; faltam ${qtdItens - contados}. Olhe o cupom LINHA POR LINHA, comparando com a lista, e ache o que ficou de fora:
+${
+    contados < qtdItens
+      ? `Elas somam ${contados}; faltam ${qtdItens - contados}. Olhe o cupom LINHA POR LINHA, comparando com a lista, e ache o que ficou de fora:
 - tipo "linha": uma linha de produto do cupom que NÃO está na lista. "texto" = a descrição como está impressa; "nome" = o produto genérico em minúsculo (como na lista); "marca"; "qtd"; "unidade" (un, kg, g, L, ml, pct, cx, dz); "preco" = preço unitário; "depois_de" = o número da linha da lista que fica LOGO ACIMA dela no cupom (0 se ela é a primeira).
-- tipo "quantidade": uma linha da lista cuja quantidade foi lida errada. "indice" = o número dela na lista; "qtd" = a quantidade certa; "texto" = como está impressa; "depois_de" = o mesmo número.
-Devolva só o que você VÊ no cupom; não invente. Nada faltando que dê para ver: "faltam" vazio.`;
+- tipo "quantidade": uma linha da lista cuja quantidade foi lida errada. "indice" = o número dela na lista; "qtd" = a quantidade certa; "texto" = como está impressa; "depois_de" = o mesmo número.`
+      : `Elas somam ${contados}; SOBRAM ${contados - qtdItens}. Olhe o cupom LINHA POR LINHA, comparando com a lista, e ache o que está a mais na lista:
+- tipo "repetida": uma linha da lista que entrou duas vezes ou que não existe no cupom. "indice" = o número dela na lista (a cópia a mais); "texto" = como está impressa (ou vazio se não existe); "nome", "qtd", "preco" = os da lista; "depois_de" = o mesmo número.
+- tipo "quantidade": uma linha da lista com a quantidade lida A MAIS. "indice" = o número dela na lista; "qtd" = a quantidade certa; "texto" = como está impressa; "depois_de" = o mesmo número.`
+  }
+Devolva só o que você VÊ no cupom; não invente. Nada que dê para ver: "faltam" vazio.`;
 }
 
 export function normalizaFalta(bruto: unknown, lidos: LidoResumo[]): Faltante[] {
@@ -277,7 +283,7 @@ export function normalizaFalta(bruto: unknown, lidos: LidoResumo[]): Faltante[] 
     .map((x) => {
       const i = (x ?? {}) as Record<string, unknown>;
       const u = String(i.unidade ?? "un").trim();
-      const tipo: Faltante["tipo"] = i.tipo === "quantidade" ? "quantidade" : "linha";
+      const tipo: Faltante["tipo"] = i.tipo === "quantidade" ? "quantidade" : i.tipo === "repetida" ? "repetida" : "linha";
       const qtd = Number(i.qtd);
       const preco = Number(i.preco);
       const dep = Math.round(Number(i.depois_de));
@@ -295,7 +301,9 @@ export function normalizaFalta(bruto: unknown, lidos: LidoResumo[]): Faltante[] 
       };
     })
     // "quantidade" com a mesma quantidade que ja foi lida nao corrige nada (visto no teste)
-    .filter((f) => (f.tipo === "linha" ? !!f.nome : f.indice > 0 && Math.abs(f.qtd - lidos[f.indice - 1].qtd) > 0.001))
+    .filter((f) =>
+      f.tipo === "linha" ? !!f.nome : f.tipo === "repetida" ? f.indice > 0 : f.indice > 0 && Math.abs(f.qtd - lidos[f.indice - 1].qtd) > 0.001,
+    )
     .slice(0, 5);
 }
 

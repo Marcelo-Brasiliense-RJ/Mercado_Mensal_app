@@ -141,12 +141,19 @@ export function NotaEmPartes({
   const nome = (p: Parte) => `foto ${partes.indexOf(p) + 1}`;
   // Leu itens de sobra: nao e buraco (buraco so faz faltar), entao nao manda tirar o meio
   const sobra = qtd > 0 && lidos > qtd;
-  const buracos = todasLidas && !sobra ? (junta?.semEmenda ?? []).map((i) => ({ antes: okPartes[i - 1], depois: okPartes[i] })) : [];
-  const borradas = todasLidas ? okPartes.map((p) => ({ p, n: p.cupom!.itens.filter((it) => it.duvida).length })).filter((x) => x.n > 0) : [];
+  // A conta e do app, nao da pessoa (dono: "nao cabe ao usuario saber o que sao esses
+  // itens a mais"). Diferenca pequena vai para a conferencia, onde a FaltaNaNota aponta
+  // a linha. Aqui so se pede foto quando o problema e de FOTO: faltou o rodape, ou um
+  // pedaco grande do cupom ficou de fora (as fotos nao se encostaram e faltam 3+ itens).
+  const faltam = qtd > 0 ? qtd - lidos : 0;
+  const buracos = todasLidas && faltam >= 3 ? (junta?.semEmenda ?? []).map((i) => ({ antes: okPartes[i - 1], depois: okPartes[i] })) : [];
+  // foto aberta em tela cheia (tocar na miniatura)
+  const [vendo, setVendo] = useState<number | null>(null);
+  const fotoAberta = partes.find((p) => p.id === vendo);
   const ultimaOk = okPartes[okPartes.length - 1];
   const semTotal = todasLidas && !qtd && !cupom?.total;
   const bate = todasLidas && qtd > 0 && lidos === qtd;
-  const problema = todasLidas && !bate;
+  const problema = todasLidas && !bate && (semTotal || buracos.length > 0);
 
   const inputs = (
     <>
@@ -178,12 +185,12 @@ export function NotaEmPartes({
   } else if (bate) {
     tituloAgora = `✓ ${qtd} de ${qtd} itens`;
     instrucao = <>Prova real ok: li todos os itens que o cupom diz. Toque em <b>Conferir itens</b>.</>;
-  } else if (sobra) {
-    tituloAgora = `${lidos - qtd} ${lidos - qtd === 1 ? "item" : "itens"} a mais`;
-    instrucao = <>Alguma linha entrou repetida ou uma quantidade foi lida a mais. Confira na próxima tela.</>;
+  } else if (problema) {
+    tituloAgora = semTotal ? "Faltou o rodapé" : `Faltam ${faltam} itens`;
+    instrucao = <>Veja abaixo qual foto tirar.</>;
   } else {
-    tituloAgora = qtd ? (qtd - lidos === 1 ? "Falta 1 item" : `Faltam ${qtd - lidos} itens`) : "Confira o que faltou";
-    instrucao = <>Veja abaixo <b>onde faltou</b> e toque no botão.</>;
+    tituloAgora = `Li ${lidos}${qtd ? ` de ${qtd}` : ""} itens`;
+    instrucao = <>Toque em <b>Conferir itens</b>: na próxima tela eu aponto onde está a diferença{sobra ? "" : " e você preenche"}.</>;
   }
 
   const relogio = (p: Parte) => Math.max(0, Math.round((agora - p.desde) / 1000));
@@ -219,6 +226,55 @@ export function NotaEmPartes({
           }}
         />
       )}
+      {/* Foto em tela cheia: ver o que a foto pegou antes de decidir tirar de novo. Tocar na
+          foto alterna zoom (2x, arrastando para ver). */}
+      {fotoAberta && (
+        <div className="fixed inset-0 z-[60] flex flex-col bg-black text-white">
+          <div className="flex items-center gap-3 px-4 pb-2 pt-[max(14px,env(safe-area-inset-top))]">
+            <button type="button" onClick={() => setVendo(null)} aria-label="Fechar" className="grid h-11 w-11 place-items-center rounded-full bg-white/15 text-[18px]">
+              ✕
+            </button>
+            <span className="text-[15px] font-extrabold">
+              Foto {partes.indexOf(fotoAberta) + 1}
+              {fotoAberta.estado === "ok" ? ` · ${contarComoNoCupom(fotoAberta.cupom!.itens)} itens` : fotoAberta.estado === "erro" ? " · não deu para ler" : " · lendo…"}
+            </span>
+          </div>
+          <div className="min-h-0 flex-1 overflow-auto">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={fotoAberta.foto}
+              alt="Foto da nota"
+              onClick={(e) => e.currentTarget.classList.toggle("w-[200%]")}
+              className="mx-auto block w-full max-w-none object-contain"
+            />
+          </div>
+          <div className="flex gap-2 px-4 pb-[max(16px,env(safe-area-inset-bottom))] pt-3">
+            <button
+              type="button"
+              onClick={() => {
+                const id = fotoAberta.id;
+                setVendo(null);
+                setPartes((l) => l.filter((x) => x.id !== id));
+                setAlvo((a) => Math.max(1, Math.min(a, partes.length - 1)));
+              }}
+              className="h-12 flex-1 rounded-full bg-white/15 text-[15px] font-bold"
+            >
+              Tirar fora
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const id = fotoAberta.id;
+                setVendo(null);
+                abrir(false, { trocar: id });
+              }}
+              className="h-12 flex-[2] rounded-full bg-[#FF7A1A] text-[15px] font-extrabold text-black"
+            >
+              📷 Tirar de novo
+            </button>
+          </div>
+        </div>
+      )}
       <div className="mb-1 text-[13px] font-bold text-text-2">{titulo}</div>
       {semCamera && (
         <p className="mb-2 rounded-[12px] bg-warn-soft px-3 py-2 text-[13px] leading-snug">
@@ -237,7 +293,7 @@ export function NotaEmPartes({
         <DesenhoCupom
           n={Math.max(alvo, partes.length)}
           atual={faltaFoto ? proxima : null}
-          estados={partes.map((p) => (borradas.some((b) => b.p.id === p.id) || p.estado === "erro" ? "ruim" : p.estado === "ok" ? "ok" : "lendo"))}
+          estados={partes.map((p) => (p.estado === "erro" ? "ruim" : p.estado === "ok" ? "ok" : "lendo"))}
           buracos={buracos.map((b) => partes.indexOf(b.depois))}
         />
         <div className="min-w-0 flex-1 text-[14px] leading-snug">
@@ -265,34 +321,12 @@ export function NotaEmPartes({
             <Problema
               key={`b${i}`}
               titulo={`Faltou um pedaço entre a ${nome(b.antes)} e a ${nome(b.depois)}`}
-              texto="As duas fotos não se encostaram. Fotografe só o meio, repetindo umas linhas de cada lado."
+              texto="O fim de uma não aparece no começo da outra. Toque nas fotos para ver. Fotografe só o meio, repetindo umas linhas de cada lado."
               botao="📷 Tirar o pedaço do meio"
               onClick={() => abrir(false, { antesDe: b.depois.id })}
+              fotos={[b.antes, b.depois].map((p) => ({ src: p.foto, rotulo: String(partes.indexOf(p) + 1), onVer: () => setVendo(p.id) }))}
             />
           ))}
-          {borradas.map(({ p, n }) => (
-            <Problema
-              key={`r${p.id}`}
-              titulo={`A ${nome(p)} tem ${n} ${n === 1 ? "linha borrada" : "linhas borradas"}`}
-              texto="Chegue mais perto ou divida essa metade em duas fotos."
-              botao={`📷 Tirar a ${nome(p)} de novo`}
-              onClick={() => abrir(false, { trocar: p.id })}
-            />
-          ))}
-          {!semTotal && !buracos.length && !borradas.length && (
-            <li className="rounded-[12px] bg-warn-soft p-3 text-[13px] leading-snug">
-              {lidos < qtd ? (
-                <>As fotos se encostaram e estão legíveis: o mais provável é uma <b>quantidade</b> lida errada (ex.: 6 pacotes como 1). Confira na próxima tela. Cupom muito grande? Tire <b>mais uma foto do meio</b>.</>
-              ) : (
-                <>Alguma quantidade foi lida a mais. Confira as quantidades na próxima tela.</>
-              )}
-              {lidos < qtd && ultimaOk && (
-                <button type="button" onClick={() => abrir(false, { antesDe: ultimaOk.id })} className="mt-2 h-10 w-full rounded-full border border-border bg-card text-[14px] font-bold">
-                  📷 Mais uma foto do meio
-                </button>
-              )}
-            </li>
-          )}
         </ul>
       )}
 
@@ -301,8 +335,10 @@ export function NotaEmPartes({
         <ul className="mt-4 flex gap-2 overflow-x-auto pb-1">
           {partes.map((p, i) => (
             <li key={p.id} className="relative w-[84px] shrink-0">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={p.foto} alt={`Foto ${i + 1}`} className="h-24 w-full rounded-[10px] border border-border object-cover" />
+              <button type="button" onClick={() => setVendo(p.id)} aria-label={`Ver a foto ${i + 1}`} className="block w-full">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={p.foto} alt={`Foto ${i + 1}`} className="h-24 w-full rounded-[10px] border border-border object-cover" />
+              </button>
               <span className="absolute left-1 top-1 rounded bg-black/70 px-1.5 text-[11px] font-bold text-white">{i + 1}</span>
               <div className="mt-1 text-center text-[11px] font-bold leading-tight">
                 {p.estado === "lendo" && (
@@ -346,7 +382,7 @@ export function NotaEmPartes({
             onClick={() => cupom && onPronto(cupom, totalConfere(cupom), okPartes.map((p) => p.foto))}
             className="h-[52px] rounded-full bg-brand text-[16px] font-extrabold text-brand-ink disabled:opacity-50"
           >
-            {lendo ? "Lendo as fotos…" : bate ? "Conferir itens" : "Conferir assim mesmo"}
+            {lendo ? "Lendo as fotos…" : "Conferir itens"}
           </button>
         )}
         <div className="flex gap-2">
@@ -371,11 +407,34 @@ export function NotaEmPartes({
   );
 }
 
-function Problema({ titulo, texto, botao, onClick }: { titulo: string; texto: string; botao: string; onClick: () => void }) {
+function Problema({
+  titulo,
+  texto,
+  botao,
+  onClick,
+  fotos = [],
+}: {
+  titulo: string;
+  texto: string;
+  botao: string;
+  onClick: () => void;
+  fotos?: { src: string; rotulo: string; onVer: () => void }[];
+}) {
   return (
     <li className="rounded-[14px] border-2 border-neg/40 bg-neg-soft p-3">
       <div className="text-[14px] font-extrabold leading-snug text-text">🔴 {titulo}</div>
       <div className="mt-0.5 text-[12px] leading-snug text-text-2">{texto}</div>
+      {fotos.length > 0 && (
+        <div className="mt-2 flex gap-2">
+          {fotos.map((f) => (
+            <button key={f.rotulo} type="button" onClick={f.onVer} className="relative h-20 w-16 overflow-hidden rounded-[8px] border border-border">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={f.src} alt={`Foto ${f.rotulo}`} className="h-full w-full object-cover" />
+              <span className="absolute left-0.5 top-0.5 rounded bg-black/70 px-1 text-[10px] font-bold text-white">{f.rotulo}</span>
+            </button>
+          ))}
+        </div>
+      )}
       <button type="button" onClick={onClick} className="mt-2 h-10 w-full rounded-full bg-brand text-[14px] font-extrabold text-brand-ink">
         {botao}
       </button>
