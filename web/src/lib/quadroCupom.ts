@@ -50,7 +50,9 @@ export function veredito(m: Medida, melhor: number): Veredito {
   if (m.brilho < 60) return "luz";
   if (m.brilho > 235) return "estourado";
   if (m.papel < 0.35) return "perto";
-  if (m.movimento > 12) return "firme";
+  // Celular na mao treme e o iPhone reajusta a exposicao o tempo todo: 12 travava em
+  // "segure firme" com o cupom perfeito na tela (print do dono). So movimento de verdade.
+  if (m.movimento > 30) return "firme";
   if (m.nitidez < Math.max(150, melhor * 0.6)) return "foco";
   return "bom";
 }

@@ -41,6 +41,8 @@ export function CameraCupom({
   const anteriorRef = useRef<Uint8ClampedArray | null>(null);
   const ultimaFotoRef = useRef(0);
   const bonsRef = useRef(0);
+  const okRef = useRef(0); // quadros com luz e cupom na moldura (mesmo tremendo um pouco)
+  const movsRef = useRef<number[]>([]);
 
   // liga a camera
   useEffect(() => {
@@ -90,15 +92,24 @@ export function CameraCupom({
       const px = ctx.getImageData(0, 0, ANALISE_W, h).data;
       const cinza = new Uint8ClampedArray(ANALISE_W * h);
       for (let i = 0; i < cinza.length; i++) cinza[i] = (px[i * 4] * 299 + px[i * 4 + 1] * 587 + px[i * 4 + 2] * 114) / 1000;
-      const m = medir(cinza, ANALISE_W, h, anteriorRef.current ?? undefined);
+      const bruto = medir(cinza, ANALISE_W, h, anteriorRef.current ?? undefined);
       anteriorRef.current = cinza;
-      if (m.papel >= 0.35 && m.movimento < 12) melhorRef.current = Math.max(melhorRef.current, m.nitidez);
+      // movimento pela media dos ultimos 3 quadros: um tranco isolado nao zera a contagem
+      movsRef.current = [...movsRef.current.slice(-2), bruto.movimento];
+      const m = { ...bruto, movimento: movsRef.current.reduce((a, b) => a + b, 0) / movsRef.current.length };
+      if (m.papel >= 0.35 && m.movimento < 30) melhorRef.current = Math.max(melhorRef.current, m.nitidez);
       const vd = veredito(m, melhorRef.current);
       setDica(vd);
       bonsRef.current = vd === "bom" ? bonsRef.current + 1 : 0;
+      okRef.current = vd === "bom" || vd === "firme" || vd === "foco" ? okRef.current + 1 : 0;
       setBons(bonsRef.current);
-      if (bonsRef.current >= 4 && Date.now() - ultimaFotoRef.current > 2500) tirar();
-    }, 250);
+      const desde = Date.now() - ultimaFotoRef.current;
+      // ~0,6 s de quadro bom, ou ~2 s com luz e cupom na moldura (plano B: nao travar)
+      if (desde > 2500 && (bonsRef.current >= 3 || okRef.current >= 10)) {
+        okRef.current = 0;
+        tirar();
+      }
+    }, 200);
     return () => clearInterval(t);
   }, [fim, tirar]);
 
@@ -146,7 +157,7 @@ export function CameraCupom({
               {DICA[dica]}
               {dica === "bom" && (
                 <span className="ml-1.5 inline-block h-2 w-10 overflow-hidden rounded-full bg-white/30 align-middle">
-                  <span className="block h-full bg-white transition-[width]" style={{ width: `${Math.min(100, (bons / 4) * 100)}%` }} />
+                  <span className="block h-full bg-white transition-[width]" style={{ width: `${Math.min(100, (bons / 3) * 100)}%` }} />
                 </span>
               )}
             </div>
